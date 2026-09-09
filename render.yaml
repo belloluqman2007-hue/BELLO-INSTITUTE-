@@ -1,0 +1,55 @@
+# ============================================================================
+# MULTI-MADRASA PLATFORM — NEW Render service definition
+# ----------------------------------------------------------------------------
+# This file describes a BRAND-NEW service. It does not reference, import, or
+# attach to any existing/old deployment. Provision it as a new service in a
+# new Render team/project and fill in the sync:false values with NEW values.
+# No live secrets are stored in this file.
+# ============================================================================
+services:
+  - type: web
+    name: multi-madrasa-platform
+    runtime: node
+    # Node 22 for the built-in sqlite driver (dev parity) + modern Express 5.
+    nodeVersion: "22"
+    plan: starter
+    # EU region = lowest latency to Nigeria; change freely.
+    region: frankfurt
+    # Do not auto-deploy main; deploy deliberately from this branch.
+    autoDeploy: false
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    # Uploads (logos/photos) live on the container's ephemeral disk.
+    # For persistent media on a free plan, keep uploads small or later add
+    # object storage. The database itself is the external MySQL (below).
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_DRIVER
+        value: mysql
+      # NEW database — create a fresh MySQL DB (see docs/DATABASE.md).
+      # Never paste the old production connection string here.
+      - key: DATABASE_URL
+        sync: false
+      # Auto-generated long secret for session signing + CSRF.
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SUPER_ADMIN_USERNAME
+        value: admin
+      # Set in dashboard; strong, unique, NEW.
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+      # New service URL (set after creation, or use Render's assigned URL).
+      - key: PUBLIC_URL
+        sync: false
+      - key: SESSION_MAX_AGE_HOURS
+        value: "12"
+      - key: LOGIN_RATE_LIMIT
+        value: "10"
+      - key: API_RATE_LIMIT
+        value: "300"
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: MAX_UPLOAD_MB
+        value: "5"

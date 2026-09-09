@@ -1,0 +1,31 @@
+{
+  "name": "multi-madrasa-platform",
+  "version": "1.0.0",
+  "description": "Multi-Madrasa Management SaaS Platform - multi-tenant school management for Madaris in Ijebu-Ode, Ogun State, Nigeria. Arabic + English, RTL, mobile-first.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning server/index.js",
+    "migrate": "node --disable-warning=ExperimentalWarning server/migrate.js",
+    "seed": "node --disable-warning=ExperimentalWarning server/seed.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.18.1",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.1",
+    "mysql2": "^3.14.0"
+  },
+  "devDependencies": {
+    "js-yaml": "^5.4.1"
+  }
+}

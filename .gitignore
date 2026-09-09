@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Secrets - NEVER commit real .env files
+.env
+.env.local
+.env.*.local
+
+# Databases (dev SQLite files live here)
+data/*.sqlite
+data/*.sqlite-journal
+data/*.sqlite-wal
+data/*.sqlite-shm
+*.db
+
+# Uploads (student photos, madrasa logos)
+uploads/
+
+# Logs
+*.log
+logs/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.dev-credentials.txt

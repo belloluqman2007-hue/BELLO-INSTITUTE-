@@ -219,8 +219,12 @@
       else location.hash = "#/login";
       return;
     }
-    if (!requireLogin()) return;
-    renderLayout(path);
+    // The login screen is the app's PUBLIC entry point: it must render for
+    // logged-out visitors too (otherwise a fresh visitor is stuck forever on
+    // the boot "Loading…" element — every route was behind requireLogin).
+    const isLoginRoute = path === "login";
+    if (!isLoginRoute && !requireLogin()) return;
+    if (!isLoginRoute) renderLayout(path);
     try {
       await handler(params);
     } catch (e) {
@@ -1920,12 +1924,22 @@
   /*  BOOT                                                                   */
   /* ====================================================================== */
   (async function boot() {
-    me = await refreshMe();
-    if (me && me.loggedIn) {
-      await loadMadrasaMeta();
-      if (!location.hash || location.hash === "#") location.hash = ROLE_HOME[me.role] || "#/login";
-      else routeTo(location.hash.replace(/^#\/?/, ""));
-    } else {
+    try {
+      me = await refreshMe();
+      if (me && me.loggedIn) {
+        await loadMadrasaMeta();
+        if (!location.hash || location.hash === "#") location.hash = ROLE_HOME[me.role] || "#/login";
+        else routeTo(location.hash.replace(/^#\/?/, ""));
+      } else {
+        if (!location.hash || !location.hash.startsWith("#/login")) location.hash = "#/login";
+        else routeTo("login");
+      }
+    } catch (err) {
+      // Never strand a visitor on the boot spinner: if /auth/me itself fails
+      // (API restarting, DB hiccup, etc.) fall back to the public login page,
+      // which surfaces real errors once they try to sign in.
+      console.error("Boot failed:", err);
+      me = null;
       if (!location.hash || !location.hash.startsWith("#/login")) location.hash = "#/login";
       else routeTo("login");
     }

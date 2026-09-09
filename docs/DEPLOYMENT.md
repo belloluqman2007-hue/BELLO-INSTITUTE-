@@ -39,6 +39,35 @@ contains **no live secrets** — secrets are generated or set in the dashboard.
 | `PUBLIC_URL` | you set / Render-assigned | new domain |
 | `LOGIN_RATE_LIMIT` / `API_RATE_LIMIT` | sensible defaults | |
 
+### Resetting the super-admin password
+
+`SUPER_ADMIN_PASSWORD` is only read **when the super-admin account is first
+created** (first boot of a fresh database, or `npm run seed`). Changing the
+env var afterwards — e.g. in Render → Environment — does **not** update the
+password already stored in the database, and seeding intentionally skips an
+existing super admin so a password the admin later changed in the app is
+never silently overwritten. That is the most common cause of
+"Invalid username or password" after "I already set the password in Render".
+
+To make the account match the value currently in the environment, run the
+explicit reset command against that database:
+
+- **Render:** open the service's **Shell** (or `render shell <service>`) and
+  run `npm run reset-admin-password`
+- **Anywhere:** `npm run reset-admin-password` with the env vars of the
+  target environment
+
+The command sets the super admin's password to the current
+`SUPER_ADMIN_PASSWORD` value (and creates the account if it does not exist
+yet). No restart is required — just log in again. Note the username is
+stored exactly as configured (default: `admin`, lowercase).
+
+You can check the account exists in your database with:
+
+```sql
+SELECT id, username, role FROM users WHERE role = 'super_admin';
+```
+
 ## Production validation (fail-fast)
 
 `server/config.js` refuses to boot in production if any of these are wrong,

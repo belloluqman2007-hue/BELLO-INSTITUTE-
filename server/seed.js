@@ -351,23 +351,32 @@ async function seedDemo() {
   console.log("  Demo logins (password for all demo users is shown in docs/README demo section)");
 }
 
-(async () => {
-  try {
-    await migrate();
-    const plans = await seedPlans();
-    if (plans) console.log(`Seeded ${plans} subscription plan(s).`);
-    await seedSuperAdmin();
-    if (process.argv.includes("--demo")) {
-      const existing = await db.get("SELECT COUNT(*) AS n FROM madaris");
-      if (existing && Number(existing.n) > 0) {
-        console.log("Demo madaris already exist — skipping demo data.");
-      } else {
-        await seedDemo();
-      }
+/**
+ * Full seed run: migrate + plans + super admin (+ demo data when requested).
+ * Used by the CLI below; the server entry point only needs seedPlans() and
+ * seedSuperAdmin() (both idempotent) to bootstrap a fresh database on boot.
+ */
+async function runSeed({ demo = false } = {}) {
+  await migrate();
+  const plans = await seedPlans();
+  if (plans) console.log(`Seeded ${plans} subscription plan(s).`);
+  await seedSuperAdmin();
+  if (demo) {
+    const existing = await db.get("SELECT COUNT(*) AS n FROM madaris");
+    if (existing && Number(existing.n) > 0) {
+      console.log("Demo madaris already exist — skipping demo data.");
+    } else {
+      await seedDemo();
     }
-    await db.close();
-  } catch (err) {
+  }
+  await db.close();
+}
+
+module.exports = { seedPlans, seedSuperAdmin, seedDemo, runSeed };
+
+if (require.main === module) {
+  runSeed({ demo: process.argv.includes("--demo") }).catch((err) => {
     console.error("Seed failed:", err);
     process.exit(1);
-  }
-})();
+  });
+}

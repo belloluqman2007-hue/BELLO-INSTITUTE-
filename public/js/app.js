@@ -520,13 +520,29 @@
 
   function madrasaForm(existing) {
     const m = existing || {};
-    const plans = (window.__plans || []);
+    let plans = window.__plans || [];
+    // The plans list is only cached by the Plans page (platform/plans). If the
+    // super admin lands here first, the dropdown would be EMPTY and the save
+    // would fail with "Unknown plan." — so load the plans on demand.
+    if (!plans.length) {
+      API.get("/platform/plans").then((d) => {
+        window.__plans = d.plans || [];
+        madrasaForm(existing);
+      }).catch((e) => toast(errMsg(e), "err"));
+      return;
+    }
+    if (existing) {
+      // Keep the madrasa's current plan selectable even when deactivated.
+      plans = plans.filter((p) => p.is_active || Number(p.id) === Number(existing.plan_id));
+    } else {
+      plans = plans.filter((p) => p.is_active);
+    }
     openModal(`
       <h2>${esc(existing ? t("common.edit") : t("platform.add"))}</h2>
-      <label data-i18n="platform.slug">${esc(t("platform.slug"))}</label>
-      <input id="fSlug" value="${esc(m.slug || "")}" ${existing ? "disabled" : ""}>
-      <label data-i18n="common.nameEn">${esc(t("common.nameEn"))}</label>
-      <input id="fNameEn" value="${esc(m.name_en || "")}">
+      <label data-i18n="platform.slug">${esc(t("platform.slug"))} *</label>
+      <input id="fSlug" value="${esc(m.slug || "")}" ${existing ? "disabled" : ""} required>
+      <label data-i18n="common.nameEn">${esc(t("common.nameEn"))} *</label>
+      <input id="fNameEn" value="${esc(m.name_en || "")}" required>
       <label data-i18n="common.nameAr">${esc(t("common.nameAr"))}</label>
       <input id="fNameAr" dir="rtl" value="${esc(m.name_ar || "")}">
       <div class="row">
@@ -535,15 +551,15 @@
       </div>
       <label data-i18n="common.phone">${esc(t("common.phone"))}</label>
       <input id="fPhone" value="${esc(m.phone || "")}">
-      <label data-i18n="platform.plan">${esc(t("platform.plan"))}</label>
+      <label data-i18n="platform.plan">${esc(t("platform.plan"))} *</label>
       <select id="fPlan">${plans.map((p) => `<option value="${p.id}" ${Number(m.plan_id) === p.id ? "selected" : ""}>${esc(p.name)} (${esc(p.code)})</option>`).join("")}</select>
       ${existing ? "" : `
       <hr class="divider">
-      <h3>${esc(t("platform.adminAccount"))}</h3>
-      <label data-i18n="teachers.username">${esc(t("teachers.username"))}</label>
-      <input id="fAdminUser">
-      <label data-i18n="auth.password">${esc(t("auth.password"))}</label>
-      <input id="fAdminPass" type="password">
+      <h3>${esc(t("platform.adminAccount"))} *</h3>
+      <label data-i18n="teachers.username">${esc(t("teachers.username"))} *</label>
+      <input id="fAdminUser" required>
+      <label data-i18n="auth.password">${esc(t("auth.password"))} * <span class="muted small">(min 8)</span></label>
+      <input id="fAdminPass" type="password" minlength="8" required>
       <label>${esc(t("common.name"))}</label>
       <input id="fAdminName">`
       }
@@ -554,25 +570,39 @@
       async (modal) => {
         $$("[data-close]", modal).forEach((b) => b.addEventListener("click", closeAllModals));
         $("#fSave", modal).addEventListener("click", async () => {
+          const slug = $("#fSlug", modal).value.trim();
+          const nameEn = $("#fNameEn", modal).value.trim();
+          const planId = Number($("#fPlan", modal).value) || 0;
+          if (!slug || !nameEn) { toast(`${t("platform.slug")} / ${t("common.nameEn")} — ${t("common.required")}`, "err"); return; }
+          if (!planId) { toast(`${t("platform.plan")} — ${t("common.required")}`, "err"); return; }
           const body = {
-            slug: $("#fSlug", modal).value.trim(),
-            name_en: $("#fNameEn", modal).value.trim(),
+            slug,
+            name_en: nameEn,
             name_ar: $("#fNameAr", modal).value.trim(),
             city: $("#fCity", modal).value.trim(),
             state_name: $("#fState", modal).value.trim(),
             phone: $("#fPhone", modal).value.trim(),
-            plan_id: Number($("#fPlan", modal).value),
+            plan_id: planId,
           };
           try {
             if (existing) {
               await API.patch(`/platform/madaris/${existing.id}`, body);
               toast(t("common.save") + " ✓", "ok");
             } else {
-              body.admin_username = $("#fAdminUser", modal).value.trim();
-              body.admin_password = $("#fAdminPass", modal).value;
+              const adminUser = $("#fAdminUser", modal).value.trim();
+              const adminPass = $("#fAdminPass", modal).value;
+              if (!adminUser || adminPass.length < 8) { toast(t("platform.adminRequired"), "err"); return; }
+              body.admin_username = adminUser;
+              body.admin_password = adminPass;
               body.admin_full_name = $("#fAdminName", modal).value.trim();
-              await API.post("/platform/madaris", body);
-              toast(t("platform.created"), "ok");
+              const d = await API.post("/platform/madaris", body);
+              // Tell the user plainly when the madrasa was saved but the admin
+              // account was not, instead of a silent success.
+              if (d.adminCreated) toast(t("platform.created"), "ok");
+              else toast(`${t("platform.created")} — ${t("platform.adminMissing")}`, "warn");
+              closeAllModals();
+              routeTo(d.id ? "platform/madaris/" + d.id : "platform/madaris");
+              return;
             }
             closeAllModals();
             routeTo("platform/madaris");

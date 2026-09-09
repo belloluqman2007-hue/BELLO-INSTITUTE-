@@ -319,6 +319,8 @@
       "platform.price": "Price (₦/year)",
       "platform.features": "Features",
       "platform.created": "Madrasa created",
+      "platform.adminRequired": "Admin username and a password of at least 8 characters are required.",
+      "platform.adminMissing": "Saved, but no admin account was created — set one up on the madrasa page.",
       "platform.planUpdated": "Plan updated",
 
       "portal.myResults": "My Results",
@@ -647,6 +649,8 @@
       "platform.price": "السعر (₦/سنة)",
       "platform.features": "الميزات",
       "platform.created": "تم إنشاء المدرسة",
+      "platform.adminRequired": "اسم مستخدم المدير وكلمة مرور من 8 أحرف على الأقل مطلوبان.",
+      "platform.adminMissing": "تم الحفظ، لكن لم يُنشأ حساب المدير — أنشئه من صفحة المدرسة.",
       "platform.planUpdated": "تم تحديث الخطة",
 
       "portal.myResults": "نتائجي",

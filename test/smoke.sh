@@ -87,7 +87,29 @@ if [ "$STTERM" != "0" ]; then
 else
   echo "  FAIL: no student term summary"; fail=$((fail+1)); fi
 
-echo "== 8. Security checks =="
+echo "== 8. Analytics dashboards =="
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "d['madrasaId']" | grep -q 1; chk "tenant analytics scoped to caller" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "d['analytics']['totals']['students']" | grep -q 4; chk "tenant analytics counts 4 students" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "d['analytics']['attendance']['marked'] > 0"; chk "attendance window has marks" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "d['analytics']['attendance']['rate'] > 0"; chk "attendance rate computed" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "d['analytics']['fees']['collected'] > 0"; chk "fee collections reported" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "len(d['analytics']['enrolment']['trend'])" | grep -q 12; chk "12-month enrolment series" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "len(d['analytics']['results']['gradeDistribution']) > 0"; chk "grade distribution present" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics" | JQ "isinstance(d['analytics']['watchList'], list)"; chk "watch list returned" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics?months=24&attendanceDays=60" | JQ "d['analytics']['window']['months']" | grep -q 24; chk "range params honoured" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics?months=9999" | JQ "d['analytics']['window']['months']" | grep -q 36; chk "range clamped to 36 months" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/analytics?madrasaId=2" | JQ "d['madrasaId']" | grep -q 1; chk "client madrasaId ignored" $?
+curl -s -b /tmp/sa.txt "$B/platform/analytics" | JQ "d['analytics']['totals']['madaris']" | grep -q 2; chk "platform analytics sees all tenants" $?
+curl -s -b /tmp/sa.txt "$B/madrasa/analytics?madrasaId=2" | JQ "d['madrasaId']" | grep -q 2; chk "super admin can inspect another madrasa" $?
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/sa.txt $B/madrasa/analytics)
+[ "$CODE" = "400" ]; chk "super admin must name a madrasa (got $CODE)" $?
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/ma.txt $B/platform/analytics)
+[ "$CODE" = "403" ]; chk "madrasa admin blocked from platform analytics (got $CODE)" $?
+login /tmp/te.txt "demo-quraniyya-ust1" "Demo1234!"
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/te.txt $B/madrasa/analytics)
+[ "$CODE" = "403" ]; chk "teacher blocked from tenant analytics (got $CODE)" $?
+
+echo "== 9. Security checks =="
 CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/ma.txt -X POST -H "Content-Type: application/json" -d '{}' $B/announcements)
 [ "$CODE" = "403" ]; chk "CSRF enforced (no token -> 403, got $CODE)" $?
 login /tmp/sq.txt "admin' OR '1'='1" "x"

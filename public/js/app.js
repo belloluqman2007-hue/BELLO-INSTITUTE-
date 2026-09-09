@@ -1,13 +1,17 @@
 "use strict";
 /* ============================================================================
-   MULTI-MADRASA PLATFORM — SPA
+   MULTI-MADRASA PLATFORM — SPA (Redesigned)
    Mobile-first, bilingual (EN/AR), role-aware routing:
      super_admin → /platform/*
      madrasa_admin → /home /students /teachers /classes /subjects /sessions
                      /results /attendance /fees /announcements /grading /settings
-     teacher → /home /teach /results /attendance /announcements
+     teacher → /home /results /attendance /announcements
      student → /home /results /announcements
      parent → /home /child/:id /announcements
+   Design spec: tokens, header/sidebar drawer, login split, zone dashboards,
+   summary strips, striped tables, modal header ×, toasts bottom-center, etc.
+   DO NOT change: API calls, routing engine, i18n, navItems return values,
+   auth/session, RTL logic.
    ========================================================================== */
 (function () {
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -20,13 +24,25 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   let toastTimer = null;
+  // bottom-center toast with manual dismiss
+  function ensureToastBox(){
+    let b = document.getElementById("toastBox");
+    if(!b){ b=document.createElement("div"); b.id="toastBox"; document.body.appendChild(b); }
+    return b;
+  }
   function toast(msg, type) {
+    const box = ensureToastBox();
     const el = document.createElement("div");
     el.className = "toast" + (type ? " " + type : "");
-    el.textContent = msg;
-    document.body.appendChild(el);
+    el.innerHTML = `<span>${esc(msg)}</span><button class="toast-x" aria-label="Close">✕</button>`;
+    const btn = el.querySelector(".toast-x");
+    btn.addEventListener("click", () => { el.style.animation="toastout .18s forwards"; setTimeout(()=>el.remove(),180); });
+    box.appendChild(el);
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.remove(), 3200);
+    toastTimer = setTimeout(() => {
+      el.style.animation="toastout .18s forwards";
+      setTimeout(()=>el.remove(),180);
+    }, 3000);
   }
   function errMsg(e) {
     const m = (e && e.data && e.data.message) || (e && e.data && e.data.error) || (e && e.message) || t("activity.error");
@@ -43,17 +59,51 @@
     const [cls, lbl] = map[status] || ["muted", esc(status || t("common.none"))];
     return `<span class="pill ${cls}">${esc(status ? lbl : t("common.none"))}</span>`;
   }
+  function emptyState(icon, title, desc, ctaHtml){
+    return `<div class="empty"><div class="empty-illust">${icon}</div><div style="font-weight:700;margin-bottom:4px">${esc(title)}</div><div class="small muted" style="margin-bottom:12px">${esc(desc||"")}</div>${ctaHtml||""}</div>`;
+  }
   function openModal(html, onMount) {
     closeAllModals();
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop";
-    backdrop.innerHTML = `<div class="modal">${html}</div>`;
+    // Detect if html already contains modal-head; if not, auto-wrap first h2 into header
+    let inner = html.trim();
+    const hasHead = /class=["']modal-head["']/.test(inner);
+    if(!hasHead){
+      // extract first <h2>...</h2> as title
+      const m = inner.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+      if(m){
+        const title = m[1];
+        inner = inner.replace(m[0], "");
+        inner = `<div class="modal-head"><h2>${title}</h2><button class="modal-close" aria-label="Close" data-close-x>✕</button></div><div class="modal-body">${inner}</div>`;
+      } else {
+        inner = `<div class="modal-head"><h2>${esc(t("common.actions"))}</h2><button class="modal-close" aria-label="Close" data-close-x>✕</button></div><div class="modal-body">${inner}</div>`;
+      }
+    } else {
+      // ensure close button exists
+      if(!/data-close-x/.test(inner)){
+        inner = inner.replace(/(<div class="modal-head"[^>]*>)/, `$1<button class="modal-close" aria-label="Close" data-close-x>✕</button>`);
+      }
+      // if body not wrapped, ensure
+      if(!/modal-body/.test(inner)){
+        inner = inner.replace(/<\/div>\s*$/, `</div>`);
+      }
+    }
+    backdrop.innerHTML = `<div class="modal">${inner}</div>`;
     backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
     document.body.appendChild(backdrop);
+    const closeX = backdrop.querySelector("[data-close-x]");
+    if(closeX) closeX.addEventListener("click", ()=>backdrop.remove());
     if (onMount) onMount(backdrop);
   }
   function closeAllModals() { $$(".modal-backdrop").forEach((m) => m.remove()); }
   function today() { return new Date().toISOString().slice(0, 10); }
+  function greeting(){
+    const h = new Date().getHours();
+    if(h < 12) return "Good morning";
+    if(h < 18) return "Good afternoon";
+    return "Good evening";
+  }
 
   /* ------------------------------ auth state ---------------------------- */
   let me = null;
@@ -144,35 +194,103 @@
     ];
   }
 
+  function roleBadge(role){
+    const map={ super_admin:"Super Admin", madrasa_admin:"Admin", teacher:"Teacher", student:"Student", parent:"Parent" };
+    return map[role] || role;
+  }
+
+  function sidebarGroupedHtml(role, items, current){
+    // Build grouped sidebar for madrasa_admin & super_admin, flat for others
+    const link = (i)=> `<a href="#/${i.key}" class="${current===i.key || current.startsWith(i.key+'/') || (i.key==='platform' && current==='platform' ? 'active' : current.startsWith(i.key) ? 'active':'')}">${i.icon} ${esc(i.label)}</a>`;
+    // helper to check active precisely
+    const isActive = (k)=> current===k || current.startsWith(k+"/") || (k==="platform" && current==="platform");
+    const aTag = (i)=> `<a href="#/${i.key}" class="${isActive(i.key)?"active":""}">${i.icon} ${esc(i.label)}</a>`;
+    if(role==="super_admin"){
+      const dash = items.find(x=>x.key==="platform");
+      const madaris = items.find(x=>x.key==="platform/madaris");
+      const plans = items.find(x=>x.key==="platform/plans");
+      const act = items.find(x=>x.key==="platform/activity");
+      return `
+        ${dash ? aTag(dash) : ""}
+        <div class="sidebar-label">Management</div>
+        ${madaris ? aTag(madaris):""}
+        ${plans ? aTag(plans):""}
+        <div class="sidebar-label">Monitoring</div>
+        ${act ? aTag(act):""}
+      `;
+    }
+    if(role==="madrasa_admin"){
+      const byKey = Object.fromEntries(items.map(x=>[x.key,x]));
+      return `
+        ${byKey["home"]?aTag(byKey["home"]):""}
+        <div class="sidebar-label">People</div>
+        ${byKey["students"]?aTag(byKey["students"]):""}
+        ${byKey["teachers"]?aTag(byKey["teachers"]):""}
+        <div class="sidebar-label">Academics</div>
+        ${byKey["classes"]?aTag(byKey["classes"]):""}
+        ${byKey["subjects"]?aTag(byKey["subjects"]):""}
+        ${byKey["sessions"]?aTag(byKey["sessions"]):""}
+        ${byKey["results"]?aTag(byKey["results"]):""}
+        ${byKey["attendance"]?aTag(byKey["attendance"]):""}
+        <div class="sidebar-label">Finance</div>
+        ${byKey["fees"]?aTag(byKey["fees"]):""}
+        <div class="sidebar-label">Communication</div>
+        ${byKey["announcements"]?aTag(byKey["announcements"]):""}
+        <div class="sidebar-label">Reports</div>
+        ${byKey["analytics"]?aTag(byKey["analytics"]):""}
+        <div class="sidebar-label">Configuration</div>
+        ${byKey["grading"]?aTag(byKey["grading"]):""}
+        ${byKey["settings"]?aTag(byKey["settings"]):""}
+      `;
+    }
+    // teacher, student, parent flat
+    return items.map(aTag).join("");
+  }
+
   function renderLayout(route) {
     const m = madrasaMeta();
     const name = me.user ? me.user.fullName || me.user.username : "";
     const items = navItems(me.role);
     const current = route || location.hash.replace(/^#\/?/, "");
-    const navLinks = items
-      .filter((i) => current.startsWith(i.key))
-      .map((i) => `<a href="#/${i.key}" class="${current.startsWith(i.key) ? "active" : ""}">${i.icon} ${esc(i.label)}</a>`)
-      .join("");
-    const sidebar = items
-      .map((i) => `<a href="#/${i.key}" class="${current.startsWith(i.key) ? "active" : ""}">${i.icon} ${esc(i.label)}</a>`)
-      .join("");
+    const sidebarHtml = sidebarGroupedHtml(me.role, items, current);
     const madrasaName = m.name_ar && window.I18N.lang === "ar" ? m.name_ar : m.name_en;
+    const displayName = madrasaName || t("app.name");
+    const roleLbl = roleBadge(me.role);
 
     document.body.innerHTML = `
       <div class="layout">
         <header class="appbar">
+          <button class="iconbtn hamburger" id="hamburger" aria-label="Menu">☰</button>
           <div class="brand">
-            ${m.logo_path ? `<img class="logo" src="${esc(m.logo_path)}" alt="">` : "🕌"}
-            <span>${esc(madrasaName || t("app.name"))}</span>
+            ${m.logo_path ? `<img class="logo" src="${esc(m.logo_path)}" alt="">` : `<span class="logo-fallback">🕌</span>`}
+            <span>${esc(displayName)}</span>
           </div>
           <div class="spacer"></div>
+          <span class="role-badge">${esc(roleLbl)}</span>
+          <span class="user-name">${esc(name)}</span>
           <button class="iconbtn" id="langBtn" title="Language">${window.I18N.lang === "ar" ? "EN" : "ع"}</button>
-          <button class="iconbtn" id="logoutBtn" title="${esc(t("auth.logout"))}"></button>
+          <button class="iconbtn" id="logoutBtn" title="${esc(t("auth.logout"))}">⎋</button>
         </header>
-        <nav class="nav">${navLinks}</nav>
-        <aside class="sidebar">${sidebar}</aside>
+        <div class="drawer-backdrop" id="drawerBackdrop"></div>
+        <aside class="sidebar" id="sidebar">
+          <button class="drawer-close" id="drawerClose" aria-label="Close">✕</button>
+          ${sidebarHtml}
+        </aside>
         <main class="main" id="view"><div class="empty">${esc(t("common.loading"))}</div></main>
       </div>`;
+    // drawer logic
+    const sidebarEl = document.getElementById("sidebar");
+    const backdrop = document.getElementById("drawerBackdrop");
+    const ham = document.getElementById("hamburger");
+    const closeBtn = document.getElementById("drawerClose");
+    function openDrawer(){ sidebarEl.classList.add("open"); backdrop.classList.add("open"); document.body.style.overflow="hidden"; }
+    function closeDrawer(){ sidebarEl.classList.remove("open"); backdrop.classList.remove("open"); document.body.style.overflow=""; }
+    ham.addEventListener("click", openDrawer);
+    closeBtn.addEventListener("click", closeDrawer);
+    backdrop.addEventListener("click", closeDrawer);
+    // close drawer on nav click (mobile)
+    sidebarEl.querySelectorAll("a").forEach(a=>a.addEventListener("click", closeDrawer));
+    // language & logout
     $("#langBtn").addEventListener("click", () => {
       const next = window.I18N.lang === "ar" ? "en" : "ar";
       window.I18N.setLang(next);
@@ -243,26 +361,49 @@
     if (me && me.loggedIn) { location.hash = ROLE_HOME[me.role]; return; }
     document.body.innerHTML = `
       <div class="login-wrap">
-        <div class="login-card">
-          <h1>🕌 ${esc(t("app.name"))}</h1>
-          <div class="sub">${esc(t("app.tagline"))}</div>
-          <div id="loginMsg"></div>
-          <form id="loginForm">
-            <label data-i18n="auth.username">${esc(t("auth.username"))}</label>
-            <input id="loginUser" autocomplete="username" required>
-            <label data-i18n="auth.password">${esc(t("auth.password"))}</label>
-            <input id="loginPass" type="password" autocomplete="current-password" required>
-            <div class="form-actions">
-              <button class="btn" id="loginBtn" style="flex:1" type="submit">${esc(t("auth.loginBtn"))}</button>
-              <button class="btn secondary" type="button" id="loginLang">${window.I18N.lang === "ar" ? "English" : "العربية"}</button>
+        <div class="login-split">
+          <div class="login-left">
+            <div class="login-left-inner">
+              <span class="mosque">🕌</span>
+              <h1>Bello Institute</h1>
+              <p class="tagline">Nurturing knowledge, faith and excellence across all your madaris — one platform.</p>
+              <div class="pattern-note">منصة إدارة المدارس • Multi-Madrasa SaaS</div>
             </div>
-          </form>
+          </div>
+          <div class="login-right">
+            <div class="login-card">
+              <h1>${esc(t("auth.login"))} • Welcome back</h1>
+              <div class="sub">Sign in to your account</div>
+              <div id="loginMsg"></div>
+              <form id="loginForm">
+                <label for="loginUser">${esc(t("auth.username"))}</label>
+                <input id="loginUser" autocomplete="username" required placeholder="username">
+                <label for="loginPass">${esc(t("auth.password"))}</label>
+                <div class="password-wrap">
+                  <input id="loginPass" type="password" autocomplete="current-password" required placeholder="••••••••">
+                  <button type="button" class="eye-btn" id="eyeBtn" aria-label="Show password">👁</button>
+                </div>
+                <div class="form-actions">
+                  <button class="btn" id="loginBtn" style="flex:1" type="submit">${esc(t("auth.loginBtn"))}</button>
+                </div>
+                <a href="#" class="lang-link" id="loginLang">${window.I18N.lang === "ar" ? "English" : "العربية"}</a>
+              </form>
+            </div>
+          </div>
         </div>
       </div>`;
     window.I18N.applyStatic(document.body);
-    $("#loginLang").addEventListener("click", () => {
+    $("#loginLang").addEventListener("click", (e) => {
+      e.preventDefault();
       window.I18N.setLang(window.I18N.lang === "ar" ? "en" : "ar");
       routeTo("login");
+    });
+    const eye = $("#eyeBtn");
+    const passInput = $("#loginPass");
+    eye.addEventListener("click", ()=>{
+      const isText = passInput.type==="text";
+      passInput.type = isText ? "password" : "text";
+      eye.textContent = isText ? "👁" : "🙈";
     });
     $("#loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -301,14 +442,22 @@
   function monthsLabel(n) { return t("an.months" + n) !== "an.months" + n ? t("an.months" + n) : n + "m"; }
   function daysLabel(n) { return t("an.days" + n) !== "an.days" + n ? t("an.days" + n) : n + "d"; }
 
-  function kpi(value, label, sub, tone) {
-    return `<div class="kpi ${tone || ""}"><div class="k-num">${esc(value)}</div>` +
+  function kpi(value, label, sub, tone, icon, trend) {
+    const iconHtml = icon ? `<div class="k-icon">${icon}</div>` : "";
+    const trendHtml = trend ? `<span class="k-trend ${trend.startsWith("↑")?"trend-up":trend.startsWith("↓")?"trend-down":""}">${esc(trend)}</span>` : "";
+    return `<div class="kpi ${tone || ""}"><div class="k-icon" style="${icon?'':'display:none'}">${icon||""}</div>` +
+      `<div class="k-body"><div class="k-num">${esc(value)}</div>` +
       `<div class="k-lbl">${esc(label)}</div>` +
-      (sub ? `<div class="k-sub">${esc(sub)}</div>` : "") + `</div>`;
+      (sub ? `<div class="k-sub">${esc(sub)}</div>` : "") + `</div>${trendHtml}</div>`;
+  }
+  function heroKpi(value, label, sub, tone, icon, trend){
+    // hero row: larger icon left
+    const tr = trend ? `<span class="k-trend ${trend.includes("↑")?"trend-up":"trend-down"}">${esc(trend)}</span>` : "";
+    return `<div class="kpi hero ${tone||""}"><div class="k-icon">${icon||"📊"}</div><div class="k-body"><div class="k-num">${esc(value)} ${tr}</div><div class="k-lbl">${esc(label)}</div>${sub?`<div class="k-sub">${esc(sub)}</div>`:""}</div></div>`;
   }
 
-  function chartCard(title, note, body) {
-    return `<div class="card chart-card"><div class="chart-head">` +
+  function chartCard(title, note, body, accentTop) {
+    return `<div class="card chart-card ${accentTop?"accent-top":""}"><div class="chart-head">` +
       `<span class="ch-title">${esc(title)}</span>` +
       (note ? `<span class="ch-note">${esc(note)}</span>` : "") +
       `</div>${body}</div>`;
@@ -318,11 +467,11 @@
     const c = C();
     const feeTone = a.fees.collectionRate >= 80 ? "ok" : a.fees.collectionRate >= 50 ? "warn" : "danger";
     return `<div class="kpis">` +
-      kpi(a.totals.students, t("an.students"), `${a.totals.classes} ${t("an.classes")} · ${a.totals.teachers} ${t("an.teachers")}`) +
-      kpi(a.attendance.rate + "%", t("an.attendanceRate"), `${a.attendance.marked} ${t("an.marked")}`, "accent") +
-      kpi(c.money(a.fees.collected), t("an.collected"), `${t("an.outstanding")} ${c.money(a.fees.outstanding)}`, feeTone) +
+      kpi(a.totals.students, t("an.students"), `${a.totals.classes} ${t("an.classes")} · ${a.totals.teachers} ${t("an.teachers")}`, "", "🎓") +
+      kpi(a.attendance.rate + "%", t("an.attendanceRate"), `${a.attendance.marked} ${t("an.marked")}`, "accent", "✅") +
+      kpi(c.money(a.fees.collected), t("an.collected"), `${t("an.outstanding")} ${c.money(a.fees.outstanding)}`, feeTone, "💰") +
       kpi(a.results.average == null ? "—" : a.results.average + "%", t("an.average"),
-        a.results.summaries ? `${a.results.passRate}% ${t("an.passRate")}` : t("an.noData"), "ok") +
+        a.results.summaries ? `${a.results.passRate}% ${t("an.passRate")}` : t("an.noData"), "ok", "📈") +
       `</div>`;
   }
 
@@ -446,76 +595,106 @@
       render(`
         <h1>${esc(t("platform.title"))}</h1>
         <div class="kpis">
-          ${kpi(st.madaris, t("pf.madaris"), `${st.activeMadaris} ${t("common.active")}`)}
-          ${kpi(st.students, t("pf.students"))}
-          ${kpi(st.teachers, t("an.teachers"), "", "accent")}
-          ${kpi(st.parents, t("an.parents"))}
+          ${heroKpi(st.madaris, t("pf.madaris"), `${st.activeMadaris} ${t("common.active")}`, "", "🏫")}
+          ${heroKpi(st.students, t("pf.students"), "", "accent", "🎓")}
+          ${heroKpi(st.teachers, t("an.teachers"), "", "", "👨‍🏫")}
+          ${heroKpi(st.parents, t("an.parents"), "", "", "👨‍👩‍👧")}
         </div>`);
       return;
     }
 
     const a = an.analytics;
+    // hero KPIs with trends if available
+    const trendM = a.madrasaTrend && a.madrasaTrend.length>=2 ? (()=>{ const v=a.madrasaTrend; const last=v[v.length-1].value, prev=v[v.length-2].value; if(last>prev) return "↑ "+Math.round(((last-prev)/Math.max(1,prev))*100)+"%"; if(last<prev) return "↓ "+Math.round(((prev-last)/Math.max(1,prev))*100)+"%"; return ""; })() : "";
+    const trendS = a.studentTrend && a.studentTrend.length>=2 ? (()=>{ const v=a.studentTrend; const last=v[v.length-1].value, prev=v[v.length-2].value; if(last>prev) return "↑ "+Math.round(((last-prev)/Math.max(1,prev))*100)+"%"; if(last<prev) return "↓ "; return ""; })() : "";
     render(`
       <h1>${esc(t("platform.title"))}</h1>
       <div class="kpis">
-        ${kpi(a.totals.madaris, t("pf.madaris"), `${a.totals.activeMadaris} ${t("common.active")}`)}
-        ${kpi(a.totals.students, t("pf.students"), `+${a.totals.newStudents30d} · ${t("pf.newStudents30d")}`, "accent")}
-        ${kpi(a.totals.users, t("pf.users"), `${a.totals.teachers} ${t("an.teachers")} · ${a.totals.parents} ${t("an.parents")}`)}
-        ${kpi(c.money(a.totals.feesCollected), t("pf.feesCollected"), "", "ok")}
+        ${heroKpi(a.totals.madaris, "Total Madaris", `${a.totals.activeMadaris} ${t("common.active")}`, "", "🏫", trendM)}
+        ${heroKpi(a.totals.activeMadaris, "Active Madaris", "", "ok", "✅")}
+        ${heroKpi(a.totals.students, "Total Students", `+${a.totals.newStudents30d} ${t("pf.newStudents30d")}`, "accent", "🎓", trendS)}
+        ${heroKpi(c.money(a.totals.feesCollected), t("pf.feesCollected"), "", "ok", "💰")}
       </div>
       <div class="grid cols-2">
-        ${chartCard(t("pf.madrasaTrend"), monthsLabel(12), c.bar(a.madrasaTrend, { format: c.int, emptyText: noData }))}
-        ${chartCard(t("pf.studentTrend"), monthsLabel(12), c.bar(a.studentTrend, { format: c.int, tone: "accent", emptyText: noData }))}
+        ${chartCard("🏫 Growth by Month", monthsLabel(12), c.bar(a.madrasaTrend, { format: c.int, emptyText: noData }), true)}
+        ${chartCard("🎓 Students by Month", monthsLabel(12), c.bar(a.studentTrend, { format: c.int, tone: "accent", emptyText: noData }), true)}
       </div>
-      <div class="grid cols-2">
-        ${chartCard(t("pf.feeTrend"), monthsLabel(12), c.bar(a.feeTrend, { format: c.money, emptyText: noData }))}
-        ${chartCard(t("pf.activityTrend"), "", c.line(a.activity.daily, { format: c.int, emptyText: noData }))}
-      </div>
-      <div class="grid cols-2">
-        ${chartCard(t("pf.byPlan"), "", c.donut(a.byPlan.map((x) => ({ label: x.label, value: x.madaris })), { format: c.int, centerLabel: t("pf.madaris"), emptyText: noData }))}
-        ${chartCard(t("pf.topMadaris"), "", c.hbar(a.topMadaris.map((m) => ({ label: nm(m), value: m.students, sub: m.slug })), { format: c.int, emptyText: noData }))}
+      <div class="triple-row">
+        <div class="card">
+          <div class="card-title">📋 Recent Madaris</div>
+          ${a.recentMadaris.slice(0,5).map((m) => `<a class="reportlink" href="#/platform/madaris/${m.id}"><div style="flex:1"><b>${esc(nm(m))}</b> <span class="mono muted small">${esc(m.slug)}</span><div class="muted small">${esc(m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "")}</div></div><span class="pill ${m.status === "active" ? "ok" : "bad"}">${esc(m.status)}</span> <span class="pill gold" style="margin-inline-start:6px">${esc((m.plan_code||m.plan||""))}</span></a>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+        </div>
+        <div class="card">
+          <div class="card-title">⚡ Top Actions</div>
+          ${c.hbar(a.activity.topActions, { format: c.int, emptyText: noData })}
+        </div>
+        <div class="card">
+          <div class="card-title">🕘 Recent Activity</div>
+          ${st.recentActivity.slice(0,5).map((x) => `<div class="reportlink" style="padding:8px 10px"><div style="flex:1;min-width:0"><div class="small"><b>${esc(x.username||"—")}</b> <span class="muted">· ${esc(x.action)}</span></div><div class="muted small">${esc(x.madrasa_slug||"—")} · ${esc(new Date(x.created_at).toLocaleString())}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+        </div>
       </div>
       <h2>${esc(t("platform.plans"))}</h2>
       <div class="card"><div class="tablewrap"><table>
         <tr><th>${esc(t("platform.plan"))}</th><th>${esc(t("pf.madaris"))}</th><th>${esc(t("pf.students"))}</th></tr>
         ${a.byPlan.map((x) => `<tr><td><b>${esc(x.label)}</b> <span class="mono muted small">${esc(x.code)}</span></td><td>${x.madaris}</td><td>${x.students}</td></tr>`).join("")}
-      </table></div></div>
-      <h2>${esc(t("pf.topActions"))}</h2>
-      <div class="card">${c.hbar(a.activity.topActions, { format: c.int, emptyText: noData })}</div>
-      <h2>${esc(t("pf.recentMadaris"))}</h2>
-      <div class="card">
-        ${a.recentMadaris.map((m) => `<a class="reportlink" href="#/platform/madaris/${m.id}"><div><b>${esc(nm(m))}</b> <span class="mono muted small">${esc(m.slug)}</span><div class="muted small">${esc(m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "")}</div></div><span class="pill ${m.status === "active" ? "ok" : "bad"}">${esc(m.status)}</span></a>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
-      </div>
-      <h2>${esc(t("dash.recentActivity"))}</h2>
-      <div class="card"><div class="tablewrap"><table>
-        <tr><th>Time</th><th>Madrasa</th><th>User</th><th>Action</th></tr>
-        ${st.recentActivity.map((x) => `<tr>
-          <td class="muted">${esc(new Date(x.created_at).toLocaleString())}</td>
-          <td>${esc(x.madrasa_slug || "—")}</td>
-          <td>${esc(x.username || "—")}</td>
-          <td>${esc(x.action)}</td>
-        </tr>`).join("") || `<tr><td colspan="4" class="empty">${esc(t("common.noData"))}</td></tr>`}
       </table></div></div>`);
   }));
 
   route("platform/madaris", SA(async function () {
     const d = await API.get("/platform/madaris");
+    const all = d.madaris || [];
+    const total = all.length;
+    const active = all.filter(m=>m.status==="active").length;
+    const suspended = total - active;
+    const plans = [...new Set(all.map(m=>m.plan_code).filter(Boolean))];
+    function filteredRows(list){ return list; } // placeholder for initial render
     render(`
-      <h1>${esc(t("nav.madaris"))}</h1>
-      <button class="btn" id="addBtn">+ ${esc(t("platform.add"))}</button>
-      <div class="card mt0">
+      <div class="page-head"><h1>${esc(t("nav.madaris"))}</h1><div class="actions"><button class="btn" id="addBtn">+ ${esc(t("platform.add"))}</button></div></div>
+      <div class="summary-strip">
+        <div class="sum"><b>${total}</b><span>Total</span></div>
+        <div class="sum"><b>${active}</b><span>Active</span></div>
+        <div class="sum"><b>${suspended}</b><span>Suspended</span></div>
+      </div>
+      <div class="filter-bar">
+        <div class="fb-field"><label>Search</label><div class="searchbar"><span class="ico">🔍</span><input id="madSearch" placeholder="Search by name or slug…"></div></div>
+        <div class="fb-field" style="max-width:180px"><label>Status</label><select id="madStatus"><option value="">All</option><option value="active">Active</option><option value="suspended">Suspended</option></select></div>
+        <div class="fb-field" style="max-width:180px"><label>Plan</label><select id="madPlan"><option value="">All</option>${plans.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("")}</select></div>
+      </div>
+      <div class="card">
         <div class="tablewrap"><table>
           <tr><th>${esc(t("common.name"))}</th><th>${esc(t("platform.plan"))}</th><th>${esc(t("platform.students"))}</th><th>${esc(t("common.status"))}</th><th></th></tr>
-          ${d.madaris.map((m) => `<tr>
-            <td><a href="#/platform/madaris/${m.id}"><b>${esc(m.name_en)}</b></a><div class="muted small">${esc(m.name_ar)}</div></td>
+          <tbody id="madRows">
+          ${all.map((m) => `<tr data-name="${esc(m.name_en.toLowerCase())} ${esc(m.slug.toLowerCase())}" data-status="${esc(m.status)}" data-plan="${esc(m.plan_code)}">
+            <td><a href="#/platform/madaris/${m.id}"><b>${esc(m.name_en)}</b></a><div class="muted small">${esc(m.name_ar)} <span class="mono">${esc(m.slug)}</span></div></td>
             <td><span class="pill gold">${esc(m.plan_code)}</span></td>
             <td>${m.student_count}</td>
             <td>${m.status === "active" ? pill("active") : pill("suspended")}</td>
             <td><a class="btn small secondary" href="#/platform/madaris/${m.id}">${esc(t("common.edit"))}</a></td>
           </tr>`).join("")}
+          </tbody>
         </table></div>
+        <div class="row-count" id="madCount">Showing ${total} records</div>
       </div>`);
     $("#addBtn").addEventListener("click", () => madrasaForm());
+    const searchEl = $("#madSearch"), statusEl=$("#madStatus"), planEl=$("#madPlan"), tbody=$("#madRows"), countEl=$("#madCount");
+    function applyFilter(){
+      const q = searchEl.value.trim().toLowerCase();
+      const st = statusEl.value;
+      const pl = planEl.value;
+      let visible=0;
+      $$("tr",tbody).forEach(tr=>{
+        const name = tr.getAttribute("data-name")||"";
+        const s = tr.getAttribute("data-status")||"";
+        const p = tr.getAttribute("data-plan")||"";
+        const ok = (!q || name.includes(q)) && (!st || s===st) && (!pl || p===pl);
+        tr.style.display = ok ? "" : "none";
+        if(ok) visible++;
+      });
+      countEl.textContent = `Showing ${visible} records`;
+    }
+    searchEl.addEventListener("input", applyFilter);
+    statusEl.addEventListener("change", applyFilter);
+    planEl.addEventListener("change", applyFilter);
   }));
 
   function madrasaForm(existing) {
@@ -617,7 +796,7 @@
     render(`
       <h1>${esc(m.name_en)}</h1>
       <div class="muted">${esc(m.name_ar)}</div>
-      <div class="grid cols-2">
+      <div class="grid cols-2" style="margin-top:12px">
         <div class="stat"><div class="num">${m.student_count || 0}</div><div class="lbl">${esc(t("nav.students"))}</div></div>
         <div class="stat"><div class="num">${m.teacher_count || 0}</div><div class="lbl">${esc(t("nav.teachers"))}</div></div>
       </div>
@@ -743,19 +922,89 @@
   }));
 
   route("platform/activity", SA(async function () {
-    const d = await API.get("/platform/activity?limit=200");
-    render(`
-      <h1>${esc(t("platform.activity"))}</h1>
-      <div class="card"><div class="tablewrap"><table>
-        <tr><th>Time</th><th>Madrasa</th><th>User</th><th>Action</th><th>Entity</th></tr>
-        ${d.activity.map((a) => `<tr>
+    // fetch stats for human-readable names (already has recentActivity with slug/username)
+    const stats = await API.get("/platform/stats").catch(()=>({recentActivity:[]}));
+    // map id→name from stats recentActivity
+    const madrasaMap={}, userMap={};
+    (stats.recentActivity||[]).forEach(x=>{
+      if(x.madrasa_id && x.madrasa_slug) madrasaMap[x.madrasa_id]=x.madrasa_slug;
+      if(x.user_id && x.username) userMap[x.user_id]=x.username;
+    });
+    let range="all";
+    let since=null;
+    let allRows=[];
+    async function fetchRows(){
+      let url="/platform/activity?limit=200";
+      if(since) url+=`&since=${encodeURIComponent(since)}`;
+      // also try ?since param on platform/activity (if backend supports it, else ignore)
+      // We'll also handle client filtering if needed
+      const d = await API.get(url).catch(async()=>{
+        // fallback without since if backend rejects
+        return await API.get("/platform/activity?limit=200");
+      });
+      allRows = (d.activity||[]).map(a=>{
+        // enrich with human readable if available
+        const slug = a.madrasa_slug || madrasaMap[a.madrasa_id] || a.madrasa_slug || "";
+        const uname = a.username || userMap[a.user_id] || "";
+        return Object.assign({},a,{_slug: slug || (a.madrasa_id||"—"), _user: uname || (a.user_id||"—")});
+      });
+      // if backend didn't filter by since, do client-side
+      if(since){
+        const cutoff = new Date(since).getTime();
+        allRows = allRows.filter(r=> new Date(r.created_at).getTime() >= cutoff);
+      }
+      renderTable();
+    }
+    function renderTable(){
+      const q = ($("#actSearch") && $("#actSearch").value.trim().toLowerCase()) || "";
+      let rows = allRows;
+      if(q){
+        rows = rows.filter(r=> String(r._user).toLowerCase().includes(q) || String(r.action).toLowerCase().includes(q) || String(r._slug).toLowerCase().includes(q));
+      }
+      const tbody = $("#actRows");
+      if(!tbody) return;
+      tbody.innerHTML = rows.map((a) => `<tr>
           <td class="muted">${esc(new Date(a.created_at).toLocaleString())}</td>
-          <td>${esc(a.madrasa_id || "—")}</td>
-          <td>${esc(a.user_id || "—")}</td>
+          <td>${esc(a._slug || a.madrasa_slug || a.madrasa_id || "—")}</td>
+          <td>${esc(a._user || a.username || a.user_id || "—")}</td>
           <td>${esc(a.action)}</td>
           <td>${esc(a.entity)} ${esc(a.entity_id)}</td>
-        </tr>`).join("") || `<tr><td colspan="5" class="empty">${esc(t("common.noData"))}</td></tr>`}
-      </table></div></div>`);
+        </tr>`).join("") || `<tr><td colspan="5" class="empty">${esc(t("common.noData"))}</td></tr>`;
+      const cnt = $("#actCount");
+      if(cnt) cnt.textContent = `Showing ${rows.length} records`;
+    }
+    render(`
+      <h1>${esc(t("platform.activity"))}</h1>
+      <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <div class="segs" id="rangeSeg">
+          <button data-range="1" class="${range==="1"?"on":""}">Last 24h</button>
+          <button data-range="7" class="${range==="7"?"on":""}">7d</button>
+          <button data-range="30" class="${range==="30"?"on":""}">30d</button>
+          <button data-range="all" class="${range==="all"?"on":""}">All</button>
+        </div>
+        <div class="searchbar" style="flex:1 1 220px"><span class="ico">🔍</span><input id="actSearch" placeholder="Search by user or action…"></div>
+      </div>
+      <div class="card"><div class="tablewrap"><table>
+        <tr><th>Time</th><th>Madrasa</th><th>User</th><th>Action</th><th>Entity</th></tr>
+        <tbody id="actRows"><tr><td colspan="5" class="empty">${esc(t("common.loading"))}</td></tr></tbody>
+      </table></div><div class="row-count" id="actCount"></div></div>`);
+    // events
+    $$("#rangeSeg button").forEach(b=>b.addEventListener("click", ()=>{
+      $$("#rangeSeg button").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+      range=b.dataset.range;
+      if(range==="all") since=null;
+      else {
+        const d=new Date(); d.setDate(d.getDate()-Number(range));
+        // for 1 day, use 24h
+        if(range==="1"){ const d2=new Date(); d2.setHours(d2.getHours()-24); since=d2.toISOString(); }
+        else since=d.toISOString();
+      }
+      fetchRows();
+    }));
+    // search
+    $("#actSearch").addEventListener("input", renderTable);
+    await fetchRows();
   }));
 
   /* ====================================================================== */
@@ -785,49 +1034,60 @@
       const teachers = await API.get("/teachers").catch(() => ({ teachers: [] }));
       render(`
         <h1>${esc(t("dash.overview"))}</h1>
+        <div class="greeting-banner"><div class="greet">${esc(greeting())}, ${esc(me.user.fullName||me.user.username)} 👋</div><div class="sub">${esc(madrasaMeta().name_en||"")}</div></div>
         <div class="kpis">
-          ${kpi(students.total, t("an.students"))}
-          ${kpi(teachers.teachers.length, t("an.teachers"), "", "accent")}
-          ${kpi(classes.classes.length, t("an.classes"))}
-          ${kpi(subjects.subjects.length, t("an.subjects"))}
+          ${kpi(students.total, t("an.students"), "", "", "🎓")}
+          ${kpi(teachers.teachers.length, t("an.teachers"), "", "accent", "👨‍🏫")}
+          ${kpi(classes.classes.length, t("an.classes"), "", "", "📚")}
+          ${kpi(subjects.subjects.length, t("an.subjects"), "", "", "📖")}
         </div>`);
       return;
     }
 
     const a = an.analytics;
     const termName = a.term ? nm({ label: a.term.nameEn, labelAr: a.term.nameAr }) : "";
+    const m = madrasaMeta();
+    const schoolName = m.name_en || m.name_ar || "";
+    const termLabel = a.term ? (a.term.nameEn || a.term.nameAr || termName) : "";
     render(`
-      <h1>${esc(t("dash.overview"))}</h1>
-      ${kpiRow(a)}
+      <div class="greeting-banner">
+        <div class="greet">${esc(greeting())}, ${esc(me.user.fullName||me.user.username)} 👋</div>
+        <div class="sub">${esc(schoolName)}${termLabel?` • ${esc(termLabel)}`:""}</div>
+      </div>
+      <div class="kpis">
+        ${kpi(a.totals.students, "Students", `${a.totals.classes} classes`, "", "🎓")}
+        ${kpi(a.totals.teachers, "Teachers", "", "accent", "👨‍🏫")}
+        ${kpi(a.totals.classes, "Classes", "", "", "📚")}
+        ${kpi(C().money(a.fees.outstanding), "Fees Outstanding", "", "warn", "💰")}
+      </div>
       <div class="card">
         <div class="card-title">⚡ ${esc(t("dash.quickActions"))}</div>
-        <div class="form-actions">
-          <a class="btn" href="#/students">🎓 ${esc(t("students.add"))}</a>
-          <a class="btn secondary" href="#/results">📝 ${esc(t("nav.results"))}</a>
-          <a class="btn secondary" href="#/attendance">✅ ${esc(t("nav.attendance"))}</a>
-          <a class="btn secondary" href="#/analytics">📈 ${esc(t("nav.analytics"))}</a>
+        <div class="quick-actions">
+          <a class="btn ghost" href="#/students">+ Add Student</a>
+          <a class="btn ghost" href="#/results">Enter Results</a>
+          <a class="btn ghost" href="#/attendance">Mark Attendance</a>
+          <a class="btn ghost" href="#/analytics">View Analytics</a>
         </div>
       </div>
       <div class="grid cols-2">
-        ${chartCard(t("an.enrolmentTrend"), monthsLabel(6), c.bar(a.enrolment.trend, { format: c.int, emptyText: noData }))}
-        ${chartCard(t("an.attendanceTrend"), daysLabel(30), c.line(a.attendance.daily, { max: 100, nice: false, format: (v) => v + "%", axisFormat: (v) => v + "%", emptyText: noData }))}
-      </div>
-      <div class="grid cols-2">
-        ${chartCard(t("an.collectionTrend"), `${t("an.outstanding")} ${esc(c.money(a.fees.outstanding))}`, c.bar(a.fees.trend, { format: c.money, emptyText: noData }))}
-        ${chartCard(t("an.gradeDist"), termName, c.bar(a.results.gradeDistribution.map((g) => ({ label: g.grade, value: g.value })), { nice: false, format: c.int, emptyText: noData }))}
+        <div style="display:grid;gap:12px">
+          ${chartCard("📊 Enrolment vs Attendance", monthsLabel(6), c.bar(a.enrolment.trend, { format: c.int, emptyText: noData }))}
+          ${chartCard("", daysLabel(30), c.line(a.attendance.daily, { max: 100, nice: false, format: (v) => v + "%", axisFormat: (v) => v + "%", emptyText: noData }))}
+        </div>
+        <div style="display:grid;gap:12px">
+          <div class="card">
+            <div class="card-title">🗓️ Current Sessions</div>
+            ${sessions.sessions.slice(0, 3).map((s) => `
+              <div class="reportlink"><div><b>${esc(s.label)}</b> ${s.is_current ? `<span class="pill ok">${esc(t("sessions.current"))}</span>` : ""}<div class="muted small">${(s.terms || []).map((x) => esc(x.name_en)).join(" • ")}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+          </div>
+          <div class="card">
+            <div class="card-title">📢 Latest Announcements</div>
+            ${ann.announcements.slice(0, 3).map((x) => `<div class="reportlink"><div><b>${esc(x.title)}</b><div class="muted small">${esc(new Date(x.created_at).toLocaleDateString())}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+          </div>
+        </div>
       </div>
       ${watchPanel(a)}
-      <div class="grid cols-2">
-        <div class="card">
-          <div class="card-title">🗓️ ${esc(t("sessions.title"))}</div>
-          ${sessions.sessions.slice(0, 3).map((s) => `
-            <div class="reportlink"><div><b>${esc(s.label)}</b> ${s.is_current ? `<span class="pill ok">${esc(t("sessions.current"))}</span>` : ""}<div class="muted small">${(s.terms || []).map((x) => esc(x.name_en)).join(" • ")}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
-        </div>
-        <div class="card">
-          <div class="card-title">📢 ${esc(t("dash.announcements"))}</div>
-          ${ann.announcements.slice(0, 3).map((x) => `<div class="reportlink"><div><b>${esc(x.title)}</b><div class="muted small">${esc(new Date(x.created_at).toLocaleDateString())}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
-        </div>
-      </div>`);
+    `);
   });
 
   /* ====================================================================== */
@@ -875,6 +1135,7 @@
     const classes = await API.get("/classes").catch(() => ({ classes: [] }));
     let search = "";
     let classFilter = "0";
+    let statusFilter = "all";
     let rows = [];
     async function load() {
       const q = new URLSearchParams();
@@ -883,20 +1144,58 @@
       q.set("perPage", "200");
       const d = await API.get("/students?" + q.toString());
       rows = d.students;
+      renderRows();
+    }
+    function renderRows(){
+      // compute summary counts from loaded rows
+      const counts = { all: rows.length, active:0, suspended:0, promoted:0 };
+      rows.forEach(s=>{ if(s.status==="active") counts.active++; else if(s.status==="suspended") counts.suspended++; else if(s.status==="promoted") counts.promoted++; });
+      const summaryEl = $("#statusSummary");
+      if(summaryEl){
+        summaryEl.innerHTML = `
+          <button class="status-chip ${statusFilter==="all"?"active":""}" data-st="all">All <small>${counts.all}</small></button>
+          <button class="status-chip ${statusFilter==="active"?"active":""}" data-st="active">Active <small>${counts.active}</small></button>
+          <button class="status-chip ${statusFilter==="suspended"?"active":""}" data-st="suspended">Suspended <small>${counts.suspended}</small></button>
+          <button class="status-chip ${statusFilter==="promoted"?"active":""}" data-st="promoted">Promoted <small>${counts.promoted}</small></button>
+        `;
+        $$("[data-st]", summaryEl).forEach(b=>b.addEventListener("click", ()=>{ statusFilter=b.dataset.st; renderRows(); }));
+      }
+      let display = rows;
+      if(statusFilter!=="all") display = display.filter(s=>s.status===statusFilter);
       const tbody = $("#stuRows");
       if (tbody) {
-        tbody.innerHTML = rows.map((s) => `
+        if(!display.length){
+          if(rows.length===0){
+            tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-illust">🎓</div><div style="font-weight:700;margin-bottom:4px">No students yet</div><div class="small muted" style="margin-bottom:12px">Add your first student to get started.</div><button class="btn" id="emptyAddBtn">+ Add First Student</button></div></td></tr>`;
+            const eb = $("#emptyAddBtn", tbody); if(eb) eb.addEventListener("click", ()=>studentForm(classes.classes));
+          } else {
+            tbody.innerHTML = `<tr><td colspan="6" class="empty">${esc(t("common.noData"))}</td></tr>`;
+          }
+        } else {
+          tbody.innerHTML = display.map((s) => `
           <tr>
-            <td><a href="#/students/${s.id}">${s.photo_path ? `<img class="avatar sm" src="${esc(s.photo_path)}">` : ""} <b>${esc(s.first_name)} ${esc(s.last_name)}</b></a></td>
+            <td>${s.photo_path ? `<img class="thumb" src="${esc(s.photo_path)}" alt="">` : `<span class="thumb-fallback">👤</span>`}</td>
+            <td><a href="#/students/${s.id}"><b>${esc(s.first_name)} ${esc(s.last_name)}</b></a></td>
             <td class="mono">${esc(s.admission_no)}</td>
             <td>${esc(s.class_en || t("common.none"))}</td>
             <td>${pill(s.status)}</td>
-            <td class="muted small">${esc(s.parent_phone || "")}</td>
-          </tr>`).join("") || `<tr><td colspan="5" class="empty">${esc(t("common.noData"))}</td></tr>`;
+            <td><a class="btn small secondary icon-only" href="#/students/${s.id}" title="View">👁</a></td>
+          </tr>`).join("");
+        }
+        const rc = $("#rowCount");
+        if(rc) rc.textContent = `Showing ${display.length} records`;
       }
     }
     render(`
-      <h1>${esc(t("students.title"))}</h1>
+      <div class="page-head"><h1>${esc(t("students.title"))}</h1>
+        <div class="actions">
+          <button class="btn" id="addBtn">+ ${esc(t("students.add"))}</button>
+          <button class="btn secondary" id="importBtn">📥 ${esc(t("students.import"))}</button>
+        </div>
+      </div>
+      <div class="card" style="padding:12px">
+        <div class="status-chips" id="statusSummary"></div>
+      </div>
       <div class="card">
         <div class="row">
           <div class="searchbar"><span class="ico">🔍</span><input id="stuSearch" data-i18n-ph="students.searchPlaceholder" placeholder="${esc(t("students.searchPlaceholder"))}"></div>
@@ -905,16 +1204,13 @@
             ${classes.classes.map((c) => `<option value="${c.id}">${esc(c.name_en)}</option>`).join("")}
           </select>
         </div>
-        <div class="form-actions">
-          <button class="btn" id="addBtn">+ ${esc(t("students.add"))}</button>
-          <button class="btn secondary" id="importBtn">📥 ${esc(t("students.import"))}</button>
-        </div>
       </div>
       <div class="card">
         <div class="tablewrap"><table>
-          <tr><th>${esc(t("common.name"))}</th><th>${esc(t("students.admissionNo"))}</th><th>${esc(t("students.class"))}</th><th>${esc(t("students.status"))}</th><th>${esc(t("students.parentPhone"))}</th></tr>
+          <tr><th></th><th>${esc(t("common.name"))}</th><th>${esc(t("students.admissionNo"))}</th><th>${esc(t("students.class"))}</th><th>${esc(t("students.status"))}</th><th></th></tr>
           <tbody id="stuRows"></tbody>
         </table></div>
+        <div class="row-count" id="rowCount"></div>
       </div>`);
     let deb;
     $("#stuSearch").addEventListener("input", (e) => { clearTimeout(deb); deb = setTimeout(() => { search = e.target.value.trim(); load(); }, 350); });
@@ -1060,7 +1356,7 @@
           if (!input.files[0]) return;
           const fd = new FormData(); fd.append("photo", input.files[0]);
           try {
-            const r = await fetch(`/api/students/${s.id}/photo`, { method: "POST", body: fd, credentials: "same-origin", headers: { "X-CSRF-Token": await (await (async () => { if (window.__csrf) return window.__csrf; const r2 = await API.get("/csrf-token"); window.__csrf = r2.csrfToken; return r2.csrfToken; })()) } });
+            const r = await fetch(`/api/students/${s.id}/photo`, { method: "POST", body: fd, credentials: "same-origin", headers: { "X-CSRF-Token": await (async () => { if (window.__csrf) return window.__csrf; const r2 = await API.get("/csrf-token"); window.__csrf = r2.csrfToken; return r2.csrfToken; })() } });
             if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Upload failed"); }
             toast("✓", "ok"); routeTo("students/" + s.id);
           } catch (e) { toast(errMsg(e), "err"); }
@@ -1118,6 +1414,7 @@
             <td><button class="btn small secondary" data-id="${tc.id}">${tc.is_active ? esc(t("teachers.deactivate")) : esc(t("teachers.activate"))}</button></td>
           </tr>`).join("") || `<tr><td colspan="6" class="empty">${esc(t("common.noData"))}</td></tr>`}
         </table></div>
+        <div class="row-count">Showing ${d.teachers.length} records</div>
       </div>`);
     $("#addBtn").addEventListener("click", () => teacherForm(d.classes, d.subjects));
     $$("#view [data-id]").forEach((b) => b.addEventListener("click", async () => {
@@ -1255,6 +1552,7 @@
             <td>${s.is_active ? pill("active") : pill("suspended")}</td>
           </tr>`).join("") || `<tr><td colspan="3" class="empty">${esc(t("common.noData"))}</td></tr>`}
         </table></div>
+        <div class="row-count">Showing ${d.subjects.length} records</div>
       </div>`);
     $("#addBtn").addEventListener("click", () => {
       openModal(`
@@ -1454,6 +1752,7 @@
                 <td><a class="btn small" target="_blank" href="${API.reportCardUrl(s.student_id, state.termId)}">🖨</a></td>
               </tr>`).join("") || `<tr><td colspan="8" class="empty">${esc(t("results.noResults"))}</td></tr>`}
             </table></div>
+            <div class="row-count">Showing ${d.students.length} records</div>
           </div>`;
       }
     }
@@ -1547,6 +1846,7 @@
           <tr><th>${esc(t("common.name"))}</th><th>${esc(t("fees.amount"))}</th><th>${esc(t("results.term"))}</th></tr>
           ${items.items.map((i) => `<tr><td><b>${esc(i.name_en)}</b> ${esc(i.name_ar)}</td><td>${Number(i.amount_ngn).toLocaleString()} ₦</td><td>${esc((terms.find((x) => x.id === i.term_id) || {}).name_en || "—")}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">${esc(t("common.noData"))}</td></tr>`}
         </table></div>
+        <div class="row-count">Showing ${items.items.length} records</div>
         <button class="btn small secondary" id="addItem" style="margin-top:10px">+ ${esc(t("fees.add"))}</button>
       </div>
       <div class="card">
@@ -1560,6 +1860,7 @@
             <td>${s.settled ? `<span class="pill ok">OK</span>` : `<b>${Number(s.balance).toLocaleString()}</b>`}</td>
           </tr>`).join("") || `<tr><td colspan="4" class="empty">${esc(t("common.noData"))}</td></tr>`}
         </table></div>
+        <div class="row-count">Showing ${balances.students.length} records</div>
       </div>
       <div class="card">
         <div class="card-title">🧾 ${esc(t("fees.payments"))}</div>
@@ -1573,6 +1874,7 @@
             <td>${esc(p.method)}</td>
           </tr>`).join("") || `<tr><td colspan="4" class="empty">${esc(t("common.noData"))}</td></tr>`}
         </table></div>
+        <div class="row-count">Showing ${Math.min(30,payments.payments.length)} records</div>
       </div>`);
     $("#addItem").addEventListener("click", () => {
       openModal(`
@@ -1642,9 +1944,9 @@
           <div class="wrap" style="white-space:pre-wrap">${esc(a.body)}</div>
           <div class="muted small" style="margin-top:8px">${esc(new Date(a.created_at).toLocaleString())}</div>
           ${isAdmin ? `<div class="form-actions"><button class="btn small secondary" data-del="${a.id}">${a.is_active ? esc(t("common.delete")) : "Hide"}</button></div>` : ""}
-        </div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+        </div>`).join("") || `<div class="card">${emptyState("📢","No announcements yet","Announcements from your madrasa will appear here.", isAdmin?`<button class="btn" id="emptyAnnBtn">+ ${esc(t("ann.add"))}</button>`:"")}</div>`}`);
     if (isAdmin) {
-      $("#annAdd").addEventListener("click", () => {
+      const addHandler = () => {
         openModal(`
           <h2>${esc(t("ann.add"))}</h2>
           <label data-i18n="ann.titlePh">${esc(t("ann.titlePh"))}</label><input id="anTitle">
@@ -1668,7 +1970,9 @@
               } catch (e) { toast(errMsg(e), "err"); }
             });
           });
-      });
+      };
+      const btn = $("#annAdd"); if(btn) btn.addEventListener("click", addHandler);
+      const emptyBtn = $("#emptyAnnBtn"); if(emptyBtn) emptyBtn.addEventListener("click", addHandler);
       $$("#view [data-del]").forEach((b) => b.addEventListener("click", async () => {
         try { await API.del(`/announcements/${b.dataset.del}`); toast("✓", "ok"); routeTo("announcements"); }
         catch (e) { toast(errMsg(e), "err"); }
@@ -1685,34 +1989,48 @@
     render(`
       <h1>${esc(t("grading.title"))}</h1>
       <div class="card">
+        <div class="card-title">📐 Score Structure</div>
+        <p class="muted small" style="margin:0 0 8px">Configure maximum scores and promotion rules for this madrasa.</p>
         <div class="row">
           <div><label data-i18n="grading.caMax">${esc(t("grading.caMax"))}</label><input id="gCa" type="number" value="${d.caMax}"></div>
           <div><label data-i18n="grading.examMax">${esc(t("grading.examMax"))}</label><input id="gEx" type="number" value="${d.examMax}"></div>
           <div><label data-i18n="grading.passMark">${esc(t("grading.passMark"))}</label><input id="gPass" type="number" value="${d.passMark}"></div>
         </div>
-        <label data-i18n="grading.promotionAvg">${esc(t("grading.promotionAvg"))}</label><input id="gProm" type="number" value="${d.promotionMinAverage == null ? "" : d.promotionMinAverage}">
+        <div style="margin-top:10px"><label style="font-weight:800;color:var(--text)">${esc(t("grading.promotionAvg"))}</label><input id="gProm" type="number" value="${d.promotionMinAverage == null ? "" : d.promotionMinAverage}"></div>
         <label class="checkbox"><input id="gReq" type="checkbox" ${d.promotionRequirePass ? "checked" : ""}> ${esc(t("grading.requirePass"))}</label>
+        <div class="form-actions"><button class="btn" id="gSave1">${esc(t("common.save"))}</button></div>
       </div>
       <div class="card">
         <div class="card-title">⚖️ ${esc(t("grading.bands"))}</div>
+        <p class="muted small" style="margin:0 0 8px">Grade bands map total percentage to letter grades. Add or edit rows below.</p>
         <div class="tablewrap"><table>
-          <tr><th>${esc(t("grading.min"))}</th><th>${esc(t("grading.grade"))}</th><th>${esc(t("grading.remark"))}</th><th>${esc(t("grading.remarkAr"))}</th></tr>
-          ${d.bands.map((b, i) => `<tr>
+          <tr><th>${esc(t("grading.min"))}</th><th>${esc(t("grading.grade"))}</th><th>${esc(t("grading.remark"))}</th><th>${esc(t("grading.remarkAr"))}</th><th></th></tr>
+          <tbody id="bandBody">
+          ${d.bands.map((b) => `<tr>
             <td><input type="number" class="bMin" value="${b.min}" style="width:90px"></td>
             <td><input class="bGrade" value="${esc(b.grade)}" style="width:70px"></td>
             <td><input class="bRemark" value="${esc(b.remark)}"></td>
             <td><input class="bRemarkAr" dir="rtl" value="${esc(b.remark_ar)}"></td>
+            <td><button class="btn small danger rmBand">✕</button></td>
           </tr>`).join("")}
+          </tbody>
         </table></div>
-      </div>
-      <div class="form-actions"><button class="btn" id="gSave">${esc(t("common.save"))}</button></div>`);
-    $("#gSave").addEventListener("click", async () => {
-      const bands = $$("#view .bMin").map((el, i) => ({
+        <div class="form-actions">
+          <button class="btn secondary" id="addBand">+ Add Band</button>
+          <button class="btn" id="gSave2">${esc(t("common.save"))}</button>
+        </div>
+        <div class="row-count" id="bandCount">Showing ${d.bands.length} records</div>
+      </div>`);
+    function collectBands(){
+      return $$("#view .bMin").map((el, i) => ({
         min: Number(el.value),
         grade: $$("#view .bGrade")[i].value,
         remark: $$("#view .bRemark")[i].value,
         remark_ar: $$("#view .bRemarkAr")[i].value,
       }));
+    }
+    async function saveGrading(){
+      const bands = collectBands();
       try {
         await API.put("/grading", {
           ca_max: Number($("#gCa").value),
@@ -1724,7 +2042,18 @@
         });
         toast("✓", "ok");
       } catch (e) { toast(errMsg(e), "err"); }
+    }
+    $("#gSave1").addEventListener("click", saveGrading);
+    $("#gSave2").addEventListener("click", saveGrading);
+    $("#addBand").addEventListener("click", ()=>{
+      const tbody = $("#bandBody");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td><input type="number" class="bMin" value="0" style="width:90px"></td><td><input class="bGrade" value="" style="width:70px"></td><td><input class="bRemark" value=""></td><td><input class="bRemarkAr" dir="rtl" value=""></td><td><button class="btn small danger rmBand">✕</button></td>`;
+      tbody.appendChild(tr);
+      tr.querySelector(".rmBand").addEventListener("click", ()=>tr.remove());
+      const cnt = $("#bandCount"); if(cnt) cnt.textContent = `Showing ${$$("#view .bMin").length} records`;
     });
+    $$(".rmBand").forEach(b=>b.addEventListener("click", (e)=>{ e.target.closest("tr").remove(); const cnt=$("#bandCount"); if(cnt) cnt.textContent=`Showing ${$$("#view .bMin").length} records`; }));
   });
 
   /* ====================================================================== */
@@ -1737,13 +2066,17 @@
     render(`
       <h1>${esc(t("settings.title"))}</h1>
       <div class="card">
-        <div class="card-title">🏫 ${esc(t("settings.profile"))}</div>
+        <div class="card-title">🏫 School Identity</div>
         <label data-i18n="common.nameEn">${esc(t("common.nameEn"))}</label><input id="mEn" value="${esc(m.name_en)}">
         <label data-i18n="common.nameAr">${esc(t("common.nameAr"))}</label><input id="mAr" dir="rtl" value="${esc(m.name_ar)}">
         <div class="row">
           <div><label data-i18n="settings.mottoEn">${esc(t("settings.mottoEn"))}</label><input id="mMottoEn" value="${esc(m.motto_en)}"></div>
           <div><label data-i18n="settings.mottoAr">${esc(t("settings.mottoAr"))}</label><input id="mMottoAr" dir="rtl" value="${esc(m.motto_ar)}"></div>
         </div>
+        <div class="form-actions"><button class="btn" id="saveIdentity">💾 ${esc(t("common.save"))}</button></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📍 Contact & Location</div>
         <label data-i18n="common.address">${esc(t("common.address"))}</label><input id="mAddr" value="${esc(m.address)}">
         <div class="row">
           <div><label data-i18n="settings.city">${esc(t("settings.city"))}</label><input id="mCity" value="${esc(m.city)}"></div>
@@ -1753,15 +2086,20 @@
           <div><label data-i18n="common.phone">${esc(t("common.phone"))}</label><input id="mPhone" value="${esc(m.phone)}"></div>
           <div><label data-i18n="common.email">${esc(t("common.email"))}</label><input id="mEmail" value="${esc(m.email)}"></div>
         </div>
+        <div class="form-actions"><button class="btn" id="saveContact">💾 ${esc(t("common.save"))}</button></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔧 System Settings</div>
         <label data-i18n="settings.logo">${esc(t("settings.logo"))}</label>
         <input id="mLogo" type="file" accept="image/jpeg,image/png,image/webp">
+        <div style="margin-top:8px"><img id="logoPreview" src="${esc(m.logo_path||"")}" style="${m.logo_path?"max-width:120px;border-radius:8px;border:1px solid var(--border)":"display:none"}"></div>
         <label data-i18n="settings.admissionPrefix">${esc(t("settings.admissionPrefix"))}</label><input id="mPrefix" value="${esc(d.settings.admission_prefix || "")}">
         <div class="form-actions">
-          <button class="btn" id="mSave">${esc(t("common.save"))}</button>
-          <button class="btn secondary" id="logoSave">📷 ${esc(t("common.save"))}</button>
+          <button class="btn" id="saveSystem">💾 ${esc(t("common.save"))}</button>
+          <button class="btn secondary" id="logoSave">📷 Upload Logo</button>
         </div>
       </div>`);
-    $("#mSave").addEventListener("click", async () => {
+    async function saveProfile(){
       try {
         await API.put("/madrasa/profile", {
           name_en: $("#mEn").value.trim(), name_ar: $("#mAr").value.trim(),
@@ -1774,10 +2112,20 @@
         toast(t("settings.profileSaved"), "ok");
         await loadMadrasaMeta();
       } catch (e) { toast(errMsg(e), "err"); }
+    }
+    $("#saveIdentity").addEventListener("click", saveProfile);
+    $("#saveContact").addEventListener("click", saveProfile);
+    $("#saveSystem").addEventListener("click", saveProfile);
+    $("#mLogo").addEventListener("change", (e)=>{
+      const f=e.target.files[0];
+      if(f){
+        const url=URL.createObjectURL(f);
+        const img=$("#logoPreview"); img.src=url; img.style.display="block";
+      }
     });
     $("#logoSave").addEventListener("click", async () => {
       const f = $("#mLogo").files[0];
-      if (!f) return;
+      if (!f) { toast("Choose a file first", "warn"); return; }
       const fd = new FormData(); fd.append("logo", f);
       try {
         const r = await fetch("/api/madrasa/profile/logo", {
@@ -1797,14 +2145,17 @@
     const [mine] = await Promise.all([API.get("/teachers/me/assignments")]);
     const ann = await API.get("/announcements?limit=5").catch(() => ({ announcements: [] }));
     render(`
-      <h1>${esc(t("auth.welcome"))}, ${esc(me.user.fullName)} 👋</h1>
-      <div class="card">
-        <div class="card-title">📚 ${esc(t("classes.title"))}</div>
-        ${mine.classes.map((c) => `<div class="reportlink"><b>${esc(c.name_en)}</b> <span class="muted">${esc(c.name_ar)}</span></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+      <div class="greeting-banner">
+        <div class="greet">Hello, ${esc(me.user.fullName)} 👋</div>
+        <div class="sub">You have ${mine.classes.length} class${mine.classes.length!==1?"es":""} assigned to you</div>
       </div>
       <div class="card">
-        <div class="card-title">📢 ${esc(t("ann.title"))}</div>
-        ${ann.announcements.map((a) => `<div class="reportlink"><b>${esc(a.title)}</b><div class="muted small">${esc(new Date(a.created_at).toLocaleDateString())}</div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+        <div class="card-title">📚 My Classes</div>
+        ${mine.classes.length ? `<div class="class-cards">${mine.classes.map((c) => `<div class="class-card"><div class="cc-name">${esc(c.name_en)}</div><div class="cc-ar muted">${esc(c.name_ar||"")}</div><div class="cc-actions"><a class="btn small ghost" href="#/results">Enter Results →</a><a class="btn small ghost" href="#/attendance">Mark Attendance →</a></div></div>`).join("")}</div>` : `<div class="empty">${emptyState("📚","No classes assigned","Your classes will appear here once assigned by admin.","")}</div>`}
+      </div>
+      <div class="card">
+        <div class="card-title">📢 Recent Announcements</div>
+        ${ann.announcements.length ? ann.announcements.slice(0,5).map((a) => `<div class="reportlink"><div style="flex:1"><b>${esc(a.title)}</b><div class="muted small" style="white-space:pre-wrap">${esc((a.body||"").slice(0,120))}</div></div><span class="muted small">${esc(new Date(a.created_at).toLocaleDateString())}</span></div>`).join("") : `<div class="empty">${esc(t("common.noData"))}</div>`}
       </div>`);
   }
 
@@ -1813,24 +2164,33 @@
   /* ====================================================================== */
   async function studentHome() {
     const d = await API.get("/portal/me");
-    const s = d.self || d.children[0] || {};
+    const s = d.self || (d.children && d.children[0]) || {};
     const isAr = window.I18N.lang === "ar";
+    // try to get class name
+    const className = s.classEn || s.class_en || s.classAr || s.class_ar || "";
+    const classNameAr = s.classAr || s.class_ar || "";
+    const displayClass = isAr && classNameAr ? classNameAr : className;
+    const displayName = isAr && s.name_ar ? s.name_ar : (s.name || `${s.first_name||""} ${s.last_name||""}`.trim());
     render(`
-      <div class="card">
-        <div class="row" style="align-items:center">
-          ${s.photo_path ? `<img class="avatar" style="width:84px;height:84px;border-radius:14px" src="${esc(s.photo_path)}">` : `<div class="avatar" style="width:84px;height:84px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:2rem">🎓</div>`}
-          <div>
-            <h1 style="margin:0">${esc(isAr && s.name_ar ? s.name_ar : s.name)}</h1>
-            <div class="muted mono">${esc(s.admission_no || "")}</div>
-            <div class="muted">${esc(isAr && s.classAr ? s.classAr : s.classEn || "")}</div>
-          </div>
+      <div class="profile-banner">
+        ${s.photo_path ? `<img class="pb-photo" src="${esc(s.photo_path)}" alt="">` : `<div class="pb-fallback">🎓</div>`}
+        <div style="flex:1;min-width:0">
+          <div class="pb-name">${esc(displayName)}</div>
+          <div class="pb-meta mono">${esc(s.admission_no || s.admissionNo || "")}</div>
+          <div class="pb-meta">${esc(displayClass)}</div>
+          <div style="margin-top:6px">${s.status ? pill(s.status) : ""}</div>
         </div>
       </div>
-      <div class="card">
-        <div class="form-actions">
-          <a class="btn" href="#/results">📝 ${esc(t("portal.myResults"))}</a>
-          <a class="btn secondary" href="#/announcements">📢 ${esc(t("nav.announcements"))}</a>
-        </div>
+      <div class="quick-grid">
+        <a class="quick-card" href="#/results">
+          <div class="qc-ico">📝</div><div class="qc-label">${esc(t("portal.myResults"))}</div><div class="qc-arrow">View results →</div>
+        </a>
+        <a class="quick-card" href="#/announcements">
+          <div class="qc-ico">📢</div><div class="qc-label">${esc(t("nav.announcements"))}</div><div class="qc-arrow">Announcements →</div>
+        </a>
+        <a class="quick-card" href="#/results">
+          <div class="qc-ico">🖨</div><div class="qc-label">Report Card</div><div class="qc-arrow">Print →</div>
+        </a>
       </div>`);
   }
 
@@ -1860,7 +2220,7 @@
             <a class="btn small" target="_blank" href="${API.portalReportUrl(x.term_id)}">🖨 ${esc(t("results.reportCard"))}</a>
           </div>
           <div class="hidden" id="subj-${x.term_id}"></div>
-        </div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+        </div>`).join("") || `<div class="card">${emptyState("📝","No results yet","Your term results will appear here once teachers enter scores.","")}</div>`}`);
     $$("#view [data-subj]").forEach((b) => b.addEventListener("click", async () => {
       const area = $("#subj-" + b.dataset.subj);
       area.classList.toggle("hidden");
@@ -1877,7 +2237,8 @@
               <td><b>${esc(s.grade)}</b></td>
               <td>${esc(isAr2 && s.remarkAr ? s.remarkAr : s.remark)}</td>
             </tr>`).join("")}
-          </table></div>`;
+          </table></div>
+          <div class="row-count">Showing ${sd.subjects.length} records</div>`;
       } catch (e) { toast(errMsg(e), "err"); }
     }));
   }
@@ -1888,19 +2249,43 @@
   async function parentHome() {
     const d = await API.get("/portal/me");
     const isAr = window.I18N.lang === "ar";
+    if(!d.children || !d.children.length){
+      render(`<div class="card">${emptyState("👨‍👩‍👧","No children linked","Your children will appear here once linked by the madrasa.","")}</div>`);
+      return;
+    }
+    // Try to fetch averages for each child if available (use portal results)
+    // We will enrich cards with latest term average if possible
+    const children = d.children;
+    // fetch results for each child in parallel for grade chip
+    const infos = await Promise.all(children.map(async c=>{
+      try{
+        const rd = await API.get("/portal/results?studentId="+c.id);
+        const latest = rd.terms && rd.terms[0];
+        return { id:c.id, average:latest?latest.average:null, grade:latest?latest.overall_grade:null };
+      }catch(e){ return { id:c.id, average:null, grade:null }; }
+    }));
+    const infoMap = Object.fromEntries(infos.map(x=>[x.id,x]));
     render(`
       <h1>${esc(t("portal.children"))}</h1>
-      ${d.children.map((c) => `
-        <div class="card">
-          <div class="row" style="align-items:center">
-            ${c.photo_path ? `<img class="avatar" style="width:64px;height:64px;border-radius:12px" src="${esc(c.photo_path)}">` : ""}
-            <div style="flex:1">
-              <a href="#/child/${c.id}"><b style="font-size:1.05rem">${esc(isAr && c.name_ar ? c.name_ar : c.first_name + " " + c.last_name)}</b></a>
-              <div class="muted small mono">${esc(c.admission_no)} • ${esc(isAr && c.classAr ? c.classAr : c.classEn)}</div>
+      <div class="child-grid">
+      ${children.map((c) => {
+        const info = infoMap[c.id]||{};
+        const name = isAr && c.name_ar ? c.name_ar : (c.first_name + " " + c.last_name);
+        const cls = isAr && c.classAr ? c.classAr : c.classEn;
+        return `
+        <div class="child-card">
+          <div class="cc-top">
+            <div>
+              <div style="font-weight:800;font-size:1.05rem">${esc(name)}</div>
+              <div class="mono muted small">${esc(c.admission_no)} • ${esc(cls||"")}</div>
+              ${info.average!=null ? `<div class="small" style="margin-top:6px">Latest avg: <b>${esc(info.average)}%</b></div>` : `<div class="muted small" style="margin-top:6px">No term average yet</div>`}
             </div>
-            <a class="btn small secondary" href="#/child/${c.id}">${esc(t("common.edit")) === "" ? "" : "→"}</a>
+            ${info.grade ? `<span class="grade-chip">${esc(info.grade)}</span>` : ""}
           </div>
-        </div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+          <div style="margin-top:12px"><a class="cc-link" href="#/child/${c.id}">View Full Results →</a></div>
+        </div>`;
+      }).join("")}
+      </div>`);
   }
 
   async function parentResults() {

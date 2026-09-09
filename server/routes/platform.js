@@ -80,34 +80,63 @@ router.post("/madaris", asyncHandler(async (req, res) => {
   if (!slug || !nameEn) return err(res, 400, "A unique slug and English name are required.");
   const exists = await db.get("SELECT id FROM madaris WHERE slug = ?", [slug]);
   if (exists) return err(res, 400, "That slug is already taken.");
-  const planId = toNum(b.plan_id, 1);
+
+  // An omitted plan falls back to the first plan; an explicitly blank/invalid
+  // id is an error (the UI must always send a real plan id).
+  let planId;
+  if (b.plan_id === undefined) planId = 1;
+  else planId = toNum(b.plan_id, 0);
+  if (!planId) return err(res, 400, "Choose a valid plan.");
   const plan = await db.get("SELECT id FROM plans WHERE id = ?", [planId]);
   if (!plan) return err(res, 400, "Unknown plan.");
 
-  const r = await db.run(
-    `INSERT INTO madaris (slug, name_en, name_ar, motto_en, motto_ar, address, city, state_name, phone, email, plan_id, status)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?, 'active')`,
-    [
-      slug, nameEn, cleanStr(b.name_ar, 160), cleanStr(b.motto_en, 160), cleanStr(b.motto_ar, 160),
-      cleanStr(b.address, 255), cleanStr(b.city, 80), cleanStr(b.state_name, 80),
-      cleanStr(b.phone, 60), cleanStr(b.email, 120), plan.id,
-    ]
-  );
-  const mid = r.lastInsertRowid;
-
-  // Create the madrasa admin account at the same time (required to manage the madrasa)
-  let adminCreated = false;
+  // Validate the optional madrasa-admin credentials UP FRONT. Previously a
+  // blank, short or already-taken admin account was silently skipped, so the
+  // madrasa was created with NO way to log in to it.
   const adminUser = cleanStr(b.admin_username, 100).toLowerCase();
   const adminPass = String(b.admin_password || "");
-  if (adminUser && adminPass.length >= 8) {
+  const adminGiven = !!(adminUser || adminPass || b.admin_full_name);
+  if (adminGiven) {
+    if (!adminUser || !adminPass) return err(res, 400, "Admin username and password are required when creating an admin account.");
+    if (!/^[a-z0-9_.-]{3,}$/.test(adminUser)) return err(res, 400, "Username must be 3+ chars (letters, numbers, dot, dash, underscore).");
+    if (adminPass.length < 8) return err(res, 400, "Admin password must be at least 8 characters.");
     const taken = await db.get("SELECT id FROM users WHERE username = ?", [adminUser]);
-    if (!taken) {
+    if (taken) return err(res, 400, "That username is already taken.");
+  }
+
+  // Create the madrasa (+ its admin) as one unit: if the admin insert fails,
+  // remove the half-created madrasa instead of leaving an unusable tenant.
+  let mid = 0;
+  try {
+    const r = await db.run(
+      `INSERT INTO madaris (slug, name_en, name_ar, motto_en, motto_ar, address, city, state_name, phone, email, plan_id, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?, 'active')`,
+      [
+        slug, nameEn, cleanStr(b.name_ar, 160), cleanStr(b.motto_en, 160), cleanStr(b.motto_ar, 160),
+        cleanStr(b.address, 255), cleanStr(b.city, 80), cleanStr(b.state_name, 80),
+        cleanStr(b.phone, 60), cleanStr(b.email, 120), plan.id,
+      ]
+    );
+    mid = r.lastInsertRowid;
+  } catch (e) {
+    console.error("Failed to create madrasa:", e);
+    return err(res, 500, "Could not create the madrasa. Please try again.");
+  }
+
+  let adminCreated = false;
+  if (adminGiven) {
+    try {
       const hash = bcrypt.hashSync(adminPass, 10);
       await db.run(
         "INSERT INTO users (madrasa_id, username, password_hash, role, full_name) VALUES (?,?,?,?,?)",
         [mid, adminUser, hash, "madrasa_admin", cleanStr(b.admin_full_name, 160) || "Madrasa Administrator"]
       );
       adminCreated = true;
+    } catch (e) {
+      console.error("Failed to create madrasa admin, rolling back madrasa:", e);
+      try { await db.run("DELETE FROM users WHERE madrasa_id = ?", [mid]); } catch (_) { /* best effort */ }
+      try { await db.run("DELETE FROM madaris WHERE id = ?", [mid]); } catch (_) { /* best effort */ }
+      return err(res, 500, "Could not create the madrasa admin account. The madrasa was not created - please try again.");
     }
   }
   logActivity(db, { userId: req.user.id, action: "madrasa.create", entity: "madrasa", entityId: String(mid), meta: { slug }, ip: req.ip });
@@ -124,9 +153,28 @@ async function loadMadrasa(req, res, id) {
 router.get("/madaris/:id", asyncHandler(async (req, res) => {
   const m = await loadMadrasa(req, res, req.params.id);
   if (!m) return;
-  const plan = await db.get("SELECT * FROM plans WHERE id = ?", [m.plan_id]);
-  const admin = await db.get("SELECT id, username, full_name, email, phone, is_active FROM users WHERE madrasa_id = ? AND role = 'madrasa_admin'", [m.id]);
-  ok(res, { madrasa: m, plan, admin });
+  const [plan, admin] = await Promise.all([
+    db.get("SELECT * FROM plans WHERE id = ?", [m.plan_id]),
+    db.get("SELECT id, username, full_name, email, phone, is_active FROM users WHERE madrasa_id = ? AND role = 'madrasa_admin'", [m.id]),
+  ]);
+  // Same aggregate columns as the list view, so the detail page can show real
+  // student/teacher counts instead of falling back to zero.
+  const counts = await db.get(
+    `SELECT
+       (SELECT COUNT(*) FROM students s WHERE s.madrasa_id = m.id AND s.status IN ('active','promoted','suspended')) AS student_count,
+       (SELECT COUNT(*) FROM users u WHERE u.madrasa_id = m.id AND u.role = 'teacher' AND u.is_active = 1) AS teacher_count
+     FROM madaris m WHERE m.id = ?`,
+    [m.id]
+  );
+  ok(res, {
+    madrasa: Object.assign({}, m, {
+      student_count: counts ? Number(counts.student_count) : 0,
+      teacher_count: counts ? Number(counts.teacher_count) : 0,
+      plan_code: plan ? plan.code : "",
+    }),
+    plan,
+    admin,
+  });
 }));
 
 router.patch("/madaris/:id", asyncHandler(async (req, res) => {

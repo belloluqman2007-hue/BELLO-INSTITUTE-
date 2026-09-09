@@ -30,8 +30,8 @@ and one super-admin account.
 
 ```bash
 npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results
-npm test                 # automated suite (isolated temp database, 47 tests)
-bash test/smoke.sh       # end-to-end checks against a running dev server (29 checks)
+npm test                 # automated suite (isolated temp database, 67 tests)
+bash test/smoke.sh       # end-to-end checks against a running dev server (45 checks)
 ```
 
 ### Demo logins (after `npm run seed -- --demo`)
@@ -48,14 +48,19 @@ bash test/smoke.sh       # end-to-end checks against a running dev server (29 ch
 (`demo-fatihah-…` accounts exist for the second madrasa as well. Parent 1 is
 linked to two children, demonstrating the multi-child parent portal.)
 
+Demo data is generated **relative to the date you run the seed** — the academic
+session spans the current September→August year, attendance covers the last 20
+weekdays, and fee payments are spread over the last few months. The dashboards
+and analytics windows are therefore always populated, whenever you seed.
+
 ---
 
 ## Roles & permissions (enforced on the backend)
 
 | Role | Access |
 | ---- | ------ |
-| **SUPER ADMIN** | All madaris: create/suspend, plans (FREE / BASIC / PREMIUM with student & teacher limits and feature flags), platform stats, activity log, platform settings. |
-| **MADRASA ADMIN** | Everything *within their own madrasa*: students, teachers, classes, subjects (Arabic + English names — not hard-coded), sessions, terms, results, attendance, fees, announcements, school profile/logo/settings, grading config (CA max, exam max, pass mark, grade bands, promotion rules). |
+| **SUPER ADMIN** | All madaris: create/suspend, plans (FREE / BASIC / PREMIUM with student & teacher limits and feature flags), platform stats **and platform-wide analytics**, activity log, platform settings. |
+| **MADRASA ADMIN** | Everything *within their own madrasa*: students, teachers, classes, subjects (Arabic + English names — not hard-coded), sessions, terms, results, attendance, fees, announcements, **analytics dashboards**, school profile/logo/settings, grading config (CA max, exam max, pass mark, grade bands, promotion rules). |
 | **TEACHER** | Only classes/subjects assigned to them: view those rosters, enter/save results and attendance for them. |
 | **STUDENT** | Own profile, own results (all terms), own printable report card, announcements. |
 | **PARENT** | Linked children only: profiles, results, report cards, announcements. |
@@ -78,7 +83,8 @@ server/            Express API (Node 22, no framework magic)
   routes/          auth, platform, madrasa, students, teachers, classes/
                    subjects/sessions/grading, results, attendance, fees,
                    announcements, portal
-  services/        grading engine (configurable per madrasa), admissions
+  services/        grading engine (configurable per madrasa), admissions,
+                   analytics (dashboard aggregates, tenant- and platform-wide)
 public/            static mobile-first SPA (hash routing, EN/AR, RTL)
 test/              npm test suite + smoke.sh end-to-end
 docs/              isolation audit, database, deployment, security docs
@@ -103,11 +109,21 @@ render.yaml        NEW Render service definition (production)
   `uploads/` (outside the API surface).
 - **Arabic + English everywhere** — UI language toggle, per-record Arabic
   names, RTL layout for Arabic.
+- **Analytics dashboards** — enrolment trends, students per class, gender and
+  age distribution, daily attendance rate, fee collection trends and method
+  mix, grade distribution, per-class and per-term averages, and a "needs
+  attention" watch list (below pass mark and/or low attendance). Selectable
+  6/12/24-month and 14/30/60/90-day windows. Charts are hand-built inline SVG
+  in `public/js/charts.js` — no chart library, because the app's
+  `script-src 'self'` CSP forbids one. Aggregates are read-only over the
+  existing schema (no new tables, no migration) and every query is filtered by
+  `madrasa_id`. A separate platform-wide view for the super admin covers tenant
+  growth, plan mix, largest madaris and activity volume.
 
 ## Future SaaS roadmap (designed for, NOT built)
 
 Subscriptions & payment, SMS/WhatsApp/email notifications, timetables,
 certificates, ID cards, online admissions, online exams, assignments,
-library, expenses, payroll, analytics, native mobile app. The schema and
+library, expenses, payroll, native mobile app. The schema and
 routes are shaped so these can be added without re-architecture — none are
 implemented now, and no payment gateway is connected.

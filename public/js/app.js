@@ -117,6 +117,7 @@
         L("attendance", t("nav.attendance"), "✅"),
         L("fees", t("nav.fees"), "💰"),
         L("announcements", t("nav.announcements"), "📢"),
+        L("analytics", t("nav.analytics"), "📈"),
         L("grading", t("nav.grading"), "⚖️"),
         L("settings", t("nav.settings"), "⚙️"),
       ];
@@ -279,6 +280,149 @@
   /* ====================================================================== */
   /*  SUPER ADMIN                                                            */
   /* ====================================================================== */
+  /* ====================================================================== */
+  /*  ANALYTICS — shared chart/panel builders (js/charts.js does the drawing) */
+  /* ====================================================================== */
+  const C = () => window.Charts;
+
+  /** Picks the Arabic or English name of a record, honouring the UI language. */
+  function nm(rec) {
+    const r = rec || {};
+    const useAr = window.I18N.lang === "ar";
+    const ar = r.labelAr || r.nameAr || r.name_ar || r.classAr || "";
+    const en = r.label || r.nameEn || r.name_en || r.classEn || "";
+    return (useAr && ar) ? ar : en;
+  }
+
+  function monthsLabel(n) { return t("an.months" + n) !== "an.months" + n ? t("an.months" + n) : n + "m"; }
+  function daysLabel(n) { return t("an.days" + n) !== "an.days" + n ? t("an.days" + n) : n + "d"; }
+
+  function kpi(value, label, sub, tone) {
+    return `<div class="kpi ${tone || ""}"><div class="k-num">${esc(value)}</div>` +
+      `<div class="k-lbl">${esc(label)}</div>` +
+      (sub ? `<div class="k-sub">${esc(sub)}</div>` : "") + `</div>`;
+  }
+
+  function chartCard(title, note, body) {
+    return `<div class="card chart-card"><div class="chart-head">` +
+      `<span class="ch-title">${esc(title)}</span>` +
+      (note ? `<span class="ch-note">${esc(note)}</span>` : "") +
+      `</div>${body}</div>`;
+  }
+
+  function kpiRow(a) {
+    const c = C();
+    const feeTone = a.fees.collectionRate >= 80 ? "ok" : a.fees.collectionRate >= 50 ? "warn" : "danger";
+    return `<div class="kpis">` +
+      kpi(a.totals.students, t("an.students"), `${a.totals.classes} ${t("an.classes")} · ${a.totals.teachers} ${t("an.teachers")}`) +
+      kpi(a.attendance.rate + "%", t("an.attendanceRate"), `${a.attendance.marked} ${t("an.marked")}`, "accent") +
+      kpi(c.money(a.fees.collected), t("an.collected"), `${t("an.outstanding")} ${c.money(a.fees.outstanding)}`, feeTone) +
+      kpi(a.results.average == null ? "—" : a.results.average + "%", t("an.average"),
+        a.results.summaries ? `${a.results.passRate}% ${t("an.passRate")}` : t("an.noData"), "ok") +
+      `</div>`;
+  }
+
+  function enrolmentPanels(a) {
+    const c = C();
+    const noData = t("an.noData");
+    const classes = a.enrolment.byClass.map((x) => ({ label: nm(x), value: x.value }));
+    return `<div class="grid cols-2">` +
+      chartCard(t("an.enrolmentTrend"), monthsLabel(a.window.months),
+        c.bar(a.enrolment.trend, { format: c.int, emptyText: noData })) +
+      chartCard(t("an.byClass"), `${a.totals.students}`,
+        c.hbar(classes, { format: c.int, emptyText: noData })) +
+      `</div><div class="grid cols-2">` +
+      chartCard(t("an.byGender"), "",
+        c.donut(a.enrolment.byGender.map((x) => ({ label: t("an." + x.key), value: x.value })),
+          { centerLabel: t("an.students"), emptyText: noData })) +
+      chartCard(t("an.ageBands"), "",
+        c.bar(a.enrolment.ageBands.map((x) => ({ label: t("an.age." + x.key), value: x.value })),
+          { format: c.int, emptyText: noData })) +
+      `</div>`;
+  }
+
+  function attendancePanels(a) {
+    const c = C();
+    const noData = t("an.noData");
+    const at = a.attendance;
+    return `<div class="grid cols-2">` +
+      chartCard(t("an.attendanceTrend"), `${at.marked} ${t("an.marked")}`,
+        c.line(at.daily, { max: 100, nice: false, format: (v) => v + "%", axisFormat: (v) => v + "%", emptyText: noData })) +
+      chartCard(t("an.attendance"), daysLabel(a.window.attendanceDays),
+        c.donut([
+          { label: t("an.present"), value: at.present },
+          { label: t("an.absent"), value: at.absent },
+          { label: t("an.excused"), value: at.excused },
+        ], { centerLabel: t("an.attendanceRate"), centerValue: at.rate + "%", emptyText: noData })) +
+      `</div>`;
+  }
+
+  function feePanels(a) {
+    const c = C();
+    const noData = t("an.noData");
+    return `<div class="grid cols-2">` +
+      chartCard(t("an.collectionTrend"), monthsLabel(a.window.months),
+        c.bar(a.fees.trend, { format: c.money, emptyText: noData })) +
+      chartCard(t("an.byMethod"), `${t("an.collectionRate")} ${a.fees.collectionRate}%`,
+        c.donut(a.fees.byMethod.map((x) => ({ label: x.key, value: x.value })),
+          { format: c.money, centerLabel: t("an.collected"), centerValue: c.money(a.fees.collected), emptyText: noData })) +
+      `</div>`;
+  }
+
+  function performancePanels(a) {
+    const c = C();
+    const noData = t("an.noData");
+    const r = a.results;
+    const termName = a.term ? nm({ label: a.term.nameEn, labelAr: a.term.nameAr }) : "";
+    return `<div class="grid cols-2">` +
+      chartCard(t("an.gradeDist"), termName,
+        c.bar(r.gradeDistribution.map((g) => ({ label: g.grade, value: g.value })),
+          { nice: false, format: c.int, emptyText: noData })) +
+      chartCard(t("an.classRanking"), `${r.summaries} ${t("an.studentsGraded")}`,
+        c.hbar(r.classRanking.map((x) => ({ label: nm(x), value: x.value, sub: `${x.students}` })),
+          { max: 100, format: c.one, suffix: "%", emptyText: noData })) +
+      `</div>` +
+      chartCard(t("an.termTrend"), "",
+        c.line(r.termTrend.map((x) => ({ label: nm(x), value: x.value })),
+          { max: 100, nice: false, format: (v) => v + "%", axisFormat: (v) => v + "%", emptyText: noData }));
+  }
+
+  function watchPanel(a) {
+    const rows = a.watchList.map((w) => {
+      const name = window.I18N.lang === "ar" && w.nameAr ? w.nameAr : w.name;
+      const tags = w.reasons.map((r) =>
+        `<span class="tag ${r === "low_attendance" ? "warn" : ""}">${esc(t(r === "low_attendance" ? "an.lowAttendance" : "an.lowGrades"))}</span>`
+      ).join(" ");
+      return `<a class="watch-row" href="#/students/${w.id}">` +
+        `<span class="who"><b>${esc(name)}</b> <span class="mono muted small">${esc(w.admissionNo)}</span>` +
+        `<span class="muted small"> · ${esc(nm({ label: w.classEn, labelAr: w.classAr }))}</span></span>` +
+        `<span class="metrics">` +
+        (w.average != null ? `<span title="${esc(t("an.average"))}">${esc(w.average)}%</span>` : "") +
+        (w.attendanceRate != null ? `<span title="${esc(t("an.attendanceRate"))}">✅ ${esc(w.attendanceRate)}%</span>` : "") +
+        `</span>${tags}</a>`;
+    }).join("");
+    const note = a.term ? `${t("an.forTerm")} ${nm({ label: a.term.nameEn, labelAr: a.term.nameAr })}` : "";
+    return chartCard("⚠️ " + t("an.watchList"), note,
+      rows || `<div class="empty">${esc(t("an.watchEmpty"))}</div>`);
+  }
+
+  function rangeBar(state) {
+    const seg = (group, items, current) =>
+      `<span class="segs" data-group="${esc(group)}">` +
+      items.map(([v, lbl]) =>
+        `<button type="button" data-v="${v}" class="${Number(current) === v ? "on" : ""}">${esc(lbl)}</button>`).join("") +
+      `</span>`;
+    return `<div class="card chart-card"><div class="chart-head">` +
+      `<span class="ch-title">${esc(t("an.title"))}</span>` +
+      `<span class="ch-note">${esc(t("an.generated"))} ${esc(new Date().toLocaleString())}</span></div>` +
+      `<div class="form-actions" style="gap:8px;flex-wrap:wrap">` +
+      `<label class="muted small">${esc(t("an.range"))}</label>` +
+      seg("months", [[6, t("an.months6")], [12, t("an.months12")], [24, t("an.months24")]], state.months) +
+      `<label class="muted small">${esc(t("an.attWindow"))}</label>` +
+      seg("days", [[14, t("an.days14")], [30, t("an.days30")], [60, t("an.days60")], [90, t("an.days90")]], state.days) +
+      `</div></div>`;
+  }
+
   const SA = (h) => async function () {
     if (!requireLogin()) return;
     if (me.role !== "super_admin") { render(`<div class="empty">403</div>`); return; }
@@ -286,28 +430,66 @@
   };
 
   route("platform", SA(async function () {
-    const d = await API.get("/platform/stats");
+    const [st, an] = await Promise.all([
+      API.get("/platform/stats"),
+      API.get("/platform/analytics?months=12").catch(() => null),
+    ]);
+    const c = C();
+    const noData = t("an.noData");
+
+    if (!an || !an.analytics) {
+      // Analytics endpoint unavailable: keep the original counters-only view.
+      render(`
+        <h1>${esc(t("platform.title"))}</h1>
+        <div class="kpis">
+          ${kpi(st.madaris, t("pf.madaris"), `${st.activeMadaris} ${t("common.active")}`)}
+          ${kpi(st.students, t("pf.students"))}
+          ${kpi(st.teachers, t("an.teachers"), "", "accent")}
+          ${kpi(st.parents, t("an.parents"))}
+        </div>`);
+      return;
+    }
+
+    const a = an.analytics;
     render(`
       <h1>${esc(t("platform.title"))}</h1>
-      <div class="grid cols-4">
-        <div class="stat"><div class="num">${d.madaris}</div><div class="lbl">${esc(t("nav.madaris"))}</div></div>
-        <div class="stat accent"><div class="num">${d.activeMadaris}</div><div class="lbl">${esc(t("common.active"))}</div></div>
-        <div class="stat"><div class="num">${d.students}</div><div class="lbl">${esc(t("nav.students"))}</div></div>
-        <div class="stat"><div class="num">${d.teachers}</div><div class="lbl">${esc(t("nav.teachers"))}</div></div>
+      <div class="kpis">
+        ${kpi(a.totals.madaris, t("pf.madaris"), `${a.totals.activeMadaris} ${t("common.active")}`)}
+        ${kpi(a.totals.students, t("pf.students"), `+${a.totals.newStudents30d} · ${t("pf.newStudents30d")}`, "accent")}
+        ${kpi(a.totals.users, t("pf.users"), `${a.totals.teachers} ${t("an.teachers")} · ${a.totals.parents} ${t("an.parents")}`)}
+        ${kpi(c.money(a.totals.feesCollected), t("pf.feesCollected"), "", "ok")}
+      </div>
+      <div class="grid cols-2">
+        ${chartCard(t("pf.madrasaTrend"), monthsLabel(12), c.bar(a.madrasaTrend, { format: c.int, emptyText: noData }))}
+        ${chartCard(t("pf.studentTrend"), monthsLabel(12), c.bar(a.studentTrend, { format: c.int, tone: "accent", emptyText: noData }))}
+      </div>
+      <div class="grid cols-2">
+        ${chartCard(t("pf.feeTrend"), monthsLabel(12), c.bar(a.feeTrend, { format: c.money, emptyText: noData }))}
+        ${chartCard(t("pf.activityTrend"), "", c.line(a.activity.daily, { format: c.int, emptyText: noData }))}
+      </div>
+      <div class="grid cols-2">
+        ${chartCard(t("pf.byPlan"), "", c.donut(a.byPlan.map((x) => ({ label: x.label, value: x.madaris })), { format: c.int, centerLabel: t("pf.madaris"), emptyText: noData }))}
+        ${chartCard(t("pf.topMadaris"), "", c.hbar(a.topMadaris.map((m) => ({ label: nm(m), value: m.students, sub: m.slug })), { format: c.int, emptyText: noData }))}
       </div>
       <h2>${esc(t("platform.plans"))}</h2>
-      <div class="tablewrap"><table>
-        <tr><th>Plan</th><th>${esc(t("platform.students"))}</th><th></th></tr>
-        ${d.byPlan.map((p) => `<tr><td><b>${esc(p.code)}</b></td><td>${p.n}</td><td></td></tr>`).join("")}
-      </table></div>
+      <div class="card"><div class="tablewrap"><table>
+        <tr><th>${esc(t("platform.plan"))}</th><th>${esc(t("pf.madaris"))}</th><th>${esc(t("pf.students"))}</th></tr>
+        ${a.byPlan.map((x) => `<tr><td><b>${esc(x.label)}</b> <span class="mono muted small">${esc(x.code)}</span></td><td>${x.madaris}</td><td>${x.students}</td></tr>`).join("")}
+      </table></div></div>
+      <h2>${esc(t("pf.topActions"))}</h2>
+      <div class="card">${c.hbar(a.activity.topActions, { format: c.int, emptyText: noData })}</div>
+      <h2>${esc(t("pf.recentMadaris"))}</h2>
+      <div class="card">
+        ${a.recentMadaris.map((m) => `<a class="reportlink" href="#/platform/madaris/${m.id}"><div><b>${esc(nm(m))}</b> <span class="mono muted small">${esc(m.slug)}</span><div class="muted small">${esc(m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "")}</div></div><span class="pill ${m.status === "active" ? "ok" : "bad"}">${esc(m.status)}</span></a>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+      </div>
       <h2>${esc(t("dash.recentActivity"))}</h2>
       <div class="card"><div class="tablewrap"><table>
         <tr><th>Time</th><th>Madrasa</th><th>User</th><th>Action</th></tr>
-        ${d.recentActivity.map((a) => `<tr>
-          <td class="muted">${esc(new Date(a.created_at).toLocaleString())}</td>
-          <td>${esc(a.madrasa_slug || "—")}</td>
-          <td>${esc(a.username || "—")}</td>
-          <td>${esc(a.action)}</td>
+        ${st.recentActivity.map((x) => `<tr>
+          <td class="muted">${esc(new Date(x.created_at).toLocaleString())}</td>
+          <td>${esc(x.madrasa_slug || "—")}</td>
+          <td>${esc(x.username || "—")}</td>
+          <td>${esc(x.action)}</td>
         </tr>`).join("") || `<tr><td colspan="4" class="empty">${esc(t("common.noData"))}</td></tr>`}
       </table></div></div>`);
   }));
@@ -552,32 +734,55 @@
     if (me.role === "teacher") return teacherHome();
     if (me.role !== "madrasa_admin") { render(`<div class="empty">403</div>`); return; }
 
-    const [students, classes, subjects, sessions, ann] = await Promise.all([
-      API.get("/students?perPage=1"),
-      API.get("/classes"),
-      API.get("/subjects"),
-      API.get("/sessions"),
-      API.get("/announcements?limit=5"),
+    const [an, sessions, ann] = await Promise.all([
+      API.get("/madrasa/analytics?months=6&attendanceDays=30").catch(() => null),
+      API.get("/sessions").catch(() => ({ sessions: [] })),
+      API.get("/announcements?limit=5").catch(() => ({ announcements: [] })),
     ]);
-    const teachers = await API.get("/teachers").catch(() => ({ teachers: [] }));
-    const current = sessions.sessions.find((s) => s.is_current) || sessions.sessions[0];
+    const c = C();
+    const noData = t("an.noData");
+
+    // Analytics is the centrepiece, but the dashboard must still render if the
+    // aggregate query fails — fall back to the plain counters.
+    if (!an || !an.analytics) {
+      const [students, classes, subjects] = await Promise.all([
+        API.get("/students?perPage=1"), API.get("/classes"), API.get("/subjects"),
+      ]);
+      const teachers = await API.get("/teachers").catch(() => ({ teachers: [] }));
+      render(`
+        <h1>${esc(t("dash.overview"))}</h1>
+        <div class="kpis">
+          ${kpi(students.total, t("an.students"))}
+          ${kpi(teachers.teachers.length, t("an.teachers"), "", "accent")}
+          ${kpi(classes.classes.length, t("an.classes"))}
+          ${kpi(subjects.subjects.length, t("an.subjects"))}
+        </div>`);
+      return;
+    }
+
+    const a = an.analytics;
+    const termName = a.term ? nm({ label: a.term.nameEn, labelAr: a.term.nameAr }) : "";
     render(`
       <h1>${esc(t("dash.overview"))}</h1>
-      <div class="grid cols-4">
-        <div class="stat"><div class="num">${students.total}</div><div class="lbl">${esc(t("dash.activeStudents"))}</div></div>
-        <div class="stat accent"><div class="num">${teachers.teachers.length}</div><div class="lbl">${esc(t("dash.teachers"))}</div></div>
-        <div class="stat"><div class="num">${classes.classes.length}</div><div class="lbl">${esc(t("dash.classes"))}</div></div>
-        <div class="stat"><div class="num">${subjects.subjects.length}</div><div class="lbl">${esc(t("dash.subjects"))}</div></div>
-      </div>
+      ${kpiRow(a)}
       <div class="card">
         <div class="card-title">⚡ ${esc(t("dash.quickActions"))}</div>
         <div class="form-actions">
           <a class="btn" href="#/students">🎓 ${esc(t("students.add"))}</a>
           <a class="btn secondary" href="#/results">📝 ${esc(t("nav.results"))}</a>
           <a class="btn secondary" href="#/attendance">✅ ${esc(t("nav.attendance"))}</a>
-          <a class="btn secondary" href="#/announcements">📢 ${esc(t("ann.add"))}</a>
+          <a class="btn secondary" href="#/analytics">📈 ${esc(t("nav.analytics"))}</a>
         </div>
       </div>
+      <div class="grid cols-2">
+        ${chartCard(t("an.enrolmentTrend"), monthsLabel(6), c.bar(a.enrolment.trend, { format: c.int, emptyText: noData }))}
+        ${chartCard(t("an.attendanceTrend"), daysLabel(30), c.line(a.attendance.daily, { max: 100, nice: false, format: (v) => v + "%", axisFormat: (v) => v + "%", emptyText: noData }))}
+      </div>
+      <div class="grid cols-2">
+        ${chartCard(t("an.collectionTrend"), `${t("an.outstanding")} ${esc(c.money(a.fees.outstanding))}`, c.bar(a.fees.trend, { format: c.money, emptyText: noData }))}
+        ${chartCard(t("an.gradeDist"), termName, c.bar(a.results.gradeDistribution.map((g) => ({ label: g.grade, value: g.value })), { nice: false, format: c.int, emptyText: noData }))}
+      </div>
+      ${watchPanel(a)}
       <div class="grid cols-2">
         <div class="card">
           <div class="card-title">🗓️ ${esc(t("sessions.title"))}</div>
@@ -586,9 +791,46 @@
         </div>
         <div class="card">
           <div class="card-title">📢 ${esc(t("dash.announcements"))}</div>
-          ${ann.announcements.slice(0, 3).map((a) => `<div class="reportlink"><div><b>${esc(a.title)}</b><div class="muted small">${esc(new Date(a.created_at).toLocaleDateString())}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+          ${ann.announcements.slice(0, 3).map((x) => `<div class="reportlink"><div><b>${esc(x.title)}</b><div class="muted small">${esc(new Date(x.created_at).toLocaleDateString())}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
         </div>
       </div>`);
+  });
+
+  /* ====================================================================== */
+  /*  ANALYTICS (full dashboard, madrasa admin)                              */
+  /* ====================================================================== */
+  route("analytics", async function () {
+    if (!requireLogin()) return;
+    if (me.role !== "madrasa_admin") { render(`<div class="empty">403</div>`); return; }
+
+    const state = { months: 12, days: 30 };
+
+    async function draw() {
+      const d = await API.get(`/madrasa/analytics?months=${state.months}&attendanceDays=${state.days}`);
+      const a = d.analytics;
+      render(`
+        <h1>${esc(t("an.title"))}</h1>
+        <p class="muted" style="margin-top:-6px">${esc(t("an.subtitle"))}</p>
+        ${rangeBar(state)}
+        ${kpiRow(a)}
+        <h2>${esc(t("an.enrolment"))}</h2>
+        ${enrolmentPanels(a)}
+        <h2>${esc(t("an.attendance"))}</h2>
+        ${attendancePanels(a)}
+        <h2>${esc(t("an.fees"))}</h2>
+        ${feePanels(a)}
+        <h2>${esc(t("an.performance"))}</h2>
+        ${performancePanels(a)}
+        ${watchPanel(a)}`);
+      $$(".segs button").forEach((b) => b.addEventListener("click", () => {
+        const group = b.parentElement.getAttribute("data-group");
+        const v = Number(b.getAttribute("data-v"));
+        if (group === "months") state.months = v; else state.days = v;
+        draw();
+      }));
+    }
+
+    await draw();
   });
 
   /* ====================================================================== */

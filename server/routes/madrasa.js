@@ -13,6 +13,7 @@ const { requireAuth, requireRole, requireTenant } = require("../middleware/auth"
 const { getActiveMadrasa } = require("../middleware/tenant");
 const { imageUploader } = require("../middleware/upload");
 const grading = require("../services/grading");
+const analytics = require("../services/analytics");
 
 // Two routers share the same tenant scope:
 //  router      -> mounted at /api/madrasa (profile, settings)
@@ -85,6 +86,25 @@ router.post("/profile/logo", adminOrSupport, imageUploader("logos", "logo"), asy
   if (!req.file) return err(res, 400, "No image uploaded.");
   await db.run("UPDATE madaris SET logo_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [`/uploads/logos/${req.file.filename}`, m.id]);
   ok(res, { ok: true, logoPath: `/uploads/logos/${req.file.filename}` });
+}));
+
+/* ------------------------------ analytics ------------------------------ */
+
+/**
+ * GET /api/madrasa/analytics?months=12&attendanceDays=30&termId=N
+ * Dashboard aggregates for THIS madrasa. madrasa_admin only (a super admin may
+ * inspect a specific madrasa with ?madrasaId for support). The tenant id is
+ * always resolved from the session user — never from the request.
+ */
+router.get("/analytics", adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const data = await analytics.tenantAnalytics(m.id, {
+    months: req.query.months,
+    attendanceDays: req.query.attendanceDays,
+    termId: req.query.termId,
+  });
+  ok(res, { madrasaId: m.id, analytics: data });
 }));
 
 /** Per-madrasa key/value settings (admission prefix, etc.) */

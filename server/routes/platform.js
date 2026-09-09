@@ -13,6 +13,7 @@ const bcrypt = require("bcryptjs");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, logActivity } = require("../util");
 const { requireSuperAdmin } = require("../middleware/auth");
+const analytics = require("../services/analytics");
 
 const router = express.Router();
 router.use(requireSuperAdmin);
@@ -44,6 +45,19 @@ router.get("/stats", asyncHandler(async (req, res) => {
     byPlan,
     recentActivity,
   });
+}));
+
+/* ---------------------------- analytics -------------------------------- */
+
+/**
+ * GET /api/platform/analytics?months=12
+ * Platform-wide dashboard aggregates: tenant growth, enrolment, plan mix,
+ * fee collections and activity. Super admin only (enforced by the router-wide
+ * requireSuperAdmin above). Contains no student-level data.
+ */
+router.get("/analytics", asyncHandler(async (req, res) => {
+  const data = await analytics.platformAnalytics({ months: req.query.months });
+  ok(res, { analytics: data });
 }));
 
 /* ------------------------------ madaris -------------------------------- */

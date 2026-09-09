@@ -17,6 +17,21 @@ const crypto = require("crypto");
 const db = require("./db");
 const config = require("./config");
 const { migrate } = require("./migrate");
+const grading = require("./services/grading");
+
+/* ------------------------------ date helpers ------------------------------
+   Demo data is generated RELATIVE TO TODAY so the dashboards, attendance
+   screens and analytics windows are always populated whenever the seed runs.
+   (The previously hard-coded 2025/2026 dates went stale and left every
+   analytics chart empty.) */
+function isoDate(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function daysAgo(n, from = new Date()) {
+  const d = new Date(from.getTime());
+  d.setDate(d.getDate() - n);
+  return isoDate(d);
+}
 
 const DEFAULT_PLANS = [
   {
@@ -112,19 +127,36 @@ async function createDemoMadrasa(slug, names, city, planCode, prefix) {
   }
   const adminId = await mkUser(`${slug}-admin`, "madrasa_admin", "Madrasa Administrator", "مدير المدرسة");
 
-  // Sessions + terms
+  // Sessions + terms — dates are RELATIVE TO TODAY. The academic year runs
+  // 1 September -> 31 August, so "today" always falls inside a session.
+  const today = new Date();
+  const todayStr = isoDate(today);
+  const startY = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
+  const on = (y, m, d) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const s = await db.run(
-    "INSERT INTO academic_sessions (madrasa_id, label, start_date, end_date, is_current) VALUES (?,?, '2025-09-01', '2026-08-31', 1)",
-    [mid, "2025/2026"]
+    "INSERT INTO academic_sessions (madrasa_id, label, start_date, end_date, is_current) VALUES (?,?,?,?,1)",
+    [mid, `${startY}/${startY + 1}`, on(startY, 9, 1), on(startY + 1, 8, 31)]
   );
   const sessionId = s.lastInsertRowid;
+  const termDefs = [
+    [1, "First Term", "الفترة الأولى", on(startY, 9, 1), on(startY, 12, 19)],
+    [2, "Second Term", "الفترة الثانية", on(startY + 1, 1, 8), on(startY + 1, 3, 27)],
+    [3, "Third Term", "الفترة الثالثة", on(startY + 1, 4, 13), on(startY + 1, 7, 17)],
+  ];
   const termIds = {};
-  for (const [pos, [en, ar]] of [[1, ["First Term", "الفترة الأولى"]], [2, ["Second Term", "الفترة الثانية"]], [3, ["Third Term", "الفترة الثالثة"]]]) {
+  let currentTermId = null;
+  for (const [pos, en, ar, sd, ed] of termDefs) {
     const t = await db.run(
       "INSERT INTO terms (madrasa_id, session_id, position, name_en, name_ar, start_date, end_date) VALUES (?,?,?,?,?,?,?)",
-      [mid, sessionId, pos, en, ar, "2025-09-01", "2025-12-19"]
+      [mid, sessionId, pos, en, ar, sd, ed]
     );
     termIds[pos] = t.lastInsertRowid;
+    if (sd <= todayStr && todayStr <= ed) currentTermId = t.lastInsertRowid;
+  }
+  // Between terms (school holiday): report on the most recently ended one.
+  if (!currentTermId) {
+    const ended = termDefs.filter(([, , , , ed]) => ed < todayStr);
+    currentTermId = ended.length ? termIds[ended[ended.length - 1][0]] : termIds[1];
   }
 
   // Grading config: CA 40 / Exam 60, pass 50, classic bands
@@ -212,50 +244,83 @@ async function createDemoMadrasa(slug, names, city, planCode, prefix) {
     );
   }
 
-  // Results: 2 students, First Term, all 5 core subjects (deterministic scores)
-  const termId = termIds[1];
-  let score = 62;
-  for (const sid of [studentIds[0], studentIds[1]]) {
+  // Results: every demo student, in the CURRENT term, across all core subjects.
+  // The profiles are chosen to span the grade bands A -> F so the performance
+  // charts have a visible shape.
+  const termId = currentTermId;
+  const scoreProfile = [
+    { ca: 36, exam: 55 }, // ~91% -> A
+    { ca: 28, exam: 42 }, // ~70% -> B
+    { ca: 22, exam: 33 }, // ~55% -> C
+    { ca: 12, exam: 18 }, // ~30% -> F
+  ];
+  const classesWithResults = new Set();
+  for (let i = 0; i < studentIds.length; i++) {
+    const sid = studentIds[i];
     const stu = await db.get("SELECT class_id FROM students WHERE id = ?", [sid]);
-    for (const sname of coreSubjects) {
-      const ca = Math.min(40, score % 41);
-      const exam = Math.min(60, (score * 7) % 61);
+    const base = scoreProfile[i % scoreProfile.length];
+    for (let j = 0; j < coreSubjects.length; j++) {
+      const ca = Math.min(40, base.ca + (j % 3));
+      const exam = Math.min(60, base.exam + (j % 4));
       await db.run(
         `INSERT INTO results (madrasa_id, student_id, class_id, session_id, term_id, subject_id, ca, exam, total)
          VALUES (?,?,?,?,?,?,?,?,?)`,
-        [mid, sid, stu.class_id, sessionId, termId, subjectIds[sname], ca, exam, ca + exam]
+        [mid, sid, stu.class_id, sessionId, termId, subjectIds[coreSubjects[j]], ca, exam, ca + exam]
       );
-      score += 7;
     }
+    classesWithResults.add(stu.class_id);
   }
 
-  // Attendance for First Term (30 school days)
+  // Attendance: the last 20 weekdays ending today, so the attendance charts are
+  // populated whenever the demo is created.
+  const schoolDays = [];
+  for (let back = 0; schoolDays.length < 20; back++) {
+    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - back);
+    const dow = day.getDay();
+    if (dow === 0 || dow === 6) continue; // weekends are not school days
+    schoolDays.unshift(isoDate(day));
+  }
   for (const sid of studentIds) {
     const stu = await db.get("SELECT class_id FROM students WHERE id = ?", [sid]);
-    for (let d = 8; d < 28; d++) {
-      const absent = (sid + d) % 9 === 0;
+    for (let i = 0; i < schoolDays.length; i++) {
+      const absent = (sid + i) % 9 === 0;
+      const excused = !absent && (sid + i) % 13 === 0;
+      const status = absent ? "absent" : excused ? "excused" : "present";
       await db.insertIgnore("attendance", "madrasa_id, student_id, class_id, term_id, day, status, recorded_by",
-        [mid, sid, stu.class_id, termId, `2025-09-${String(d).padStart(2, "0")}`, absent ? "absent" : "present", adminId]);
+        [mid, sid, stu.class_id, termId, schoolDays[i], status, adminId]);
     }
   }
 
-  // Fees
+  // Fees: two items for the current term, with payments spread over the last
+  // few months across several methods. Student 1 settles in full, student 2
+  // pays part, the rest owe a balance.
   const fee1 = await db.run(
     "INSERT INTO fee_items (madrasa_id, term_id, name_en, name_ar, amount_ngn) VALUES (?,?,?,?,?)",
-    [mid, termId, "First Term Tuition", "رسوم الفصل الأول", 5000]
+    [mid, termId, "Current Term Tuition", "رسوم الفصل الحالي", 5000]
   );
   const fee2 = await db.run(
     "INSERT INTO fee_items (madrasa_id, term_id, name_en, name_ar, amount_ngn) VALUES (?,?,?,?,?)",
     [mid, termId, "Book Fee", "رسوم الكتب", 1500]
   );
-  await db.run(
-    "INSERT INTO fee_payments (madrasa_id, student_id, fee_item_id, amount_ngn, payment_date, method, reference, recorded_by) VALUES (?,?,?,?,?,?,?,?)",
-    [mid, studentIds[0], fee1.lastInsertRowid, 5000, "2025-09-05", "cash", "RECP-0001", adminId]
-  );
-  await db.run(
-    "INSERT INTO fee_payments (madrasa_id, student_id, fee_item_id, amount_ngn, payment_date, method, reference, recorded_by) VALUES (?,?,?,?,?,?,?,?)",
-    [mid, studentIds[0], fee2.lastInsertRowid, 1500, "2025-09-05", "cash", "RECP-0002", adminId]
-  );
+  const receipts = [
+    [studentIds[0], fee1.lastInsertRowid, 5000, 3, "cash", "RECP-0001"],
+    [studentIds[0], fee2.lastInsertRowid, 1500, 3, "cash", "RECP-0002"],
+    [studentIds[1], fee1.lastInsertRowid, 4000, 41, "bank", "RECP-0003"],
+    [studentIds[2], fee2.lastInsertRowid, 1500, 78, "transfer", "RECP-0004"],
+    [studentIds[3], fee1.lastInsertRowid, 2000, 120, "cash", "RECP-0005"],
+  ];
+  for (const [sid, itemId, amount, daysBack, method, ref] of receipts) {
+    await db.run(
+      "INSERT INTO fee_payments (madrasa_id, student_id, fee_item_id, amount_ngn, payment_date, method, reference, recorded_by) VALUES (?,?,?,?,?,?,?,?)",
+      [mid, sid, itemId, amount, daysAgo(daysBack, today), method, ref, adminId]
+    );
+  }
+
+  // Publish the term summaries so results analytics, positions and report cards
+  // are populated immediately (normally an admin triggers this per class).
+  for (const cid of classesWithResults) {
+    await grading.computeClassTerm(mid, cid, termId, adminId);
+  }
 
   // Announcements
   await db.run(

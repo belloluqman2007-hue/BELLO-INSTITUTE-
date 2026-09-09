@@ -5,6 +5,7 @@
 const config = require("./config");
 const { migrate } = require("./migrate");
 const { createApp } = require("./app");
+const { seedPlans, seedSuperAdmin } = require("./seed");
 const db = require("./db");
 
 (async () => {
@@ -12,6 +13,13 @@ const db = require("./db");
     config.validate();
     // Always ensure the (new) database schema is up to date.
     await migrate();
+    // Bootstrap a fresh database on every boot: default plans + the single
+    // super admin. Both are idempotent (only created if absent), so an
+    // existing database — and a password the admin later changed via the
+    // app — is never overwritten. See docs/DEPLOYMENT.md → "Resetting the
+    // super-admin password".
+    await seedPlans();
+    await seedSuperAdmin();
     const app = createApp();
     const server = app.listen(config.PORT, "0.0.0.0", () => {
       console.log("==============================================");

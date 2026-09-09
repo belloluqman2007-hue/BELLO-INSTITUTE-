@@ -219,7 +219,10 @@
       else location.hash = "#/login";
       return;
     }
-    if (!requireLogin()) return;
+    // "login" is the only public route: it must render while logged out.
+    // Gating it behind requireLogin() dead-locks the app on "Loading…"
+    // because the hash is already "#/login" (no new hashchange fires).
+    if (path !== "login" && !requireLogin()) return;
     renderLayout(path);
     try {
       await handler(params);

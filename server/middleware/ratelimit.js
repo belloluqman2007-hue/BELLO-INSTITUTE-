@@ -35,4 +35,40 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts. Please wait and try again." },
 });
 
-module.exports = { apiLimiter, loginLimiter };
+/* ---------------------------------------------------------------------------
+   PUBLIC (logged-out) endpoints.
+   These are reachable without an account, so they get their own limits: the
+   directory is cheap to read, while result verification and admission
+   submissions are rate limited hard enough that guessing an admission number
+   plus surname is not practical.
+--------------------------------------------------------------------------- */
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.PUBLIC_RATE_LIMIT || 600),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please slow down." },
+});
+
+const publicWriteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: Number(process.env.PUBLIC_APPLY_LIMIT || 8),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many submissions from this connection. Please try again later." },
+});
+
+const verifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.PUBLIC_VERIFY_LIMIT || 12),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    let slug = "";
+    try { slug = String((req.body && req.body.madrasaSlug) || "").toLowerCase().slice(0, 80); } catch (e) { /* no body */ }
+    return (req.ip || "unknown") + ":" + (slug || "?");
+  },
+  message: { error: "Too many verification attempts. Please wait a few minutes and try again." },
+});
+
+module.exports = { apiLimiter, loginLimiter, publicLimiter, publicWriteLimiter, verifyLimiter };

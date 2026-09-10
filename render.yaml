@@ -20,9 +20,22 @@ services:
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
-    # Uploads (logos/photos) live on the container's ephemeral disk.
-    # For persistent media on a free plan, keep uploads small or later add
-    # object storage. The database itself is the external MySQL (below).
+    # ---------------------------------------------------------------------
+    # PERSISTENT DISK — do not remove this block.
+    # Render's container filesystem is thrown away on every deploy/restart.
+    # Without a disk, uploads and JSON backups disappear, and if this service
+    # is ever run on SQLite (no DATABASE_URL) the WHOLE database — every
+    # madrasa included — is deleted on the next deploy. That is the exact
+    # "I added a madrasa and later it was gone" report. A disk also allows
+    # only ONE instance and no zero-downtime deploys: both are fine here.
+    # Growing a disk is possible, shrinking is not. docs/PERSISTENCE.md.
+    # ---------------------------------------------------------------------
+    disk:
+      name: bello-data
+      mountPath: /var/data
+      sizeGB: 1          # grow this later; Render minimum is 1
+    # The database itself is the external MySQL (below); the disk holds
+    # uploads, backups and the storage state marker.
     envVars:
       - key: NODE_ENV
         value: production
@@ -49,7 +62,27 @@ services:
         value: "10"
       - key: API_RATE_LIMIT
         value: "300"
+      # Everything the app writes to disk lives on the volume above.
+      - key: DATA_DIR
+        value: /var/data
       - key: UPLOAD_DIR
-        value: ./uploads
+        value: /var/data/uploads
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      - key: PERSISTENT_VOLUME_DIR
+        value: /var/data
+      # JSON snapshot of the whole database, every 6 hours, keeping 10.
+      # 0 disables the timer; `npm run backup` writes one on demand.
+      - key: BACKUP_INTERVAL_MINUTES
+        value: "360"
+      - key: BACKUP_KEEP
+        value: "10"
       - key: MAX_UPLOAD_MB
         value: "5"
+      # Logged-out (public site) traffic gets its own buckets.
+      - key: PUBLIC_RATE_LIMIT
+        value: "600"
+      - key: PUBLIC_APPLY_LIMIT
+        value: "8"
+      - key: PUBLIC_VERIFY_LIMIT
+        value: "12"

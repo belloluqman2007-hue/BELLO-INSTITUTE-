@@ -7,12 +7,24 @@ const { migrate } = require("./migrate");
 const { createApp } = require("./app");
 const { seedPlans, seedSuperAdmin } = require("./seed");
 const db = require("./db");
+const backup = require("./services/backup");
+const persistence = require("./services/persistence");
 
 (async () => {
   try {
     config.validate();
-    // Always ensure the (new) database schema is up to date.
+    // Bookkeeping: counts boots in the (persistent) data directory so we can
+    // tell a restart from a wiped volume, and warns out loud when storage will
+    // not survive the next deploy. See services/persistence.js.
+    const marker = persistence.touchMarker({ appVersion: "1.0.0" });
+    if (config.IS_PRODUCTION) for (const w of config.persistenceWarnings()) console.warn("⚠ " + w);
+    // Always ensure the (new) database schema is up to date (snapshots itself
+    // first, so a migration can always be rolled back to the previous data).
     await migrate();
+    if (!marker.volumeSurvivedRestarts && config.IS_PRODUCTION) {
+      console.warn("⚠ No previous state marker in " + config.DATA_DIR + ". If this service has run before, its data " +
+        "directory is not persistent — attach a disk (render.yaml: disk.mountPath) or point DATABASE_URL at MySQL.");
+    }
     // Bootstrap a fresh database on every boot: default plans + the single
     // super admin. Both are idempotent (only created if absent), so an
     // existing database — and a password the admin later changed via the
@@ -20,6 +32,9 @@ const db = require("./db");
     // super-admin password".
     await seedPlans();
     await seedSuperAdmin();
+    // Safety net: a JSON snapshot of the whole database on a timer, so a lost
+    // container can always be restored from Platform -> Backups.
+    backup.startAutoBackup(db);
     const app = createApp();
     const server = app.listen(config.PORT, "0.0.0.0", () => {
       console.log("==============================================");
@@ -32,7 +47,14 @@ const db = require("./db");
 
     const shutdown = async (signal) => {
       console.log(`${signal} received — shutting down.`);
+      backup.stopAutoBackup();
       server.close(async () => {
+        // Final snapshot + "we shut down cleanly" marker BEFORE the database
+        // handle closes; both are best-effort and never block the exit.
+        try {
+          await persistence.recordCounts(db);
+          await backup.writeSnapshot(db, { reason: "shutdown" });
+        } catch (e) { console.error("Final snapshot skipped:", e.message); }
         try { await db.close(); } catch (e) { /* ignore */ }
         process.exit(0);
       });

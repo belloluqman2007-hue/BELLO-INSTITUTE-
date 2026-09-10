@@ -29,6 +29,7 @@ router.get("/stats", asyncHandler(async (req, res) => {
     db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'parent' AND is_active = 1"),
     db.get("SELECT COUNT(*) AS n FROM students WHERE status IN ('active','promoted','suspended')"),
   ]);
+  const pending = await db.get("SELECT COUNT(*) AS n FROM admission_requests WHERE status = 'pending'");
   const byPlan = await db.all(
     "SELECT p.code, COUNT(m.id) AS n FROM plans p LEFT JOIN madaris m ON m.plan_id = p.id GROUP BY p.code ORDER BY p.sort_order"
   );
@@ -42,6 +43,7 @@ router.get("/stats", asyncHandler(async (req, res) => {
     teachers: Number(teachers.n),
     madrasaAdmins: Number(admins.n),
     parents: Number(parents.n),
+    pendingApplications: Number(pending.n),
     byPlan,
     recentActivity,
   });
@@ -104,41 +106,53 @@ router.post("/madaris", asyncHandler(async (req, res) => {
     if (taken) return err(res, 400, "That username is already taken.");
   }
 
-  // Create the madrasa (+ its admin) as one unit: if the admin insert fails,
-  // remove the half-created madrasa instead of leaving an unusable tenant.
+  // Create the madrasa and its first administrator as ONE unit: if any
+  // statement fails the whole thing rolls back, so a madrasa can never exist
+  // without a login (or a login point at nothing). The manual compensating
+  // deletes this replaces were the reason a half-created tenant could look
+  // like it "disappeared".
+  let adminCreated = false;
   let mid = 0;
+  const adminHash = adminGiven ? bcrypt.hashSync(adminPass, 10) : "";
   try {
-    const r = await db.run(
-      `INSERT INTO madaris (slug, name_en, name_ar, motto_en, motto_ar, address, city, state_name, phone, email, plan_id, status)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?, 'active')`,
-      [
+    const created = await db.transaction(async (tx) => {
+      const cols = ["slug", "name_en", "name_ar", "motto_en", "motto_ar", "address", "city", "state_name",
+                    "phone", "email", "plan_id", "status", "description_en", "description_ar",
+                    "founded_year", "website", "public_listing", "public_results", "public_admissions"];
+      const vals = [
         slug, nameEn, cleanStr(b.name_ar, 160), cleanStr(b.motto_en, 160), cleanStr(b.motto_ar, 160),
         cleanStr(b.address, 255), cleanStr(b.city, 80), cleanStr(b.state_name, 80),
-        cleanStr(b.phone, 60), cleanStr(b.email, 120), plan.id,
-      ]
-    );
-    mid = r.lastInsertRowid;
+        cleanStr(b.phone, 60), cleanStr(b.email, 120), plan.id, "active",
+        cleanStr(b.description_en, 4000), cleanStr(b.description_ar, 4000),
+        /^\d{4}$/.test(cleanStr(b.founded_year, 8)) ? cleanStr(b.founded_year, 8) : "",
+        cleanStr(b.website, 160),
+        b.public_listing === false ? 0 : 1,
+        b.public_results === true ? 1 : 0,
+        b.public_admissions === true ? 1 : 0,
+      ];
+      if (cols.length !== vals.length) throw new Error("internal: madrasa insert column/value mismatch");
+      const r = await tx.run(
+        `INSERT INTO madaris (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`,
+        vals
+      );
+      const id = r.lastInsertRowid;
+      let adminCreated = false;
+      if (adminGiven) {
+        await tx.run(
+          "INSERT INTO users (madrasa_id, username, password_hash, role, full_name) VALUES (?,?,?,?,?)",
+          [id, adminUser, adminHash, "madrasa_admin", cleanStr(b.admin_full_name, 160) || "Madrasa Administrator"]
+        );
+        adminCreated = true;
+      }
+      return { id, adminCreated };
+    });
+    mid = created.id;
+    adminCreated = created.adminCreated;
   } catch (e) {
-    console.error("Failed to create madrasa:", e);
-    return err(res, 500, "Could not create the madrasa. Please try again.");
+    console.error("Failed to create madrasa (rolled back):", e);
+    return err(res, 500, "Could not create the madrasa. Nothing was saved — please try again.");
   }
 
-  let adminCreated = false;
-  if (adminGiven) {
-    try {
-      const hash = bcrypt.hashSync(adminPass, 10);
-      await db.run(
-        "INSERT INTO users (madrasa_id, username, password_hash, role, full_name) VALUES (?,?,?,?,?)",
-        [mid, adminUser, hash, "madrasa_admin", cleanStr(b.admin_full_name, 160) || "Madrasa Administrator"]
-      );
-      adminCreated = true;
-    } catch (e) {
-      console.error("Failed to create madrasa admin, rolling back madrasa:", e);
-      try { await db.run("DELETE FROM users WHERE madrasa_id = ?", [mid]); } catch (_) { /* best effort */ }
-      try { await db.run("DELETE FROM madaris WHERE id = ?", [mid]); } catch (_) { /* best effort */ }
-      return err(res, 500, "Could not create the madrasa admin account. The madrasa was not created - please try again.");
-    }
-  }
   logActivity(db, { userId: req.user.id, action: "madrasa.create", entity: "madrasa", entityId: String(mid), meta: { slug }, ip: req.ip });
   ok(res, { ok: true, id: mid, adminCreated });
 }));
@@ -181,13 +195,20 @@ router.patch("/madaris/:id", asyncHandler(async (req, res) => {
   const m = await loadMadrasa(req, res, req.params.id);
   if (!m) return;
   const b = req.body || {};
-  const fields = ["name_en", "name_ar", "motto_en", "motto_ar", "address", "city", "state_name", "phone", "email", "notes"];
+  const fields = ["name_en", "name_ar", "motto_en", "motto_ar", "address", "city", "state_name", "phone", "email", "notes",
+                   "description_en", "description_ar", "founded_year", "website"];
   const sets = [];
   const vals = [];
   for (const f of fields) {
     if (b[f] !== undefined) { sets.push(`${f} = ?`); vals.push(cleanStr(b[f], f === "notes" ? 2000 : 255)); }
   }
   if (b.status !== undefined && ["active", "suspended"].includes(b.status)) { sets.push("status = ?"); vals.push(b.status); }
+  for (const flag of ["public_listing", "public_results", "public_admissions"]) {
+    if (b[flag] !== undefined) { sets.push(`${flag} = ?`); vals.push(b[flag] ? 1 : 0); }
+  }
+  if (b.founded_year !== undefined && (cleanStr(b.founded_year, 8) === "" || /^\d{4}$/.test(cleanStr(b.founded_year, 8)))) {
+    sets.push("founded_year = ?"); vals.push(cleanStr(b.founded_year, 8));
+  }
   if (b.plan_id !== undefined) {
     const plan = await db.get("SELECT id FROM plans WHERE id = ?", [toNum(b.plan_id, 0)]);
     if (!plan) return err(res, 400, "Unknown plan.");
@@ -285,12 +306,59 @@ router.get("/activity", asyncHandler(async (req, res) => {
   ok(res, { activity: rows });
 }));
 
+/* ------------------------------ diagnostics ---------------------------- */
+
+/**
+ * GET /api/platform/diagnostics
+ * The same storage verdict the backups screen shows, at the path ops runbooks
+ * and docs/PERSISTENCE.md reference: { persistence, backups, uptimeSeconds… }.
+ * Safe to curl on a production box:
+ *   curl -H "Cookie: $SESSION" https://host/api/platform/diagnostics
+ */
+router.get("/diagnostics", asyncHandler(async (req, res) => {
+  const persistence = require("../services/persistence");
+  const backup = require("../services/backup");
+  const config = require("../config");
+  const report = await persistence.report(db);
+  const backups = backup.listSync();
+  ok(res, {
+    persistence: report,
+    backups: {
+      directory: config.BACKUP_DIR,
+      count: backups.length,
+      newest: backups[0] || null,
+      intervalMinutes: Number(config.BACKUP_INTERVAL_MINUTES || 0),
+      keep: Number(config.BACKUP_KEEP || 10),
+      onPersistentVolume: persistence.describeStorage(config.BACKUP_DIR).onPersistentVolume,
+    },
+    uptimeSeconds: Math.round(process.uptime()),
+    bootedAt: report.marker ? report.marker.lastBootAt : null,
+    bootCount: report.marker ? report.marker.bootCount : null,
+    host: require("os").hostname(),
+  });
+}));
+
 /* ------------------------------ platform settings ---------------------- */
+
+/* Keys stored as "0"/"1" but spoken about as booleans everywhere else. */
+const BOOL_KEYS = new Set(["public_directory_enabled"]);
+const PLATFORM_SETTING_DEFAULTS = {
+  public_site_title: "Bello Institute",
+  public_site_tagline: "Multi-Madrasa Management Platform",
+  public_site_intro: "",
+  public_contact_email: "",
+  public_contact_phone: "",
+  public_apply_url: "",
+  public_directory_enabled: "1",
+};
 
 router.get("/settings", asyncHandler(async (req, res) => {
   const rows = await db.all("SELECT key_name, value FROM platform_settings");
-  const out = {};
+  // Defaults first, so the settings screen always shows the live values even
+  // on a database where nobody has saved anything yet.
+  const out = Object.assign({}, PLATFORM_SETTING_DEFAULTS);
   rows.forEach((r) => { out[r.key_name] = r.value; });
+  for (const k of BOOL_KEYS) out[k] = !(out[k] === "0" || out[k] === "false" || out[k] === false || out[k] === 0);
   ok(res, { settings: out });
 }));
 
@@ -300,7 +368,8 @@ router.put("/settings", asyncHandler(async (req, res) => {
   for (const [k, v] of Object.entries(b)) {
     const key = cleanStr(k, 80);
     if (!key) continue;
-    const val = typeof v === "object" ? JSON.stringify(v) : String(v);
+    let val = typeof v === "object" ? JSON.stringify(v) : String(v);
+    if (BOOL_KEYS.has(key)) val = (v === true || v === 1 || v === "1" || v === "true") ? "1" : "0";
     if (dialect === "sqlite") {
       await db.run(
         `INSERT INTO platform_settings (key_name, value) VALUES (?, ?)

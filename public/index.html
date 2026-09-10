@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Multi-Madrasa Management Platform — multi-tenant school management for Madaris in Ijebu-Ode, Ogun State, Nigeria. Arabic + English.">
-  <title>Multi-Madrasa Platform</title>
+  <meta name="description" content="Multi-Madrasa Management Platform — public madrasa directory, online result checking and admission applications for Madaris in Ijebu-Ode, Ogun State, Nigeria. Arabic + English.">
+  <meta name="theme-color" content="#0f3d21">
+  <title>Bello Institute — Multi-Madrasa Platform</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%95%8C%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/css/app.css">
+  <!-- Applied before first paint so dark mode does not flash white. -->
+  <script src="/js/theme.js"></script>
 </head>
 <body>
   <div id="boot" class="empty" style="padding-top:40vh">Loading…</div>
@@ -14,6 +17,8 @@
   <script src="/js/i18n.js"></script>
   <script src="/js/charts.js"></script>
   <script src="/js/api.js"></script>
+  <!-- Public (logged-out) views: must load before app.js registers its routes. -->
+  <script src="/js/public.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

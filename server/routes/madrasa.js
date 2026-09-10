@@ -88,6 +88,69 @@ router.post("/profile/logo", adminOrSupport, imageUploader("logos", "logo"), asy
   ok(res, { ok: true, logoPath: `/uploads/logos/${req.file.filename}` });
 }));
 
+/* ------------------------------ public site ---------------------------- */
+
+/**
+ * What the LOGGED-OUT public site may show for this madrasa, plus the
+ * statistics the settings screen previews. Saved straight onto the madrasa
+ * row so a directory query never needs a join.
+ */
+router.get("/public-site", adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const [pending, published, notices] = await Promise.all([
+    db.get("SELECT COUNT(*) AS n FROM admission_requests WHERE madrasa_id = ? AND status = 'pending'", [m.id]),
+    db.get("SELECT COUNT(*) AS n FROM term_summaries WHERE madrasa_id = ? AND published_at IS NOT NULL", [m.id]),
+    db.get("SELECT COUNT(*) AS n FROM announcements WHERE madrasa_id = ? AND is_active = 1 AND publish_public = 1", [m.id]),
+  ]);
+  ok(res, {
+    settings: {
+      public_listing: Number(m.public_listing) === 1,
+      public_results: Number(m.public_results) === 1,
+      public_admissions: Number(m.public_admissions) === 1,
+      description_en: m.description_en || "",
+      description_ar: m.description_ar || "",
+      founded_year: m.founded_year || "",
+      website: m.website || "",
+    },
+    counts: {
+      pendingApplications: Number(pending.n),
+      publishedResults: Number(published.n),
+      publicNotices: Number(notices.n),
+    },
+    urls: {
+      directory: `/madrasa/${m.slug}`,
+      results: `/results-check?madrasa=${m.slug}`,
+      apply: `/apply/${m.slug}`,
+    },
+  });
+}));
+
+router.put("/public-site", adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const b = req.body || {};
+  const sets = [];
+  const vals = [];
+  for (const flag of ["public_listing", "public_results", "public_admissions"]) {
+    if (b[flag] !== undefined) { sets.push(`${flag} = ?`); vals.push(b[flag] ? 1 : 0); }
+  }
+  for (const [key, max] of [["description_en", 4000], ["description_ar", 4000], ["website", 160]]) {
+    if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(cleanStr(b[key], max)); }
+  }
+  if (b.founded_year !== undefined) {
+    const y = cleanStr(b.founded_year, 8);
+    if (y && !/^\d{4}$/.test(y)) return err(res, 400, "Founded year must be a 4-digit year.");
+    sets.push("founded_year = ?"); vals.push(y);
+  }
+  if (!sets.length) return err(res, 400, "Nothing to update.");
+  sets.push("updated_at = CURRENT_TIMESTAMP");
+  vals.push(m.id);
+  await db.run(`UPDATE madaris SET ${sets.join(", ")} WHERE id = ?`, vals);
+  logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "madrasa.public_site", entity: "madrasa", entityId: String(m.id), ip: req.ip });
+  ok(res, { ok: true });
+}));
+
 /* ------------------------------ analytics ------------------------------ */
 
 /**

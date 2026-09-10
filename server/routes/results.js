@@ -197,6 +197,67 @@ router.put("/summary/:studentId", asyncHandler(async (req, res) => {
   ok(res, { ok: true });
 }));
 
+/**
+ * PUT|POST /results/summaries/publish   { classId, termId, publish = true }
+ *
+ * Publishes (or retracts) the whole class for a term in one action. Publishing
+ * recomputes the summaries, stamps published_at, and is what makes results
+ * visible to the student/parent portals and to the public result checker;
+ * retracting clears the stamp so a wrong result can be fixed and republished.
+ */
+async function publishSummaries(req, res) {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  if (!["madrasa_admin", "super_admin", "support_admin"].includes(req.user.role)) {
+    return res.status(403).json({ error: "Only the madrasa administration may publish results." });
+  }
+  const b = req.body || {};
+  const classId = toNum(b.classId !== undefined ? b.classId : req.query.classId, 0);
+  const termId = toNum(b.termId !== undefined ? b.termId : req.query.termId, 0);
+  const publish = b.publish !== false;
+  if (!classId || !termId) return err(res, 400, "classId and termId are required.");
+  const cls = await db.get("SELECT id FROM classes WHERE id = ? AND madrasa_id = ?", [classId, tid]);
+  if (!cls) return err(res, 404, "Class not found in your madrasa.");
+  const term = await db.get("SELECT id FROM terms WHERE id = ? AND madrasa_id = ?", [termId, tid]);
+  if (!term) return err(res, 404, "Term not found in your madrasa.");
+
+  let count = 0;
+  if (publish) {
+    await grading.computeClassTerm(tid, classId, termId, req.user.id);
+    await db.run(
+      `UPDATE term_summaries SET published_at = CURRENT_TIMESTAMP
+       WHERE madrasa_id = ? AND class_id = ? AND term_id = ?`,
+      [tid, classId, termId]
+    );
+    const n = await db.get(
+      "SELECT COUNT(*) AS n FROM term_summaries WHERE madrasa_id = ? AND class_id = ? AND term_id = ? AND published_at IS NOT NULL",
+      [tid, classId, termId]
+    );
+    count = n ? Number(n.n) : 0;
+    if (!count) return err(res, 400, "No results to publish for this class and term yet.");
+  } else {
+    await db.run(
+      "UPDATE term_summaries SET published_at = NULL WHERE madrasa_id = ? AND class_id = ? AND term_id = ?",
+      [tid, classId, termId]
+    );
+    const n = await db.get(
+      "SELECT COUNT(*) AS n FROM term_summaries WHERE madrasa_id = ? AND class_id = ? AND term_id = ?",
+      [tid, classId, termId]
+    );
+    count = n ? Number(n.n) : 0;
+  }
+  logActivity(db, {
+    madrasaId: tid, userId: req.user.id,
+    action: publish ? "results.publish" : "results.unpublish",
+    entity: "term_summary", entityId: `${classId}:${termId}`, meta: { count }, ip: req.ip,
+  });
+  ok(res, { ok: true, published: publish, count });
+}
+
+const publishHandler = asyncHandler(publishSummaries);
+router.put("/summaries/publish", publishHandler);
+router.post("/summaries/publish", publishHandler);
+
 /* ------------------------------ report card ---------------------------- */
 
 async function loadReportData(req, res, studentId, termId) {

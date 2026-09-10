@@ -29,9 +29,10 @@ First run creates the dev SQLite database (`data/madrasa_platform_dev.sqlite`)
 and one super-admin account.
 
 ```bash
-npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results
-npm test                 # automated suite (isolated temp database, 67 tests)
-bash test/smoke.sh       # end-to-end checks against a running dev server (45 checks)
+npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results,
+                         #            timetables, published results and public-site flags
+npm test                 # automated suite (isolated temp database, 137 tests)
+bash test/smoke.sh       # end-to-end checks against a running dev server (70 checks)
 ```
 
 ### Demo logins (after `npm run seed -- --demo`)
@@ -82,10 +83,15 @@ server/            Express API (Node 22, no framework magic)
   middleware/      auth (sessions), tenant scoping, uploads, rate limiting
   routes/          auth, platform, madrasa, students, teachers, classes/
                    subjects/sessions/grading, results, attendance, fees,
-                   announcements, portal
+                   announcements, portal, public (logged-out site),
+                   admissions, timetable, exports, backups
   services/        grading engine (configurable per madrasa), admissions,
-                   analytics (dashboard aggregates, tenant- and platform-wide)
-public/            static mobile-first SPA (hash routing, EN/AR, RTL)
+                   analytics (dashboard aggregates, tenant- and platform-wide),
+                   persistence (storage probe), backup (snapshot/restore),
+                   csv (Excel-safe exports), tokens (short-lived public links)
+  backup.js        `npm run backup` — snapshot / --list / --restore / --import
+public/            static mobile-first SPA (hash routing, EN/AR, RTL,
+                   light/dark theme, public site rendered without a session)
 test/              npm test suite + smoke.sh end-to-end
 docs/              isolation audit, database, deployment, security docs
 render.yaml        NEW Render service definition (production)
@@ -109,6 +115,34 @@ render.yaml        NEW Render service definition (production)
   `uploads/` (outside the API surface).
 - **Arabic + English everywhere** — UI language toggle, per-record Arabic
   names, RTL layout for Arabic.
+- **Public site, before login** — a landing page with live totals, a searchable
+  madrasa directory, and per-school public pages (profile, notices, result
+  checking, online admission form) at `#/madrasa`, `#/madrasa/<slug>`,
+  `#/results-check`, `#/apply/<slug>`. Every section is switched on by the
+  school itself (`public_listing` / `public_results` / `public_admissions`) and
+  a platform-wide kill switch; results only ever come from *published* term
+  summaries, printable cards use a 15-minute signed link, applications are
+  rate-limited, honeypotted and de-duplicated. No session is created for
+  anonymous visitors.
+- **Timetables** — weekly grid per class (Mon–Sat × periods, subject/teacher/
+  room), replace-all save inside a transaction, copy one class's week onto
+  others, a standalone printable sheet, and a `My week` view for students,
+  parents and teachers.
+- **Admission queue** — public applications arrive in `Admissions` for review
+  (approve / hold / reject, with a note); approving creates the student record
+  with the next admission number and, optionally, the pupil's and guardian's
+  portal accounts. Applicants track their own request with a reference number
+  plus the phone they gave.
+- **CSV exports** — students, results, term summary, attendance, fees and the
+  admission queue, as UTF-8 BOM + CRLF files Excel opens correctly, with
+  formula-injection guards on every cell.
+- **Backups, snapshots and storage diagnostics** — the platform writes a JSON
+  snapshot of every table before each migration, on shutdown and on a timer,
+  and tells the operator in plain words when the host's filesystem is
+  throwaway (the reason records used to disappear). `Platform → Backups &
+  storage`, `npm run backup`, [`docs/PERSISTENCE.md`](docs/PERSISTENCE.md).
+- **Dark mode** — light/dark themes from CSS custom properties, chosen
+  automatically from the operating system and remembered per browser.
 - **Analytics dashboards** — enrolment trends, students per class, gender and
   age distribution, daily attendance rate, fee collection trends and method
   mix, grade distribution, per-class and per-term averages, and a "needs
@@ -122,8 +156,9 @@ render.yaml        NEW Render service definition (production)
 
 ## Future SaaS roadmap (designed for, NOT built)
 
-Subscriptions & payment, SMS/WhatsApp/email notifications, timetables,
-certificates, ID cards, online admissions, online exams, assignments,
-library, expenses, payroll, native mobile app. The schema and
+Subscriptions & payment, SMS/WhatsApp/email notifications, certificates,
+ID cards, online exams, assignments, library, expenses, payroll, native mobile
+app. (Timetables and online admissions are now built; public *payment* of fees
+is not.) The schema and
 routes are shaped so these can be added without re-architecture — none are
 implemented now, and no payment gateway is connected.

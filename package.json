@@ -7,6 +7,7 @@
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
     "dev": "node --disable-warning=ExperimentalWarning server/index.js",
     "migrate": "node --disable-warning=ExperimentalWarning server/migrate.js",
+    "backup": "node --disable-warning=ExperimentalWarning server/backup.js",
     "seed": "node --disable-warning=ExperimentalWarning server/seed.js",
     "reset-admin-password": "node --disable-warning=ExperimentalWarning server/reset-admin-password.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""

@@ -30,6 +30,11 @@ const attendanceRouter = require("./routes/attendance");
 const feesRouter = require("./routes/fees");
 const announcementsRouter = require("./routes/announcements");
 const portalRouter = require("./routes/portal");
+const publicRouter = require("./routes/public");
+const admissionsRouter = require("./routes/admissions");
+const timetableRouter = require("./routes/timetable").router;
+const exportsRouter = require("./routes/exports");
+const backupsRouter = require("./routes/backups").router;
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
 
@@ -88,6 +93,13 @@ function createApp() {
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use("/uploads", express.static(config.UPLOAD_DIR, { maxAge: "1h", fallthrough: true }));
 
+  /* ------------------------- PUBLIC API (no login) -------------------- */
+  // The logged-out public site (directory, madrasa profile, online admission,
+  // result checking). Mounted BEFORE the session/CSRF stack on purpose:
+  // anonymous visitors then neither create database session rows nor need a
+  // CSRF token, and they are governed by their own, stricter rate limits.
+  app.use("/api/public", publicRouter);
+
   /* ------------------------------ API -------------------------------- */
   const api = express.Router();
   api.use(apiLimiter);
@@ -139,6 +151,12 @@ function createApp() {
   api.use("/fees", feesRouter);
   api.use("/announcements", announcementsRouter);
   api.use("/portal", portalRouter);
+  api.use("/admissions", admissionsRouter);
+  api.use("/timetable", timetableRouter);
+  api.use("/exports", exportsRouter);
+  // Backups & storage diagnostics (super admin). Mounted before /platform so
+  // the platform router never sees these paths.
+  api.use("/platform/backups", backupsRouter);
 
   /* ------------------------------ activity log ------------------------ */
   api.get("/activity", asyncHandler(async (req, res) => {

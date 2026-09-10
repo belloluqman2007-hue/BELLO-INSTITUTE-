@@ -14,8 +14,8 @@ const config = require("../config");
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-function makeStorage(context) {
-  const dir = path.join(config.UPLOAD_DIR, context);
+function makeStorage(context, baseDir) {
+  const dir = path.join(baseDir || config.UPLOAD_DIR, context);
   fs.mkdirSync(dir, { recursive: true });
   return multer.diskStorage({
     destination: (req, file, cb) => cb(null, dir),
@@ -41,4 +41,28 @@ function imageUploader(context, field) {
   return up.single(field || "file");
 }
 
-module.exports = { imageUploader };
+/**
+ * Generic single-file upload for trusted (super-admin) endpoints — used by the
+ * backup importer. Extension + MIME are both checked, size is capped, and the
+ * file name is generated (the client name is never used).
+ */
+function fileUploader(context, field, options = {}) {
+  const allowed = options.mimeTypes || null;
+  const up = multer({
+    storage: makeStorage(context, options.dir),
+    limits: { fileSize: (options.maxMb || 50) * 1024 * 1024, files: 1 },
+    fileFilter: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (options.extensions && !options.extensions.includes(ext)) {
+        return cb(new Error("Only " + options.extensions.join(", ") + " files are allowed."));
+      }
+      if (allowed && !allowed.includes(file.mimetype)) {
+        return cb(new Error("Unsupported file type (" + file.mimetype + ")."));
+      }
+      cb(null, true);
+    },
+  });
+  return up.single(field || "file");
+}
+
+module.exports = { imageUploader, fileUploader };

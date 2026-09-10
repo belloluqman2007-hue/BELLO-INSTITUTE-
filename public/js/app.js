@@ -738,10 +738,18 @@
       `</div></div>`;
   }
 
-  const SA = (h) => async function () {
+  /**
+   * Super-admin route guard: login + role check, then runs the real handler.
+   * The router calls every handler as handler(params), so the arguments (and
+   * `this`) MUST be forwarded — parameterized platform routes such as
+   * "platform/madaris/:id" read params.id to know WHICH madrasa to load.
+   * Dropping them made that page throw
+   * "Cannot read properties of undefined (reading 'id')" and render blank.
+   */
+  const SA = (h) => async function (...args) {
     if (!requireLogin()) return;
     if (me.role !== "super_admin") { render(`<div class="empty">403</div>`); return; }
-    await h();
+    return h.apply(this, args);
   };
 
   route("platform", SA(async function () {

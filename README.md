@@ -31,7 +31,8 @@ and one super-admin account.
 ```bash
 npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results,
                          #            timetables, published results and public-site flags
-npm test                 # automated suite (isolated temp database, 137 tests)
+npm test                 # automated suite (isolated temp database, 151 tests —
+                         # includes browser-level checks that drive public/js/app.js in jsdom)
 bash test/smoke.sh       # end-to-end checks against a running dev server (70 checks)
 ```
 

@@ -28,6 +28,7 @@
     "mysql2": "^3.14.0"
   },
   "devDependencies": {
-    "js-yaml": "^5.4.1"
+    "js-yaml": "^5.4.1",
+    "jsdom": "^30.0.1"
   }
 }

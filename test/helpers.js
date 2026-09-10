@@ -23,7 +23,17 @@ function initEnv() {
   process.env.LOGIN_RATE_LIMIT = "20";
   process.env.API_RATE_LIMIT = "1000000";
   process.env.UPLOAD_DIR = path.join(tmpDir, "uploads");
+  // Keep every scratch file (state marker, pre-migration snapshots, upload
+  // imports) inside the throwaway directory — tests must never touch ./data.
+  process.env.DATA_DIR = path.join(tmpDir, "data");
+  process.env.BACKUP_DIR = path.join(tmpDir, "data", "backups");
+  process.env.BACKUP_INTERVAL_MINUTES = "0";
   process.env.MAX_UPLOAD_MB = "2";
+  // The public endpoints are deliberately throttled in production; tests hit
+  // them dozens of times from one IP, so the buckets are opened up here.
+  process.env.PUBLIC_RATE_LIMIT = "1000000";
+  process.env.PUBLIC_APPLY_LIMIT = "1000000";
+  process.env.PUBLIC_VERIFY_LIMIT = "1000000";
   return tmpDir;
 }
 

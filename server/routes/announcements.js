@@ -50,9 +50,11 @@ router.post("/", requireRole("madrasa_admin"), asyncHandler(async (req, res) => 
   const body = cleanStr(b.body, 5000);
   if (!title || !body) return err(res, 400, "title and body are required.");
   const audience = ["all", "students", "parents"].includes(b.audience) ? b.audience : "all";
+  const publishPublic = b.publish_public ? 1 : 0;
+  const until = /^\d{4}-\d{2}-\d{2}$/.test(String(b.publish_until || "")) ? String(b.publish_until) : null;
   const r = await db.run(
-    "INSERT INTO announcements (madrasa_id, title, body, audience, is_active, created_by) VALUES (?,?,?,?,1,?)",
-    [tid, title, body, audience, req.user.id]
+    "INSERT INTO announcements (madrasa_id, title, body, audience, is_active, created_by, publish_public, publish_until) VALUES (?,?,?,?,1,?,?,?)",
+    [tid, title, body, audience, req.user.id, publishPublic, until]
   );
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: "announcement.create", entity: "announcement", entityId: String(r.lastInsertRowid), ip: req.ip });
   ok(res, { ok: true, id: r.lastInsertRowid });
@@ -70,6 +72,11 @@ router.patch("/:id", requireRole("madrasa_admin"), asyncHandler(async (req, res)
   if (b.body !== undefined) { sets.push("body = ?"); vals.push(cleanStr(b.body, 5000)); }
   if (b.audience !== undefined && ["all", "students", "parents"].includes(b.audience)) { sets.push("audience = ?"); vals.push(b.audience); }
   if (b.is_active !== undefined) { sets.push("is_active = ?"); vals.push(b.is_active ? 1 : 0); }
+  if (b.publish_public !== undefined) { sets.push("publish_public = ?"); vals.push(b.publish_public ? 1 : 0); }
+  if (b.publish_until !== undefined) {
+    sets.push("publish_until = ?");
+    vals.push(/^\d{4}-\d{2}-\d{2}$/.test(String(b.publish_until || "")) ? String(b.publish_until) : null);
+  }
   if (!sets.length) return err(res, 400, "Nothing to update.");
   vals.push(a.id);
   await db.run(`UPDATE announcements SET ${sets.join(", ")} WHERE id = ?`, vals);

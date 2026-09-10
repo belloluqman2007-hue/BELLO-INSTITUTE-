@@ -77,3 +77,22 @@ npm run seed -- --demo
 - **Never** copy the old `.env` or old connection string into this project.
 - **Never** run a migration or DDL against the old database.
 - The dev SQLite file and any real `.env` are git-ignored and never committed.
+
+## Where the file lives (and why that matters)
+
+The SQLite path is `DB_CONFIG.file`: `DATABASE_FILE` when you set it, otherwise
+`DATA_DIR/madrasa_platform[_dev].sqlite`. `DATA_DIR` is the single knob for a
+host with a mounted volume:
+
+```bash
+DATA_DIR=/var/data            # database + uploads + backups all follow it
+PERSISTENT_VOLUME_DIR=/var/data   # what the boot probe checks
+```
+
+A snapshot of every table is written to `BACKUP_DIR` before each migration, on a
+graceful shutdown, and every `BACKUP_INTERVAL_MINUTES`. `npm run backup --
+--list` shows them; `--restore <name> --dry-run` prints what a restore would
+replace without touching anything. Restore order is `TABLE_ORDER` (parents
+first, children cleared first), so foreign keys hold without disabling them.
+Full details, host-by-host setup and the loss-detection warnings:
+[`PERSISTENCE.md`](PERSISTENCE.md).

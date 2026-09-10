@@ -153,6 +153,8 @@
         L("platform/madaris", t("nav.madaris"), "🏫"),
         L("platform/plans", t("nav.plans"), "💳"),
         L("platform/activity", t("nav.activity"), "🕘"),
+        L("platform/backups", t("nav.backups"), "🛟"),
+        L("platform/settings", t("nav.publicSite"), "🌐"),
       ];
     }
     if (role === "madrasa_admin") {
@@ -160,9 +162,11 @@
         L("home", t("nav.dashboard"), "📊"),
         L("students", t("nav.students"), "🎓"),
         L("teachers", t("nav.teachers"), "👨‍🏫"),
+        L("admissions", t("nav.admissions"), "📥"),
         L("classes", t("nav.classes"), "📚"),
         L("subjects", t("nav.subjects"), "📖"),
         L("sessions", t("nav.sessions"), "🗓️"),
+        L("timetable", t("nav.timetable"), "🗓"),
         L("results", t("nav.results"), "📝"),
         L("attendance", t("nav.attendance"), "✅"),
         L("fees", t("nav.fees"), "💰"),
@@ -177,6 +181,7 @@
         L("home", t("nav.dashboard"), "📊"),
         L("results", t("nav.results"), "📝"),
         L("attendance", t("nav.attendance"), "✅"),
+        L("timetable", t("nav.timetable"), "🗓"),
         L("announcements", t("nav.announcements"), "📢"),
       ];
     }
@@ -184,12 +189,14 @@
       return [
         L("home", t("nav.profile"), "👤"),
         L("results", t("nav.results"), "📝"),
+        L("timetable", t("nav.timetable"), "🗓"),
         L("announcements", t("nav.announcements"), "📢"),
       ];
     }
     // parent
     return [
       L("home", t("portal.children"), "👨‍👩‍👧"),
+      L("timetable", t("nav.timetable"), "🗓"),
       L("announcements", t("nav.announcements"), "📢"),
     ];
   }
@@ -210,6 +217,8 @@
       const madaris = items.find(x=>x.key==="platform/madaris");
       const plans = items.find(x=>x.key==="platform/plans");
       const act = items.find(x=>x.key==="platform/activity");
+      const bk = items.find(x=>x.key==="platform/backups");
+      const ps = items.find(x=>x.key==="platform/settings");
       return `
         ${dash ? aTag(dash) : ""}
         <div class="sidebar-label">Management</div>
@@ -217,6 +226,9 @@
         ${plans ? aTag(plans):""}
         <div class="sidebar-label">Monitoring</div>
         ${act ? aTag(act):""}
+        ${bk ? aTag(bk):""}
+        <div class="sidebar-label">Platform</div>
+        ${ps ? aTag(ps):""}
       `;
     }
     if(role==="madrasa_admin"){
@@ -226,10 +238,12 @@
         <div class="sidebar-label">People</div>
         ${byKey["students"]?aTag(byKey["students"]):""}
         ${byKey["teachers"]?aTag(byKey["teachers"]):""}
+        ${byKey["admissions"]?aTag(byKey["admissions"]):""}
         <div class="sidebar-label">Academics</div>
         ${byKey["classes"]?aTag(byKey["classes"]):""}
         ${byKey["subjects"]?aTag(byKey["subjects"]):""}
         ${byKey["sessions"]?aTag(byKey["sessions"]):""}
+        ${byKey["timetable"]?aTag(byKey["timetable"]):""}
         ${byKey["results"]?aTag(byKey["results"]):""}
         ${byKey["attendance"]?aTag(byKey["attendance"]):""}
         <div class="sidebar-label">Finance</div>
@@ -268,6 +282,7 @@
           <div class="spacer"></div>
           <span class="role-badge">${esc(roleLbl)}</span>
           <span class="user-name">${esc(name)}</span>
+          <button class="iconbtn" id="themeBtn" title="${esc(t("common.appearance"))}">${window.Theme && window.Theme.get() === "dark" ? "☀" : "🌙"}</button>
           <button class="iconbtn" id="langBtn" title="Language">${window.I18N.lang === "ar" ? "EN" : "ع"}</button>
           <button class="iconbtn" id="logoutBtn" title="${esc(t("auth.logout"))}">⎋</button>
         </header>
@@ -276,7 +291,10 @@
           <button class="drawer-close" id="drawerClose" aria-label="Close">✕</button>
           ${sidebarHtml}
         </aside>
-        <main class="main" id="view"><div class="empty">${esc(t("common.loading"))}</div></main>
+        <main class="main">
+          ${me.role === "super_admin" ? `<div id="storageNotice"></div>` : ""}
+          <div id="view"><div class="empty">${esc(t("common.loading"))}</div></div>
+        </main>
       </div>`;
     // drawer logic
     const sidebarEl = document.getElementById("sidebar");
@@ -291,6 +309,11 @@
     // close drawer on nav click (mobile)
     sidebarEl.querySelectorAll("a").forEach(a=>a.addEventListener("click", closeDrawer));
     // language & logout
+    $("#themeBtn").addEventListener("click", () => {
+      window.Theme.toggle();
+      routeTo(current);
+    });
+    if (me.role === "super_admin") loadStorageNotice();
     $("#langBtn").addEventListener("click", () => {
       const next = window.I18N.lang === "ar" ? "en" : "ar";
       window.I18N.setLang(next);
@@ -313,7 +336,10 @@
   function route(path, handler) { routes[path] = handler; }
 
   async function routeTo(rawPath) {
-    const path = (rawPath || "").replace(/^\/+/, "");
+    const full = (rawPath || "").replace(/^\/+/, "");
+    const qi = full.indexOf("?");
+    const path = qi >= 0 ? full.slice(0, qi) : full;
+    window.__query = new URLSearchParams(qi >= 0 ? full.slice(qi + 1) : "");
     let handler = routes[path];
     let params = {};
     if (!handler) {
@@ -332,8 +358,10 @@
         if (match) { handler = h; params = p; break; }
       }
     }
+    const isPublic = window.Public.isPublicPath(path);
     if (!handler) {
       if (me && me.loggedIn) { renderLayout(path); render(`<div class="empty">${esc(t("activity.notFound"))}</div>`); }
+      else if (isPublic) { location.hash = "#/"; }
       else location.hash = "#/login";
       return;
     }
@@ -341,8 +369,10 @@
     // logged-out visitors too (otherwise a fresh visitor is stuck forever on
     // the boot "Loading…" element — every route was behind requireLogin).
     const isLoginRoute = path === "login";
-    if (!isLoginRoute && !requireLogin()) return;
-    if (!isLoginRoute) renderLayout(path);
+    // Public pages render for logged-out visitors; a logged-in visitor may
+    // still browse them (that is how admins preview their own public page).
+    if (!isLoginRoute && !isPublic && !requireLogin()) return;
+    if (!isLoginRoute && !isPublic) renderLayout(path);
     try {
       await handler(params);
     } catch (e) {
@@ -353,6 +383,10 @@
   }
 
   window.addEventListener("hashchange", () => routeTo(location.hash.replace(/^#\/?/, "")));
+
+  // Bridge for public/js/public.js (it renders before/without the app shell).
+  window.__mmToast = toast;
+  window.App = { routeTo, refreshMe, get me() { return me; } };
 
   /* ====================================================================== */
   /*  LOGIN                                                                  */
@@ -387,6 +421,7 @@
                   <button class="btn" id="loginBtn" style="flex:1" type="submit">${esc(t("auth.loginBtn"))}</button>
                 </div>
                 <a href="#" class="lang-link" id="loginLang">${window.I18N.lang === "ar" ? "English" : "العربية"}</a>
+                <div class="login-foot"><a href="#/">← ${esc(t("pub.backHome"))}</a> · <a href="#/results-check">${esc(t("pub.nav.results"))}</a> · <a href="#/apply">${esc(t("pub.nav.apply"))}</a></div>
               </form>
             </div>
           </div>
@@ -421,6 +456,38 @@
       }
     });
   });
+
+  /* ====================================================================== */
+  /*  STORAGE NOTICE (super admin) — why a madrasa can "disappear"           */
+  /* ====================================================================== */
+  async function loadStorageNotice() {
+    const box = document.getElementById("storageNotice");
+    if (!box || box.dataset.loaded === "1") return;
+    box.dataset.loaded = "1";
+    try {
+      const d = await API.get("/platform/backups/diagnostics");
+      const p = d.persistence || {};
+      if (p.level === "ok" && !(d.backups && !d.backups.newest)) {
+        box.innerHTML = "";
+        return;
+      }
+      const lost = (p.warnings || []).some((w) => w.code === "DATA_LOSS_DETECTED");
+      const cls = p.level === "critical" ? "err" : p.level === "warn" ? "warn" : "ok";
+      box.innerHTML = `
+        <div class="storage-note ${cls}">
+          <div class="sn-head"><b>${esc(p.level === "critical" ? t("storage.critical") : p.level === "warn" ? t("storage.warn") : t("storage.ok"))}</b>
+            <button class="toast-x" id="snClose" aria-label="Close">✕</button></div>
+          ${(p.warnings || []).slice(0, 3).map((w) => `<div class="small">${esc(w.message)}</div>`).join("")}
+          ${lost ? `<div class="small"><b>${esc(t("storage.emptyButKnown"))}</b></div>` : ""}
+          <div class="sn-actions">
+            <a class="btn small" href="#/platform/backups">${esc(t("nav.backups"))} →</a>
+            <span class="muted small">${esc(t("storage.rows"))}: ${Object.entries(p.counts || {}).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(", ") || "—"} • ${esc(t("bk.last"))}: ${d.backups && d.backups.newest ? esc(new Date(d.backups.newest.createdAt).toLocaleString()) : esc(t("bk.never"))}</span>
+          </div>
+        </div>`;
+      const close = document.getElementById("snClose");
+      if (close) close.addEventListener("click", () => { box.innerHTML = ""; });
+    } catch (e) { box.dataset.loaded = "0"; }
+  }
 
   /* ====================================================================== */
   /*  SUPER ADMIN                                                            */
@@ -1191,6 +1258,7 @@
         <div class="actions">
           <button class="btn" id="addBtn">+ ${esc(t("students.add"))}</button>
           <button class="btn secondary" id="importBtn">📥 ${esc(t("students.import"))}</button>
+          <button class="btn ghost" id="exportBtn" title="CSV">⬇ ${esc(t("common.export"))}</button>
         </div>
       </div>
       <div class="card" style="padding:12px">
@@ -1216,6 +1284,12 @@
     $("#stuSearch").addEventListener("input", (e) => { clearTimeout(deb); deb = setTimeout(() => { search = e.target.value.trim(); load(); }, 350); });
     $("#stuClass").addEventListener("change", (e) => { classFilter = e.target.value; load(); });
     $("#addBtn").addEventListener("click", () => studentForm(classes.classes));
+    $("#exportBtn").addEventListener("click", () => {
+      const q = new URLSearchParams();
+      if (classFilter !== "0") q.set("classId", classFilter);
+      if (statusFilter !== "all") q.set("status", statusFilter);
+      location.href = API.url("/exports/students.csv?" + q.toString());
+    });
     $("#importBtn").addEventListener("click", () => importModal(classes.classes));
     load();
   });
@@ -1666,6 +1740,7 @@
             <button class="btn" id="modeEntry">✏️ ${esc(t("results.save"))}</button>
             <button class="btn secondary" id="modeSummary">📊 ${esc(t("nav.dashboard"))}</button>
             <button class="btn gold" id="computeBtn">⚖️ ${esc(t("results.compute"))}</button>
+            <button class="btn ghost" id="sumExport">⬇ ${esc(t("common.export"))} CSV</button>
           </div>
         </div>
         <div id="resultsArea"><div class="empty">${esc(t("common.loading"))}</div></div>`);
@@ -1683,6 +1758,9 @@
       $("#rSubject").addEventListener("change", (e) => { state.subjectId = Number(e.target.value); loadArea(); });
       $("#modeEntry").addEventListener("click", () => { state.mode = "entry"; loadArea(); });
       $("#modeSummary").addEventListener("click", () => { state.mode = "summary"; loadArea(); });
+      $("#sumExport").addEventListener("click", () => {
+        location.href = API.url(`/exports/summary.csv?classId=${state.classId}&termId=${state.termId}`);
+      });
       $("#computeBtn").addEventListener("click", async () => {
         try {
           await API.post("/results/compute", { classId: state.classId, termId: state.termId });
@@ -1781,7 +1859,8 @@
     const terms = ctx.current.terms || [];
     const state = { classId: ctx.classes[0].id, date: today(), termId: terms[0] ? terms[0].id : null };
     render(`
-      <h1>${esc(t("attendance.title"))}</h1>
+      <div class="page-head"><h1>${esc(t("attendance.title"))}</h1>
+        <div class="actions"><button class="btn small ghost" id="attExport">⬇ ${esc(t("common.export"))} CSV</button></div></div>
       <div class="card">
         <div class="row">
           <div><label data-i18n="results.class">${esc(t("results.class"))}</label>
@@ -1811,6 +1890,8 @@
         </table></div>
         <div class="form-actions"><button class="btn" id="attSave">${esc(t("attendance.save"))}</button></div>`;
       $("#allPresent").onclick = () => { $$("#attArea input[value=present]").forEach((r) => (r.checked = true)); };
+      const ae = $("#attExport");
+      if (ae) ae.addEventListener("click", () => { location.href = API.url(`/exports/attendance.csv?classId=${state.classId || ""}`); });
       $("#attSave").addEventListener("click", async () => {
         const statuses = {};
         $$("#attArea tr[data-sid]").forEach((tr) => {
@@ -1839,7 +1920,9 @@
     const termId = terms[0] ? terms[0].id : 0;
     const [balances, students] = termId ? await Promise.all([API.get(`/fees/balance?termId=${termId}`).catch(() => ({ students: [] })), API.get("/students?perPage=200")]) : [{ students: [] }, { students: [] }];
     render(`
-      <h1>${esc(t("fees.title"))}</h1>
+      <div class="page-head"><h1>${esc(t("fees.title"))}</h1>
+        <div class="actions"><button class="btn small ghost" id="feeExport">⬇ ${esc(t("common.export"))} CSV</button></div>
+      </div>
       <div class="card">
         <div class="card-title">💰 ${esc(t("fees.items"))}</div>
         <div class="tablewrap"><table>
@@ -1876,6 +1959,8 @@
         </table></div>
         <div class="row-count">Showing ${Math.min(30,payments.payments.length)} records</div>
       </div>`);
+    const fe = $("#feeExport");
+    if (fe) fe.addEventListener("click", () => { location.href = API.url("/exports/fees.csv" + (termId ? "?termId=" + termId : "")); });
     $("#addItem").addEventListener("click", () => {
       openModal(`
         <h2>${esc(t("fees.add"))}</h2>
@@ -1940,7 +2025,7 @@
       ${isAdmin ? `<button class="btn" id="annAdd">+ ${esc(t("ann.add"))}</button>` : ""}
       ${d.announcements.map((a) => `
         <div class="card">
-          <div class="card-title">📢 <b>${esc(a.title)}</b> <span class="pill ${a.audience === "all" ? "info" : a.audience === "students" ? "ok" : "gold"}">${esc({ all: t("ann.all"), students: t("ann.students"), parents: t("ann.parents") }[a.audience])}</span></div>
+          <div class="card-title">📢 <b>${esc(a.title)}</b> <span class="pill ${a.audience === "all" ? "info" : a.audience === "students" ? "ok" : "gold"}">${esc({ all: t("ann.all"), students: t("ann.students"), parents: t("ann.parents") }[a.audience])}</span>${a.publish_public ? ` <span class="pill ok">🌐 ${esc(t("nav.publicSite"))}</span>` : ""}</div>
           <div class="wrap" style="white-space:pre-wrap">${esc(a.body)}</div>
           <div class="muted small" style="margin-top:8px">${esc(new Date(a.created_at).toLocaleString())}</div>
           ${isAdmin ? `<div class="form-actions"><button class="btn small secondary" data-del="${a.id}">${a.is_active ? esc(t("common.delete")) : "Hide"}</button></div>` : ""}
@@ -1953,6 +2038,8 @@
           <label>${esc(t("ann.bodyPh"))}</label><textarea id="anBody"></textarea>
           <label data-i18n="ann.audience">${esc(t("ann.audience"))}</label>
           <select id="anAud"><option value="all">${esc(t("ann.all"))}</option><option value="students">${esc(t("ann.students"))}</option><option value="parents">${esc(t("ann.parents"))}</option></select>
+          <label><input type="checkbox" id="anPub"> ${esc(t("ann.publishPublic"))}</label>
+          <label>${esc(t("ann.publishUntil"))}</label><input id="anUntil" type="date">
           <div class="form-actions">
             <button class="btn" id="anSave">${esc(t("common.save"))}</button>
             <button class="btn secondary" data-close>${esc(t("common.cancel"))}</button>
@@ -1965,6 +2052,8 @@
                   title: $("#anTitle", modal).value.trim(),
                   body: $("#anBody", modal).value.trim(),
                   audience: $("#anAud", modal).value,
+                  publish_public: $("#anPub", modal).checked,
+                  publish_until: $("#anUntil", modal).value || null,
                 });
                 toast("✓", "ok"); closeAllModals(); routeTo("announcements");
               } catch (e) { toast(errMsg(e), "err"); }
@@ -2098,7 +2187,53 @@
           <button class="btn" id="saveSystem">💾 ${esc(t("common.save"))}</button>
           <button class="btn secondary" id="logoSave">📷 Upload Logo</button>
         </div>
+      </div>
+      <div class="card" id="pubCard">
+        <div class="card-title">🌐 ${esc(t("ps.title"))}</div>
+        <div class="muted small">${esc(t("ps.intro"))}</div>
+        <label><input type="checkbox" id="pListing"> ${esc(t("ps.directory"))}</label>
+        <label><input type="checkbox" id="pResults"> ${esc(t("ps.results"))}</label>
+        <label><input type="checkbox" id="pApply"> ${esc(t("ps.admissions"))}</label>
+        <div class="row">
+          <div><label>${esc(t("ps.founded"))}</label><input id="pFounded" placeholder="2018"></div>
+          <div><label>${esc(t("ps.website"))}</label><input id="pWebsite" placeholder="https://…"></div>
+        </div>
+        <label>${esc(t("ps.description"))} (EN)</label><textarea id="pDescEn" rows="4"></textarea>
+        <label>${esc(t("ps.description"))} (ع)</label><textarea id="pDescAr" rows="4" dir="rtl"></textarea>
+        <div class="form-actions">
+          <button class="btn" id="savePublic">💾 ${esc(t("common.save"))}</button>
+          <a class="btn secondary" id="pubPreview" href="#/madrasa/" target="_blank">${esc(t("ps.preview"))}</a>
+        </div>
+        <div class="muted small" id="pubCounts"></div>
       </div>`);
+    // public-site switches (loaded separately so the profile page never blocks)
+    API.get("/madrasa/public-site").then((ps) => {
+      const st = ps.settings || {};
+      $("#pListing").checked = !!st.public_listing;
+      $("#pResults").checked = !!st.public_results;
+      $("#pApply").checked = !!st.public_admissions;
+      $("#pFounded").value = st.founded_year || "";
+      $("#pWebsite").value = st.website || "";
+      $("#pDescEn").value = st.description_en || "";
+      $("#pDescAr").value = st.description_ar || "";
+      $("#pubPreview").href = "#" + (ps.urls && ps.urls.directory ? "/madrasa/" + (ps.urls.directory.split("/").pop() || "") : "");
+      const c = ps.counts || {};
+      $("#pubCounts").textContent = `${c.pendingApplications || 0} ${t("adm.pending")} • ${c.publishedResults || 0} ${t("pub.results.terms")} • ${c.publicNotices || 0} ${t("pub.notices")}`;
+    }).catch(() => { $("#pubCard").style.display = "none"; });
+    $("#savePublic").addEventListener("click", async () => {
+      try {
+        await API.put("/madrasa/public-site", {
+          public_listing: $("#pListing").checked,
+          public_results: $("#pResults").checked,
+          public_admissions: $("#pApply").checked,
+          founded_year: $("#pFounded").value.trim(),
+          website: $("#pWebsite").value.trim(),
+          description_en: $("#pDescEn").value.trim(),
+          description_ar: $("#pDescAr").value.trim(),
+        });
+        toast("✓ " + t("ps.saved"), "ok");
+      } catch (e) { toast(errMsg(e), "err"); }
+    });
     async function saveProfile(){
       try {
         await API.put("/madrasa/profile", {
@@ -2336,6 +2471,361 @@
   });
 
   /* ====================================================================== */
+  /*  PUBLIC ROUTES (rendered by public/js/public.js, no login required)     */
+  /* ====================================================================== */
+  route("", async function () { await window.Public.home(); });
+  route("madaris", async function () { await window.Public.directory(); });
+  route("madrasa/:slug", async function (params) { await window.Public.madrasaPage(params.slug); });
+  route("results-check", async function () { await window.Public.globalResults(window.__query && window.__query.get("madrasa")); });
+  route("apply", async function () { await window.Public.globalApply(""); });
+  route("apply/:slug", async function (params) { await window.Public.globalApply(params.slug); });
+
+  /* ====================================================================== */
+  /*  ADMISSIONS — review queue for applications sent from the public site  */
+  /* ====================================================================== */
+  route("admissions", async function () {
+    if (!["madrasa_admin", "super_admin"].includes(me.role)) { render(`<div class="empty">403</div>`); return; }
+    let status = window.__query && window.__query.get("status") ? window.__query.get("status") : "pending";
+    let d;
+    try { d = await API.get("/admissions?perPage=200" + (status ? "&status=" + status : "")); }
+    catch (e) { render(`<div class="empty">${esc(errMsg(e))}</div>`); return; }
+    const rows = d.requests || [];
+    const chips = [["pending", t("adm.pending")], ["approved", t("adm.approved")], ["on_hold", t("adm.onhold")], ["rejected", t("adm.rejected")], ["", t("common.all")]];
+    render(`
+      <div class="page-head"><h1>📥 ${esc(t("adm.title"))}</h1>
+        <div class="actions"><a class="btn small secondary" href="${esc(API.url("/exports/admissions.csv" + (status ? "?status=" + status : "")))}" download>⬇ ${esc(t("adm.exportCsv"))}</a></div>
+      </div>
+      <div class="summary-strip">
+        ${chips.slice(0, 4).map(([k, lbl]) => `<div class="sum"><b>${Number((d.byStatus || {})[k] || 0)}</b><span>${esc(lbl)}</span></div>`).join("")}
+      </div>
+      <div class="pub-chips" style="margin-bottom:12px">
+        ${chips.map(([k, lbl]) => `<button class="chip ${status === k ? "on" : ""}" data-st="${k}">${esc(lbl)}</button>`).join("")}
+      </div>
+      ${rows.length ? `<div class="card"><div class="tablewrap"><table>
+        <tr><th>${esc(t("pub.apply.reference"))}</th><th>${esc(t("adm.applicant"))}</th><th>${esc(t("pub.apply.class"))}</th><th>${esc(t("adm.contact"))}</th><th>${esc(t("common.status"))}</th><th></th></tr>
+        <tbody>${rows.map((r) => `<tr>
+          <td><span class="mono"><b>${esc(r.reference)}</b></span><div class="muted small">${esc(new Date(r.created_at).toLocaleDateString())}</div></td>
+          <td><b>${esc(r.first_name)} ${esc(r.last_name)}</b>${r.name_ar ? `<div class="muted small" dir="rtl">${esc(r.name_ar)}</div>` : ""}
+            <div class="muted small">${esc(r.gender || "")} ${r.date_of_birth ? "• " + esc(String(r.date_of_birth).slice(0, 10)) : ""}</div></td>
+          <td>${esc(r.class_name || "—")}${r.quran_level ? `<div class="muted small">${esc(r.quran_level)}</div>` : ""}</td>
+          <td>${esc(r.parent_name || "")}<div class="muted small">${esc(r.parent_phone || "")}</div></td>
+          <td>${r.status === "approved" ? pill("promoted") : r.status === "rejected" ? pill("withdrawn") : pill("pending")}</td>
+          <td><button class="btn small secondary" data-open="${r.id}">${esc(t("common.edit"))}</button></td>
+        </tr>`).join("")}</tbody></table></div>
+        <div class="row-count">${rows.length} ${esc(t("nav.admissions")).toLowerCase()}</div></div>`
+      : `<div class="card">${emptyState("📥", t("adm.empty"), "")}</div>`}`);
+    $$("#view .chip").forEach((b) => b.addEventListener("click", () => {
+      const want = b.dataset.st === (window.__query && window.__query.get("status")) ? "" : b.dataset.st;
+      routeTo("admissions" + (want ? "?status=" + want : ""));
+    }));
+    $$("#view [data-open]").forEach((b) => b.addEventListener("click", () => admissionDetail(Number(b.dataset.open))));
+  });
+
+  async function admissionDetail(id) {
+    let d;
+    try { d = await API.get("/admissions/" + id); } catch (e) { toast(errMsg(e), "err"); return; }
+    const r = d.request;
+    const classes = await API.get("/classes").catch(() => ({ classes: [] }));
+    const f = (lbl, val) => val ? `<div class="ad-field"><span>${esc(lbl)}</span><b>${esc(val)}</b></div>` : "";
+    openModal(`
+      <h2>${esc(t("adm.title"))} — <span class="mono">${esc(r.reference)}</span></h2>
+      <div class="ad-grid">
+        ${f(t("adm.applicant"), `${r.first_name} ${r.last_name}`.trim() + (r.name_ar ? " • " + r.name_ar : ""))}
+        ${f(t("pub.apply.gender"), r.gender === "M" ? t("pub.apply.male") : r.gender === "F" ? t("pub.apply.female") : "")}
+        ${f(t("pub.apply.dob"), r.date_of_birth ? String(r.date_of_birth).slice(0, 10) : "")}
+        ${f(t("pub.apply.class"), (d.class || {}).name_en || "")}
+        ${f(t("pub.apply.previous"), r.previous_school)}
+        ${f(t("pub.apply.level"), r.quran_level)}
+        ${f(t("pub.apply.parentName"), r.parent_name)}
+        ${f(t("pub.apply.parentPhone"), r.parent_phone)}
+        ${f(t("pub.apply.parentEmail"), r.parent_email)}
+        ${f(t("pub.apply.address"), r.address)}
+        ${f(t("pub.apply.message"), r.message)}
+        ${f(t("adm.admissionNo"), r.admission_no_assigned)}
+      </div>
+      ${r.review_note ? `<div class="msg warn">${esc(r.review_note)}</div>` : ""}
+      ${r.status === "approved" && d.student ? `<div class="msg ok">✓ ${esc(d.student.admission_no)} — ${esc(d.student.first_name)} ${esc(d.student.last_name)}</div>` : ""}
+      ${r.status === "approved" ? "" : `
+      <hr class="divider">
+      <label>${esc(t("adm.assignClass"))}</label>
+      <select id="adClass">${(classes.classes || []).map((c) => `<option value="${c.id}" ${Number(c.id) === Number(r.class_id) ? "selected" : ""}>${esc(c.name_en)}</option>`).join("")}</select>
+      <label>${esc(t("adm.admissionNo"))}</label><input id="adNo" placeholder="auto">
+      <label><input type="checkbox" id="adAccounts"> ${esc(t("adm.makeAccounts"))}</label>
+      <div id="adAcc" style="display:none">
+        <div class="row">
+          <div><label><input type="checkbox" id="adStudent" checked> ${esc(t("adm.studentAccount"))}</label></div>
+          <div><label><input type="checkbox" id="adParent"> ${esc(t("adm.parentAccount"))}</label></div>
+        </div>
+        <label>${esc(t("adm.sharedPassword"))}</label><input id="adPass" type="password">
+      </div>
+      <label>${esc(t("adm.note"))}</label><input id="adNote" placeholder="${esc(t("adm.note"))}">
+      <div class="form-actions">
+        <button class="btn" id="adApprove">✓ ${esc(t("adm.approve"))}</button>
+        <button class="btn secondary" id="adHold">⏸ ${esc(t("adm.hold"))}</button>
+        <button class="btn danger" id="adReject">✕ ${esc(t("adm.reject"))}</button>
+      </div>`}`,
+      async (modal) => {
+        const acc = $("#adAccounts", modal);
+        if (acc) acc.addEventListener("change", () => { $("#adAcc", modal).style.display = acc.checked ? "" : "none"; });
+        const doApprove = async () => {
+          try {
+            const res = await API.post(`/admissions/${id}/approve`, {
+              class_id: Number($("#adClass", modal).value) || null,
+              admission_no: $("#adNo", modal).value.trim(),
+              note: $("#adNote", modal).value.trim(),
+              create_student_account: $("#adStudent", modal).checked,
+              create_parent_account: $("#adParent", modal).checked,
+              password: $("#adPass", modal).value,
+            });
+            toast(`${t("adm.admitted")} — ${res.admissionNo}`, "ok");
+            closeAllModals(); routeTo("admissions");
+          } catch (e) { toast(errMsg(e), "err"); }
+        };
+        const ap = $("#adApprove", modal); if (ap) ap.addEventListener("click", doApprove);
+        const rej = $("#adReject", modal);
+        if (rej) rej.addEventListener("click", async () => {
+          try { await API.post(`/admissions/${id}/reject`, { note: $("#adNote", modal).value.trim() }); toast("✓", "ok"); closeAllModals(); routeTo("admissions"); }
+          catch (e) { toast(errMsg(e), "err"); }
+        });
+        const hold = $("#adHold", modal);
+        if (hold) hold.addEventListener("click", async () => {
+          try { await API.post(`/admissions/${id}/hold`, { note: $("#adNote", modal).value.trim() }); toast("✓", "ok"); closeAllModals(); routeTo("admissions"); }
+          catch (e) { toast(errMsg(e), "err"); }
+        });
+      });
+  }
+
+  /* ====================================================================== */
+  /*  TIMETABLE — weekly grid per class; read-only for families & teachers  */
+  /* ====================================================================== */
+  route("timetable", async function () {
+    if (["student", "parent"].includes(me.role)) return myTimetable();
+    let classes = [], subjects = [], teachers = [], grid = null, classId = 0, termId = 0;
+    try {
+      const [cl, su, th] = await Promise.all([
+        API.get("/classes"),
+        API.get("/subjects").catch(() => ({ subjects: [] })),
+        API.get("/teachers").catch(() => ({ teachers: [] })),
+      ]);
+      classes = cl.classes || []; subjects = su.subjects || []; teachers = th.teachers || [];
+      classId = Number(window.__query && window.__query.get("classId")) || (classes[0] ? classes[0].id : 0);
+      if (classId) {
+        const g = await API.get(`/timetable?classId=${classId}`);
+        grid = g; termId = g.termId;
+      }
+    } catch (e) { render(`<div class="empty">${esc(errMsg(e))}</div>`); return; }
+    const canEdit = me.role === "madrasa_admin" || me.role === "super_admin";
+    const days = (grid && grid.days) || ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    const periods = (grid && grid.periods) || [];
+    const slots = (grid && grid.slots) || [];
+    const at = (day, period) => slots.find((x) => x.day === day && x.period === Number(period));
+    const cellSelects = (cur, day, period) => {
+      if (!canEdit) {
+        if (!cur) return `<span class="muted">—</span>`;
+        return `<b>${esc(cur.subjectEn || "")}</b>${cur.teacherName ? `<div class="muted small">${esc(cur.teacherName)}</div>` : ""}${cur.room ? `<div class="muted small">${esc(cur.room)}</div>` : ""}`;
+      }
+      return `
+        <select data-f="subject" data-day="${day}" data-p="${period}">
+          <option value="">${esc(t("tt.none"))}</option>
+          ${subjects.map((s) => `<option value="${s.id}" ${Number(cur && cur.subjectId) === Number(s.id) ? "selected" : ""}>${esc(s.name_en)}${s.name_ar ? " • " + esc(s.name_ar) : ""}</option>`).join("")}
+        </select>
+        <select data-f="teacher" data-day="${day}" data-p="${period}">
+          <option value="">${esc(t("tt.teacher"))}</option>
+          ${teachers.map((x) => `<option value="${x.id}" ${Number(cur && cur.teacherId) === Number(x.id) ? "selected" : ""}>${esc(x.full_name || x.username)}</option>`).join("")}
+        </select>
+        <input data-f="room" data-day="${day}" data-p="${period}" value="${esc((cur && cur.room) || "")}" placeholder="${esc(t("tt.room"))}">`;
+    };
+    render(`
+      <div class="page-head"><h1>🗓 ${esc(t("tt.title"))}</h1>
+        <div class="actions">
+          <select id="ttClass">${classes.map((c) => `<option value="${c.id}" ${Number(c.id) === Number(classId) ? "selected" : ""}>${esc(c.name_en)}</option>`).join("")}</select>
+          <a class="btn small secondary" id="ttPrint" target="_blank" href="${esc(API.url("/timetable/print?classId=" + classId))}">🖨 ${esc(t("tt.print"))}</a>
+          ${canEdit ? `<button class="btn small ghost" id="ttCopy">⧉ ${esc(t("tt.copy"))}</button><button class="btn small" id="ttSave">💾 ${esc(t("tt.save"))}</button>` : ""}
+        </div>
+      </div>
+      ${classId ? `<div class="card tt-card"><div class="tablewrap"><table class="tt-grid">
+        <thead><tr><th class="tt-day"></th>${periods.map((p) => `<th>${esc(t("tt.period"))} ${p.period}<div class="muted small">${esc(p.start || "")}${p.end ? "–" + esc(p.end) : ""}</div></th>`).join("")}</tr></thead>
+        <tbody>${days.map((day) => `<tr><th class="tt-day">${esc(day)}<div class="muted small" dir="rtl">${esc((grid && grid.dayLabelsAr || {})[day] || "")}</div></th>
+          ${periods.map((p) => `<td>${cellSelects(at(day, p.period), day, p.period)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table></div></div>` : `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+    const cls = $("#ttClass");
+    if (cls) cls.addEventListener("change", () => routeTo("timetable?classId=" + cls.value));
+    if (!canEdit || !classId) return;
+    $("#ttSave").addEventListener("click", async () => {
+      const map = {};
+      $$("#view [data-f]").forEach((el) => {
+        const k = el.dataset.day + ":" + el.dataset.p;
+        map[k] = map[k] || { day: el.dataset.day, period: Number(el.dataset.p) };
+        const v = (el.value || "").trim();
+        if (!v) return;
+        if (el.dataset.f === "subject") map[k].subjectId = Number(v);
+        if (el.dataset.f === "teacher") map[k].teacherId = Number(v);
+        if (el.dataset.f === "room") map[k].room = v;
+      });
+      const slotsOut = Object.values(map).filter((s) => s.subjectId || s.teacherId || s.room);
+      try {
+        await API.put("/timetable", { classId, termId, slots: slotsOut });
+        toast("✓ " + t("tt.saved"), "ok");
+        routeTo("timetable?classId=" + classId);
+      } catch (e) { toast(errMsg(e), "err"); }
+    });
+    $("#ttCopy").addEventListener("click", () => {
+      const others = classes.filter((c) => Number(c.id) !== Number(classId));
+      openModal(`
+        <h2>${esc(t("tt.copy"))}</h2>
+        ${others.map((c) => `<label><input type="checkbox" value="${c.id}" data-copy> ${esc(c.name_en)}</label>`).join("") || `<div class="muted small">${esc(t("common.noData"))}</div>`}
+        <div class="form-actions"><button class="btn" id="cpGo">${esc(t("common.create"))}</button><button class="btn secondary" data-close>${esc(t("common.cancel"))}</button></div>`,
+        async (modal) => {
+          $$("[data-close]", modal).forEach((b) => b.addEventListener("click", closeAllModals));
+          $("#cpGo", modal).addEventListener("click", async () => {
+            const ids = $$("[data-copy]", modal).filter((x) => x.checked).map((x) => Number(x.value));
+            try {
+              const r = await API.post("/timetable/copy", { fromClassId: classId, toClassIds: ids });
+              const skipped = (r.rejected && r.rejected.length) ? ` · ${r.rejected.length} ✕` : "";
+              toast(`✓ ${r.inserted} → ${r.copiedTo}${skipped}`, "ok"); closeAllModals();
+            } catch (e) { toast(errMsg(e), "err"); }
+          });
+        });
+    });
+  });
+
+  async function myTimetable() {
+    const d = await API.get("/timetable/me").catch((e) => { render(`<div class="empty">${esc(errMsg(e))}</div>`); return null; });
+    if (!d) return;
+    const days = d.days || ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    const week = (slots, periods) => {
+      if (!periods) {
+        // teacher view: a simple day-grouped list
+        return `<div class="card">${days.map((day) => {
+          const rows = (slots || []).filter((s) => s.day === day);
+          if (!rows.length) return "";
+          return `<div class="card-title">${esc(day)}</div><div class="tt-list">${rows.map((s) => `<div class="tt-row"><span class="mono small">${esc(s.startTime || "")}${s.endTime ? "–" + esc(s.endTime) : ""}</span><b>${esc(s.subjectEn || "—")}</b><span class="muted small">${esc(s.className || "")}</span><span class="muted small">${esc(s.room || "")}</span></div>`).join("")}</div>`;
+        }).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}</div>`;
+      }
+      return (periods || []).length ? `<div class="card"><div class="tablewrap"><table class="tt-grid">
+        <thead><tr><th class="tt-day"></th>${periods.map((p) => `<th>${esc(t("tt.period"))} ${p.period}<div class="muted small">${esc(p.start || "")}</div></th>`).join("")}</tr></thead>
+        <tbody>${days.map((day) => `<tr><th class="tt-day">${esc(day)}</th>${periods.map((p) => {
+          const s = (slots || []).find((x) => x.day === day && Number(x.period) === Number(p.period));
+          return `<td>${s ? `<b>${esc(s.subjectEn || "")}</b>${s.teacherName ? `<div class="muted small">${esc(s.teacherName)}</div>` : ""}${s.room ? `<div class="muted small">${esc(s.room)}</div>` : ""}` : `<span class="muted">—</span>`}</td>`;
+        }).join("")}</tr>`).join("")}</tbody></table></div></div>` : `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`;
+    };
+    if (d.kind === "teacher") { render(`<h1>🗓 ${esc(t("tt.title"))}</h1>${week(d.slots, null)}`); return; }
+    const students = d.students || [];
+    render(`<h1>🗓 ${esc(t("tt.title"))}</h1>
+      ${students.map((s) => `<div class="card"><div class="card-title">🎓 ${esc(s.name)}${s.class ? " — " + esc(s.class.name_en || "") : ""}</div>${s.slots && s.slots.length ? week(s.slots, s.periods) : `<div class="empty">${esc(t("common.noData"))}</div>`}</div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+  }
+
+  /* ====================================================================== */
+  /*  SUPER ADMIN — public site settings + backups & storage                */
+  /* ====================================================================== */
+/** "1"/"true"/true/1 all mean on; the API may answer with either. */
+function isOn(v) { return v === undefined || v === true || v === 1 || v === "1" || v === "true"; }
+
+  route("platform/settings", SA(async function () {
+    const d = await API.get("/platform/settings").catch(() => ({ settings: {} }));
+    const st = d.settings || {};
+    const val = (k, def) => esc(st[k] === undefined ? def : st[k]);
+    render(`
+      <h1>🌐 ${esc(t("ps.title"))}</h1>
+      <div class="card">
+        <div class="card-title">${esc(t("ps.intro"))}</div>
+        <label>${esc(t("public.siteTitle"))}</label><input id="psTitle" value="${val("public_site_title", "Bello Institute")}">
+        <label>${esc(t("public.tagline"))}</label><input id="psTagline" value="${val("public_site_tagline", "")}">
+        <label>${esc(t("public.intro"))}</label><textarea id="psIntro" rows="3">${val("public_site_intro", "")}</textarea>
+        <div class="row">
+          <div><label>${esc(t("common.phone"))}</label><input id="psPhone" value="${val("public_contact_phone", "")}"></div>
+          <div><label>${esc(t("common.email"))}</label><input id="psEmail" value="${val("public_contact_email", "")}"></div>
+        </div>
+        <label><input type="checkbox" id="psDirectory" ${isOn(st.public_directory_enabled) ? "checked" : ""}> ${esc(t("public.directory"))}</label>
+        <div class="form-actions"><button class="btn" id="psSave">💾 ${esc(t("common.save"))}</button>
+          <a class="btn secondary" href="#/madaris" target="_self">${esc(t("ps.preview"))}</a></div>
+      </div>`);
+    $("#psSave").addEventListener("click", async () => {
+      try {
+        await API.put("/platform/settings", {
+          public_site_title: $("#psTitle").value.trim(),
+          public_site_tagline: $("#psTagline").value.trim(),
+          public_site_intro: $("#psIntro").value.trim(),
+          public_contact_phone: $("#psPhone").value.trim(),
+          public_contact_email: $("#psEmail").value.trim(),
+          public_directory_enabled: $("#psDirectory").checked ? "1" : "0",
+        });
+        toast("✓ " + t("ps.saved"), "ok");
+      } catch (e) { toast(errMsg(e), "err"); }
+    });
+  }));
+
+  route("platform/backups", SA(async function () {
+    const [diag, list] = await Promise.all([
+      API.get("/platform/backups/diagnostics").catch(() => null),
+      API.get("/platform/backups").catch(() => ({ backups: [] })),
+    ]);
+    const p = (diag && diag.persistence) || {};
+    const tone = p.level === "critical" ? "err" : p.level === "warn" ? "warn" : "ok";
+    const rows = list.backups || [];
+    render(`
+      <div class="page-head"><h1>🛟 ${esc(t("bk.title"))}</h1>
+        <div class="actions"><button class="btn" id="bkNow">💾 ${esc(t("bk.createNow"))}</button>
+          <label class="btn small secondary" style="display:inline-flex;align-items:center;gap:6px">⬆ ${esc(t("bk.importFile"))}<input type="file" id="bkFile" accept="application/json,.json" style="display:none"></label></div>
+      </div>
+      <div class="card storage-card ${tone}">
+        <div class="card-title">${esc(t("storage.title"))}</div>
+        <div class="ad-grid">
+          <div class="ad-field"><span>Driver</span><b>${esc(p.driver || "—")}${p.externalDatabase ? " (external)" : ""}</b></div>
+          <div class="ad-field"><span>Data dir</span><b class="mono small">${esc((p.dataDir || {}).dir || "—")}</b></div>
+          <div class="ad-field"><span>Mount</span><b class="mono small">${esc((p.dataDir || {}).mountPoint || "/")} · ${esc((p.dataDir || {}).fsType || "?")}</b></div>
+          <div class="ad-field"><span>Boots seen</span><b>${esc(diag && diag.bootCount != null ? diag.bootCount : "—")}</b></div>
+          <div class="ad-field"><span>Host</span><b class="mono small">${esc(diag && diag.host || "—")}</b></div>
+          <div class="ad-field"><span>${esc(t("storage.rows"))}</span><b>${Object.entries(p.counts || {}).map(([k, v]) => `${esc(k)} ${esc(v)}`).join(", ") || "—"}</b></div>
+        </div>
+        ${(p.warnings || []).length ? `<div class="msg ${tone}" style="margin-top:10px">${(p.warnings || []).map((w) => `<div class="small">• ${esc(w.message)}</div>`).join("")}</div>` : `<div class="msg ok" style="margin-top:10px">${esc(t("storage.ok"))}</div>`}
+      </div>
+      <div class="card">
+        <div class="card-title">${esc(t("bk.snapshot"))} <span class="muted small mono">${esc(list.directory || "")}</span></div>
+        <div class="muted small">${esc(t("bk.interval"))} <b>${esc(list.intervalMinutes || 0)}</b> ${esc(t("bk.minutes"))} · ${esc(t("bk.last"))}: ${rows.length ? esc(new Date(rows[0].createdAt).toLocaleString()) : esc(t("bk.never"))}</div>
+        ${rows.length ? `<div class="tablewrap"><table>
+          <tr><th>${esc(t("common.name"))}</th><th>Size</th><th>${esc(t("storage.rows"))}</th><th></th></tr>
+          ${rows.map((b) => `<tr>
+            <td><span class="mono small">${esc(b.name)}</span><div class="muted small">${esc(new Date(b.createdAt).toLocaleString())}</div></td>
+            <td>${(b.bytes / 1024).toFixed(1)} KB</td>
+            <td class="small">${b.counts ? ["madaris", "users", "students"].map((k) => `${k} ${esc(b.counts[k] || 0)}`).join(" · ") : "—"}</td>
+            <td class="bk-actions">
+              <a class="btn small secondary" href="${esc(API.url("/platform/backups/" + encodeURIComponent(b.name) + "/download"))}" download>${esc(t("bk.download"))}</a>
+              <button class="btn small danger" data-restore="${esc(b.name)}">${esc(t("bk.restore"))}</button>
+            </td></tr>`).join("")}
+        </table></div>` : `<div class="empty">${esc(t("bk.empty"))}</div>`}
+      </div>`);
+    $("#bkNow").addEventListener("click", async () => {
+      try { const r = await API.post("/platform/backups", {}); toast(`✓ ${t("bk.countCreated")} (${(r.bytes / 1024).toFixed(1)} KB)`, "ok"); routeTo("platform/backups"); }
+      catch (e) { toast(errMsg(e), "err"); }
+    });
+    $("#bkFile").addEventListener("change", async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      if (!confirm(t("bk.confirmRestore"))) return;
+      const fd = new FormData(); fd.append("file", file); fd.append("confirm", "true");
+      try {
+        const r = await fetch(API.url("/platform/backups/import"), { method: "POST", body: fd, credentials: "same-origin" });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || "Import failed");
+        toast("✓ " + t("bk.restored"), "ok");
+        setTimeout(() => location.reload(), 900);
+      } catch (e) { toast(errMsg(e), "err"); }
+    });
+    $$("#view [data-restore]").forEach((b) => b.addEventListener("click", async () => {
+      const name = b.dataset.restore;
+      try {
+        const plan = await API.get("/platform/backups/" + encodeURIComponent(name) + "/plan");
+        const c = plan.snapshot.counts || {};
+        if (!confirm(`${t("bk.confirmRestore")}\n\n${t("storage.rows")}: madaris ${c.madaris || 0}, users ${c.users || 0}, students ${c.students || 0}`)) return;
+        await API.post("/platform/backups/restore", { name, confirm: true });
+        toast("✓ " + t("bk.restored"), "ok");
+        setTimeout(() => location.reload(), 900);
+      } catch (e) { toast(errMsg(e), "err"); }
+    }));
+  }));
+
+  /* ====================================================================== */
   /*  BOOT                                                                   */
   /* ====================================================================== */
   (async function boot() {
@@ -2343,11 +2833,15 @@
       me = await refreshMe();
       if (me && me.loggedIn) {
         await loadMadrasaMeta();
-        if (!location.hash || location.hash === "#") location.hash = ROLE_HOME[me.role] || "#/login";
+        // A signed-in user with no explicit route lands on their own dashboard;
+        // an explicit public hash (e.g. previewing the public page) is respected.
+        if (!location.hash || location.hash === "#") location.hash = ROLE_HOME[me.role] || "#/";
         else routeTo(location.hash.replace(/^#\/?/, ""));
       } else {
-        if (!location.hash || !location.hash.startsWith("#/login")) location.hash = "#/login";
-        else routeTo("login");
+        // Logged-out visitors get the PUBLIC site, not a bare login wall.
+        // #/login is still reachable from the header.
+        if (!location.hash || location.hash === "#") routeTo("");
+        else routeTo(location.hash.replace(/^#\/?/, ""));
       }
     } catch (err) {
       // Never strand a visitor on the boot spinner: if /auth/me itself fails
@@ -2355,8 +2849,8 @@
       // which surfaces real errors once they try to sign in.
       console.error("Boot failed:", err);
       me = null;
-      if (!location.hash || !location.hash.startsWith("#/login")) location.hash = "#/login";
-      else routeTo("login");
+      if (!location.hash || location.hash === "#") routeTo("");
+      else routeTo(location.hash.replace(/^#\/?/, ""));
     }
   })();
 })();

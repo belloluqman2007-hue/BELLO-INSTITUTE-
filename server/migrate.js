@@ -11,6 +11,18 @@
    ========================================================================== */
 const db = require("./db");
 
+/** Migration ids not yet recorded in schema_migrations. */
+async function pendingMigrations() {
+  let applied = [];
+  try {
+    applied = await db.all("SELECT id FROM schema_migrations");
+  } catch (e) {
+    return MIGRATIONS.slice(); // no table yet: everything is pending
+  }
+  const appliedIds = new Set(applied.map((r) => r.id));
+  return MIGRATIONS.filter((m) => !appliedIds.has(m.id));
+}
+
 /* Dialect helpers */
 const D = {
   autoInc: (d) => (d === "sqlite" ? "INTEGER PRIMARY KEY AUTOINCREMENT" : "INT NOT NULL AUTO_INCREMENT PRIMARY KEY"),
@@ -375,21 +387,126 @@ const MIGRATIONS = [
       await api.run(`ALTER TABLE users ADD COLUMN student_id INT`);
     },
   },
+  /* ------------------------------------------------------------------ */
+  {
+    id: "007_public_portal",
+    up: async (api, dialect) => {
+      // Public (logged-out) site: each madrasa decides what the directory,
+      // its profile page, result checking and online admission may show.
+      await api.run(`ALTER TABLE madaris ADD COLUMN public_listing INT NOT NULL DEFAULT 1`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN public_results INT NOT NULL DEFAULT 0`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN public_admissions INT NOT NULL DEFAULT 0`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN description_en TEXT`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN description_ar TEXT`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN founded_year VARCHAR(8) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN website VARCHAR(160) NOT NULL DEFAULT ''`);
+      // Listings are filtered by status + visibility on every request.
+      await api.run(`CREATE INDEX idx_madaris_public ON madaris (status, public_listing)`);
+
+      // Online admission applications submitted from the public site.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS admission_requests (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          reference VARCHAR(30) NOT NULL,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          first_name VARCHAR(100) NOT NULL,
+          last_name VARCHAR(100) NOT NULL DEFAULT '',
+          name_ar VARCHAR(160) NOT NULL DEFAULT '',
+          gender VARCHAR(10) NOT NULL DEFAULT '',
+          date_of_birth DATE,
+          class_id INT,
+          previous_school VARCHAR(200) NOT NULL DEFAULT '',
+          quran_level VARCHAR(80) NOT NULL DEFAULT '',
+          parent_name VARCHAR(160) NOT NULL DEFAULT '',
+          parent_phone VARCHAR(60) NOT NULL DEFAULT '',
+          parent_email VARCHAR(120) NOT NULL DEFAULT '',
+          address VARCHAR(255) NOT NULL DEFAULT '',
+          message TEXT,
+          student_id INT,
+          reviewed_by INT,
+          reviewed_at ${D.ts()},
+          review_note TEXT,
+          ip VARCHAR(64) NOT NULL DEFAULT '',
+          created_at ${D.ts()},
+          UNIQUE (madrasa_id, reference)
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_admission_req ON admission_requests (madrasa_id, status, id)`);
+    },
+  },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "008_timetable",
+    up: async (api, dialect) => {
+      // Weekly class timetable. Slots are per class; a term id lets a madrasa
+      // keep one timetable per term. Times are stored as 'HH:MM' strings so
+      // both drivers behave identically.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS timetable_slots (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          class_id INT NOT NULL,
+          term_id INT,
+          day VARCHAR(10) NOT NULL,
+          period INT NOT NULL,
+          start_time VARCHAR(5) NOT NULL DEFAULT '',
+          end_time VARCHAR(5) NOT NULL DEFAULT '',
+          subject_id INT,
+          teacher_id INT,
+          room VARCHAR(60) NOT NULL DEFAULT '',
+          notes VARCHAR(255) NOT NULL DEFAULT '',
+          UNIQUE (madrasa_id, class_id, day, period)
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_timetable_teacher ON timetable_slots (madrasa_id, teacher_id, day, period)`);
+    },
+  },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "009_announcements_public",
+    up: async (api, dialect) => {
+      // Announcements can now also be published to the public site.
+      await api.run(`ALTER TABLE announcements ADD COLUMN publish_public INT NOT NULL DEFAULT 0`);
+      await api.run(`ALTER TABLE announcements ADD COLUMN publish_until DATE`);
+    },
+  },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "010_admission_traceability",
+    up: async (api) => {
+      // Which online application produced this student (nullable: walk-in
+      // admissions have no application). Keeps the audit trail in both
+      // directions without a join table.
+      await api.run(`ALTER TABLE students ADD COLUMN source_request_id INT`);
+      await api.run(`ALTER TABLE admission_requests ADD COLUMN admission_no_assigned VARCHAR(60) NOT NULL DEFAULT ''`);
+    },
+  },
 ];
 
-async function migrate() {
+async function migrate(options = {}) {
   const dialect = await db.dialect();
   await db.run(`CREATE TABLE IF NOT EXISTS schema_migrations (
       id VARCHAR(80) NOT NULL PRIMARY KEY,
       applied_at ${D.ts()}
     )${D.engine(dialect)}`);
-
-  const applied = await db.all("SELECT id FROM schema_migrations");
-  const appliedIds = new Set(applied.map((r) => r.id));
+  // Snapshot only when there is actually something to change.
+  const pending = await pendingMigrations();
+  if (pending.length && options.snapshot !== false) {
+    try {
+      const backup = require("./services/backup");
+      const info = await backup.snapshotBefore(db, "pre-migration");
+      if (info) console.log("Pre-migration snapshot: " + info.name);
+    } catch (e) {
+      console.error("Pre-migration snapshot skipped:", e.message);
+    }
+  }
 
   let count = 0;
-  for (const m of MIGRATIONS) {
-    if (appliedIds.has(m.id)) continue;
+  for (const m of pending) {
     console.log(`Applying migration ${m.id} [${dialect}]...`);
     await m.up(db, dialect);
     await db.run("INSERT INTO schema_migrations (id) VALUES (?)", [m.id]);
@@ -409,4 +526,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { migrate };
+module.exports = { migrate, pendingMigrations, MIGRATIONS };

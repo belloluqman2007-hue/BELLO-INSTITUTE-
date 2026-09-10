@@ -6,11 +6,8 @@ node_modules/
 .env.local
 .env.*.local
 
-# Databases (dev SQLite files live here)
-data/*.sqlite
-data/*.sqlite-journal
-data/*.sqlite-wal
-data/*.sqlite-shm
+# Databases, backups and local scratch state (dev SQLite lives here)
+data/
 *.db
 
 # Uploads (student photos, madrasa logos)

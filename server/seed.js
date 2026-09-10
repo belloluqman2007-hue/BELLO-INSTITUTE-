@@ -321,17 +321,84 @@ async function createDemoMadrasa(slug, names, city, planCode, prefix) {
   for (const cid of classesWithResults) {
     await grading.computeClassTerm(mid, cid, termId, adminId);
   }
+  // Mark the demo term as PUBLISHED: report cards are only visible to the
+  // student/parent portals and to the public result checker once a summary has
+  // been published, so the demo would otherwise show empty result screens.
+  await db.run(
+    "UPDATE term_summaries SET published_at = CURRENT_TIMESTAMP WHERE madrasa_id = ? AND term_id = ? AND published_at IS NULL",
+    [mid, termId]
+  );
 
-  // Announcements
+  // Announcements — one school-wide, one published on the PUBLIC site so the
+  // logged-out madrasa page has something to show.
   await db.run(
     "INSERT INTO announcements (madrasa_id, title, body, audience, is_active, created_by) VALUES (?,?,?,?,1,?)",
     [mid, "Examination Commencement", "First term examinations will commence on the 15th of December. Students should arrive at 8:00 AM sharp. / تبدأ امتحانات الفصل الأول في 15 ديسمبر. على الطلاب الحضور في الساعة 8:00 صباحاً.", "all", adminId]
   );
+  await db.run(
+    `INSERT INTO announcements (madrasa_id, title, body, audience, is_active, created_by, publish_public, publish_until)
+     VALUES (?,?,?,?,1,?,?,?)`,
+    [mid, `${names.en} — admissions open`,
+      "Applications for the coming session are being accepted online. Parents may apply in two minutes and will receive a reference number to track the request. / التسجيل مفتوح للالتحاق بالمدرسة عبر الطلب الإلكتروني.",
+      "all", adminId, 1, on(startY + 1, 6, 30)]
+  );
+
+  // Public-site profile for the demo tenant.
+  await db.run(
+    `UPDATE madaris SET
+       description_en = ?, description_ar = ?, founded_year = ?, website = ?,
+       public_listing = 1, public_results = ?, public_admissions = ?
+     WHERE id = ?`,
+    [
+      "A model madrasa combining Qur'an memorisation, Arabic and the Nigerian classroom subjects, with printable report cards, attendance and fee records for every student.",
+      "مدرسة نموذجية تجمع بين حفظ القرآن والعلوم العربية والمواد الدراسية، مع بطاقات نتائج مطبوعة وحضور وسجلات رسوم لكل طالب.",
+      String(startY - 8),
+      `https://${slug}.example`,
+      slug === "demo-quraniyya" ? 1 : 0,   // results published for one madrasa only
+      slug === "demo-quraniyya" ? 1 : 0,   // online admission for one madrasa only
+      mid,
+    ]
+  );
+
+  // Weekly timetable: Mon-Thu, 4 periods, core subjects rotating, the demo
+  // ustadh taking the classes he is assigned to.
+  const days = ["Mon", "Tue", "Wed", "Thu"];
+  for (const cid of Object.values(classIds)) {
+    for (let d = 0; d < days.length; d++) {
+      for (let pno = 1; pno <= 4; pno++) {
+        const subject = coreSubjects[(d + pno) % coreSubjects.length];
+        await db.insertIgnore(
+          "timetable_slots",
+          "madrasa_id, class_id, term_id, day, period, start_time, end_time, subject_id, teacher_id, room",
+          [mid, cid, termId, days[d], pno, ["08:00", "08:50", "09:40", "10:30"][pno - 1], ["08:50", "09:40", "10:30", "11:20"][pno - 1],
+           subjectIds[subject], teacher1, pno <= 2 ? "Hall A" : "Hall B"]
+        );
+      }
+    }
+  }
+
+  // Two pending online applications, so the admission queue is not empty.
+  if (slug === "demo-quraniyya") {
+    const demoApps = [
+      ["ADM-DEMO-0001", "Aisha", "Adewale", "عائشة أدواله", "F", "2013-02-14", "Qur'an Intro", "Barrister Adewale", "+234 802 333 4444", "aisha.adewale@example"],
+      ["ADM-DEMO-0002", "Musa", "Balogun", "موسى بالوغون", "M", "2011-09-30", "Hifz Programme", "Alhaji Balogun", "+234 803 555 6666", ""],
+    ];
+    for (const [ref, first, last, ar, gender, dob, level, pname, phone, email] of demoApps) {
+      await db.run(
+        `INSERT INTO admission_requests
+          (madrasa_id, reference, status, first_name, last_name, name_ar, gender, date_of_birth, class_id,
+           quran_level, parent_name, parent_phone, parent_email, address, message)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [mid, ref, "pending", first, last, ar, gender, dob, Object.values(classIds)[0], level,
+         pname, phone, email, `${city}, Ogun State`, "Please advise on the entrance assessment date."]
+      );
+    }
+  }
 
   // Settings: admission prefix
   await db.insertIgnore("settings", "madrasa_id, key_name, value", [mid, "admission_prefix", prefix]);
 
-  return { mid, adminId, teacher1, studentIds, planCode };
+  return { mid, adminId, teacher1, studentIds, planCode, termId };
 }
 
 async function seedDemo() {

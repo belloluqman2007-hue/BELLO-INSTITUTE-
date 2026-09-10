@@ -120,5 +120,50 @@ CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/sa.txt "$B/students/999999
 [ "$CODE" = "404" ]; chk "nonexistent student 404 (got $CODE)" $?
 
 echo
+echo "== 10. Public site (no login) =="
+curl -s $B/public/site | JQ "d['site']['title']" >/dev/null; chk "public site payload" $?
+curl -s $B/public/madaris | JQ "len(d['madaris'])>=1" | grep -q True; chk "directory lists madaris" $?
+curl -s $B/public/madaris/demo-quraniyya | JQ "d['madrasa']['nameEn']" >/dev/null; chk "public profile page" $?
+CODE=$(curl -s -o /dev/null -w "%{http_code}" $B/public/madaris/demo-fatihah)
+[ "$CODE" = "200" ]; chk "second school public (got $CODE)" $?
+curl -s $B/public/madaris/demo-quraniyya | JQ "d['notices'][0]['title']" | grep -q . ; chk "public notice published" $?
+# result checking for a seeded, published pupil
+REF=$(curl -s -X POST -H "Content-Type: application/json" -d '{"madrasaSlug":"demo-quraniyya","admissionNo":"ALQ0001","surname":"Kunle"}' $B/public/results/verify)
+echo "$REF" | JQ "d['verified']" | grep -q True; chk "public result verification by surname" $?
+echo "$REF" | JQ "len(d['terms'])>0" | grep -q True; chk "published term returned" $?
+TOKEN=$(echo "$REF" | JQ "d['reportUrl'].split('/')[-1]")
+curl -s "$B/public/results/report/$TOKEN" | grep -q "Report Card"; chk "public report card prints" $?
+CODE=$(curl -s -o /dev/null -w "%{http_code}" $B/public/results/report/forged.token)
+[ "$CODE" = "403" ] || [ "$CODE" = "404" ]; chk "forged report token refused (got $CODE)" $?
+CODE=$(curl -s -X POST -H "Content-Type: application/json" -d '{"madrasaSlug":"demo-quraniyya","admissionNo":"ALQ0001","surname":"Wrongname"}' -o /dev/null -w "%{http_code}" $B/public/results/verify)
+[ "$CODE" = "404" ]; chk "wrong surname reveals nothing (got $CODE)" $?
+# the SPA itself must be reachable without a session
+CODE=$(curl -s -o /dev/null -w "%{http_code}" localhost:3000/)
+[ "$CODE" = "200" ]; chk "index.html served logged-out (got $CODE)" $?
+curl -s localhost:3000/js/public.js | grep -q "window.Public"; chk "public site bundle present" $?
+curl -s localhost:3000/js/theme.js | grep -q "mm_theme"; chk "theme bootstrap present" $?
+
+echo
+echo "== 11. Admissions, timetable, CSV, backups =="
+CODE=$(curl -s -b /tmp/ma.txt $B/admissions -o /dev/null -w "%{http_code}")
+[ "$CODE" = "200" ]; chk "admission queue readable (got $CODE)" $?
+CODE=$(curl -s -b /tmp/mb.txt $B/admissions -o /dev/null -w "%{http_code}")
+[ "$CODE" = "200" ]; chk "other tenant's queue is empty but readable (got $CODE)" $?
+curl -s -b /tmp/ma.txt "$B/timetable?classId=1" | JQ "len(d['slots'])>0" | grep -q True; chk "timetable grid loads" $?
+curl -s -b /tmp/ma.txt "$B/exports/students.csv" | head -1 | grep -q "Admission No"; chk "students CSV export" $?
+curl -s -b /tmp/ma.txt "$B/exports/fees.csv" | head -1 | grep -q "Outstanding"; chk "fees CSV export" $?
+CODE=$(curl -s -b /tmp/par.txt "$B/exports/students.csv" -o /dev/null -w "%{http_code}")
+[ "$CODE" = "403" ]; chk "parents blocked from bulk CSV (got $CODE)" $?
+CODE=$(curl -s -b /tmp/ma.txt $B/platform/backups -o /dev/null -w "%{http_code}")
+[ "$CODE" = "403" ]; chk "backups are super-admin only (got $CODE)" $?
+curl -s -b /tmp/sa.txt -X POST -H "Content-Type: application/json" -H "X-CSRF-Token: $(csrf /tmp/sa.txt)" -d '{}' $B/platform/backups | JQ "d['name'].startswith('snapshot-')" | grep -q True; chk "snapshot written on demand" $?
+curl -s -b /tmp/sa.txt $B/platform/backups/diagnostics | JQ "d['persistence']['driver']" | grep -q sqlite; chk "storage diagnostics" $?
+curl -s -b /tmp/mb.txt "$B/exports/students.csv" | grep -v "ALQ0001" | grep -q .; chk "CSV never leaks another tenant" $?
+ADM_ID=$(curl -s -b /tmp/ma.txt "$B/admissions?status=pending&perPage=1" | JQ "d['requests'][0]['id'] if d['requests'] else 0")
+CODE=$(curl -s -b /tmp/mb.txt -X POST -H "Content-Type: application/json" -H "X-CSRF-Token: $(csrf /tmp/mb.txt)" -d '{}' "$B/admissions/$ADM_ID/approve" -o /dev/null -w "%{http_code}")
+[ "$CODE" = "404" ]; chk "cannot approve another school's application (got $CODE)" $?
+curl -s -b /tmp/ma.txt "$B/madrasa/public-site" | JQ "d['urls']['results']" | grep -q "results-check"; chk "public-site settings readable" $?
+
+echo
 echo "RESULT: $pass passed, $fail failed"
 exit $fail

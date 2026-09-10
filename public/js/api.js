@@ -51,6 +51,22 @@
   }
 
   window.API = {
+    /** Absolute URL for a download/print link (respects API_BASE_URL). */
+    url: (p) => BASE + p,
+    /** Public (logged-out) endpoints — no session, no CSRF needed for GET. */
+    public: {
+      get: (p) => request("GET", "/public" + p),
+      post: (p, b) => fetch(BASE + "/public" + p, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(b || {}),
+      }).then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok) { const e = new Error((d && d.error) || "Request failed"); e.status = r.status; e.data = d; throw e; }
+        return d;
+      }),
+    },
     get: (p) => request("GET", p),
     post: (p, b) => request("POST", p, b),
     put: (p, b) => request("PUT", p, b),

@@ -75,6 +75,8 @@ const CARD_SELECT = `
 function cardOut(m) {
   return {
     slug: m.slug,
+    // Shareable per-school link: opens this school's own public page directly.
+    sharePath: "/s/" + m.slug,
     nameEn: m.name_en,
     nameAr: m.name_ar || "",
     mottoEn: m.motto_en || "",

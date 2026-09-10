@@ -159,45 +159,126 @@
     }
     if (role === "madrasa_admin") {
       return [
+        // Overview
         L("home", t("nav.dashboard"), "📊"),
-        L("students", t("nav.students"), "🎓"),
-        L("teachers", t("nav.teachers"), "👨‍🏫"),
-        L("admissions", t("nav.admissions"), "📥"),
-        L("classes", t("nav.classes"), "📚"),
-        L("subjects", t("nav.subjects"), "📖"),
-        L("sessions", t("nav.sessions"), "🗓️"),
-        L("timetable", t("nav.timetable"), "🗓"),
-        L("results", t("nav.results"), "📝"),
-        L("attendance", t("nav.attendance"), "✅"),
-        L("fees", t("nav.fees"), "💰"),
-        L("announcements", t("nav.announcements"), "📢"),
         L("analytics", t("nav.analytics"), "📈"),
+        L("notifications", t("nav.notifications"), "🔔"),
+        L("chat", t("nav.chat"), "💬"),
+        L("staff-chat", t("nav.staffChat"), "🛡️"),
+        L("announcements", t("nav.notices"), "📢"),
+        // Students & results
+        L("students", t("nav.studentsDir"), "🎓"),
+        L("add-student", t("nav.addStudent"), "➕"),
+        L("results", t("nav.scores"), "📝"),
+        L("grade-book", t("nav.gradebook"), "📒"),
+        L("bulk-import", t("nav.bulkImport"), "📤"),
+        L("check-result", t("nav.checkResult"), "🔎"),
+        L("class-results", t("nav.classResults"), "🏆"),
+        L("third-term", t("nav.thirdTerm"), "🎓"),
+        L("attendance", t("nav.attendance"), "✅"),
+        L("tahfeedh", t("nav.tahfeedh"), "📖"),
+        L("health", t("nav.health"), "🏥"),
+        L("comments", t("nav.comments"), "🗨️"),
+        L("discipline", t("nav.discipline"), "📏"),
+        L("quizzes", t("nav.quizzes"), "❓"),
+        L("appointments", t("nav.appointments"), "📅"),
+        // Teaching tools
+        L("classes-subjects", t("nav.classesSubjects"), "📚"),
+        L("class-management", t("nav.classMgmt"), "🗂️"),
+        L("timetable", t("nav.timetable"), "🗓"),
+        L("create-exam", t("nav.createExam"), "✍️"),
+        L("lesson-planner", t("nav.lessonPlanner"), "🗺️"),
+        L("ai-chat", t("nav.aiChat"), "🤖"),
+        L("ai-image", t("nav.aiImage"), "🎨"),
+        L("homework", t("nav.homework"), "📌"),
+        L("certificates", t("nav.certificates"), "🏅"),
+        L("file-store", t("nav.fileStore"), "🗃️"),
+        L("broadcasts", t("nav.broadcasts"), "📡"),
+        L("gallery", t("nav.gallery"), "🖼️"),
+        L("transport", t("nav.transport"), "🚌"),
+        L("library", t("nav.library"), "🏛️"),
+        L("leave", t("nav.leave"), "🏖️"),
+        L("id-card", t("nav.idCard"), "🪪"),
+        L("signatures", t("nav.signatures"), "✒️"),
+        L("staff-tools", t("nav.staffTools"), "🧰"),
+        L("calendar", t("nav.calendar"), "📆"),
+        // Administration
+        L("publish", t("nav.publish"), "🚀"),
+        L("admissions", t("nav.admissions"), "📥"),
+        L("fees", t("nav.fees"), "💰"),
+        L("finance", t("nav.finance"), "🏦"),
+        L("users", t("nav.users"), "👥"),
+        L("teachers", t("nav.teachers"), "👨‍🏫"),
+        L("payroll", t("nav.payroll"), "💵"),
+        L("notify", t("nav.notifyParents"), "📣"),
+        L("classes", t("nav.classes"), "📚"),
+        L("subjects", t("nav.subjects"), "📕"),
+        L("sessions", t("nav.sessions"), "🗓️"),
         L("grading", t("nav.grading"), "⚖️"),
         L("settings", t("nav.settings"), "⚙️"),
+        // Account
+        L("my-settings", t("nav.mySettings"), "👤"),
       ];
     }
     if (role === "teacher") {
       return [
         L("home", t("nav.dashboard"), "📊"),
-        L("results", t("nav.results"), "📝"),
+        L("notifications", t("nav.notifications"), "🔔"),
+        L("chat", t("nav.chat"), "💬"),
+        L("staff-chat", t("nav.staffChat"), "🛡️"),
+        L("announcements", t("nav.notices"), "📢"),
+        L("students", t("nav.studentsDir"), "🎓"),
+        L("results", t("nav.scores"), "📝"),
+        L("grade-book", t("nav.gradebook"), "📒"),
+        L("class-results", t("nav.classResults"), "🏆"),
+        L("check-result", t("nav.checkResult"), "🔎"),
         L("attendance", t("nav.attendance"), "✅"),
+        L("comments", t("nav.comments"), "🗨️"),
+        L("homework", t("nav.homework"), "📌"),
         L("timetable", t("nav.timetable"), "🗓"),
-        L("announcements", t("nav.announcements"), "📢"),
+        L("lesson-planner", t("nav.lessonPlanner"), "🗺️"),
+        L("create-exam", t("nav.createExam"), "✍️"),
+        L("quizzes", t("nav.quizzes"), "❓"),
+        L("ai-chat", t("nav.aiChat"), "🤖"),
+        L("calendar", t("nav.calendar"), "📆"),
+        L("my-settings", t("nav.mySettings"), "👤"),
       ];
     }
     if (role === "student") {
       return [
         L("home", t("nav.profile"), "👤"),
+        L("notifications", t("nav.notifications"), "🔔"),
+        L("chat", t("nav.chat"), "💬"),
+        L("announcements", t("nav.notices"), "📢"),
+        L("check-result", t("nav.checkResult"), "🔎"),
         L("results", t("nav.results"), "📝"),
+        L("class-results", t("nav.classResults"), "🏆"),
+        L("third-term", t("nav.thirdTerm"), "🎓"),
+        L("attendance", t("nav.attendance"), "✅"),
+        L("tahfeedh", t("nav.tahfeedh"), "📖"),
+        L("homework", t("nav.homework"), "📌"),
+        L("quizzes", t("nav.quizzes"), "❓"),
         L("timetable", t("nav.timetable"), "🗓"),
-        L("announcements", t("nav.announcements"), "📢"),
+        L("certificates", t("nav.certificates"), "🏅"),
+        L("library", t("nav.library"), "🏛️"),
+        L("calendar", t("nav.calendar"), "📆"),
+        L("my-settings", t("nav.mySettings"), "👤"),
       ];
     }
     // parent
     return [
       L("home", t("portal.children"), "👨‍👩‍👧"),
+      L("notifications", t("nav.notifications"), "🔔"),
+      L("announcements", t("nav.notices"), "📢"),
+      L("check-result", t("nav.checkResult"), "🔎"),
+      L("attendance", t("nav.attendance"), "✅"),
+      L("comments", t("nav.comments"), "🗨️"),
+      L("appointments", t("nav.appointments"), "📅"),
+      L("homework", t("nav.homework"), "📌"),
       L("timetable", t("nav.timetable"), "🗓"),
-      L("announcements", t("nav.announcements"), "📢"),
+      L("fees", t("nav.finance"), "🏦"),
+      L("calendar", t("nav.calendar"), "📆"),
+      L("my-settings", t("nav.mySettings"), "👤"),
     ];
   }
 
@@ -231,34 +312,48 @@
         ${ps ? aTag(ps):""}
       `;
     }
+    const byKey = Object.fromEntries(items.map(x=>[x.key,x]));
+    const grp = (en, ar) => (window.I18N.lang === "ar" ? ar : en);
+    const section = (labelEn, labelAr, keys) => {
+      const links = keys.map((k) => byKey[k] ? aTag(byKey[k]) : "").join("");
+      if (!links) return "";
+      return `<div class="sidebar-label">${esc(grp(labelEn, labelAr))}</div>${links}`;
+    };
     if(role==="madrasa_admin"){
-      const byKey = Object.fromEntries(items.map(x=>[x.key,x]));
       return `
         ${byKey["home"]?aTag(byKey["home"]):""}
-        <div class="sidebar-label">People</div>
-        ${byKey["students"]?aTag(byKey["students"]):""}
-        ${byKey["teachers"]?aTag(byKey["teachers"]):""}
-        ${byKey["admissions"]?aTag(byKey["admissions"]):""}
-        <div class="sidebar-label">Academics</div>
-        ${byKey["classes"]?aTag(byKey["classes"]):""}
-        ${byKey["subjects"]?aTag(byKey["subjects"]):""}
-        ${byKey["sessions"]?aTag(byKey["sessions"]):""}
-        ${byKey["timetable"]?aTag(byKey["timetable"]):""}
-        ${byKey["results"]?aTag(byKey["results"]):""}
-        ${byKey["attendance"]?aTag(byKey["attendance"]):""}
-        <div class="sidebar-label">Finance</div>
-        ${byKey["fees"]?aTag(byKey["fees"]):""}
-        <div class="sidebar-label">Communication</div>
-        ${byKey["announcements"]?aTag(byKey["announcements"]):""}
-        <div class="sidebar-label">Reports</div>
-        ${byKey["analytics"]?aTag(byKey["analytics"]):""}
-        <div class="sidebar-label">Configuration</div>
-        ${byKey["grading"]?aTag(byKey["grading"]):""}
-        ${byKey["settings"]?aTag(byKey["settings"]):""}
+        ${section("Overview", "نظرة عامة", ["analytics","notifications","chat","staff-chat","announcements"])}
+        ${section("Students & Results", "الطلاب والنتائج", ["students","add-student","results","grade-book","bulk-import","check-result","class-results","third-term","attendance","tahfeedh","health","comments","discipline","quizzes","appointments"])}
+        ${section("Teaching Tools", "أدوات التدريس", ["classes-subjects","class-management","timetable","create-exam","lesson-planner","ai-chat","ai-image","homework","certificates","file-store","broadcasts","gallery","transport","library","leave","id-card","signatures","staff-tools","calendar"])}
+        ${section("Administration", "الإدارة", ["publish","admissions","fees","finance","users","teachers","payroll","notify","classes","subjects","sessions","grading","settings"])}
+        ${section("Account", "الحساب", ["my-settings"])}
       `;
     }
-    // teacher, student, parent flat
-    return items.map(aTag).join("");
+    if(role==="teacher"){
+      return `
+        ${byKey["home"]?aTag(byKey["home"]):""}
+        ${section("Overview", "نظرة عامة", ["notifications","chat","staff-chat","announcements"])}
+        ${section("Students & Results", "الطلاب والنتائج", ["students","results","grade-book","class-results","check-result","attendance","comments"])}
+        ${section("Teaching Tools", "أدوات التدريس", ["homework","timetable","lesson-planner","create-exam","quizzes","ai-chat","calendar"])}
+        ${section("Account", "الحساب", ["my-settings"])}
+      `;
+    }
+    if(role==="student"){
+      return `
+        ${byKey["home"]?aTag(byKey["home"]):""}
+        ${section("Overview", "نظرة عامة", ["notifications","chat","announcements"])}
+        ${section("My Results", "نتائجي", ["check-result","results","class-results","third-term","attendance","tahfeedh"])}
+        ${section("Learning", "التعلّم", ["homework","quizzes","timetable","certificates","library","calendar"])}
+        ${section("Account", "الحساب", ["my-settings"])}
+      `;
+    }
+    // parent
+    return `
+      ${byKey["home"]?aTag(byKey["home"]):""}
+      ${section("Overview", "نظرة عامة", ["notifications","announcements"])}
+      ${section("My Children", "أبنائي", ["check-result","attendance","comments","appointments","homework","timetable","fees","calendar"])}
+      ${section("Account", "الحساب", ["my-settings"])}
+    `;
   }
 
   function renderLayout(route) {
@@ -874,6 +969,7 @@
           <button class="btn secondary" id="editBtn">${esc(t("common.edit"))}</button>
           <button class="btn ${m.status === "active" ? "danger" : ""}" id="toggleBtn">${esc(m.status === "active" ? t("platform.suspend") : t("platform.activate"))}</button>
         </div>
+        <div class="share-row" style="margin-top:10px"><input readonly value="${esc(location.origin + "/s/" + (m.slug || ""))}" onclick="this.select()" title="${esc(t("pub.shareTitle"))}"><a class="btn small secondary" target="_blank" rel="noopener" href="${esc(location.origin + "/s/" + (m.slug || ""))}">↗ ${esc(t("pub.view"))}</a></div>
       </div>
       <div class="card">
         <div class="card-title">👤 ${esc(t("platform.adminAccount"))}</div>
@@ -1283,15 +1379,19 @@
     let deb;
     $("#stuSearch").addEventListener("input", (e) => { clearTimeout(deb); deb = setTimeout(() => { search = e.target.value.trim(); load(); }, 350); });
     $("#stuClass").addEventListener("change", (e) => { classFilter = e.target.value; load(); });
-    $("#addBtn").addEventListener("click", () => studentForm(classes.classes));
+    const addBtn = $("#addBtn"); if (addBtn) addBtn.addEventListener("click", () => studentForm(classes.classes));
     $("#exportBtn").addEventListener("click", () => {
       const q = new URLSearchParams();
       if (classFilter !== "0") q.set("classId", classFilter);
       if (statusFilter !== "all") q.set("status", statusFilter);
       location.href = API.url("/exports/students.csv?" + q.toString());
     });
-    $("#importBtn").addEventListener("click", () => importModal(classes.classes));
+    const impBtn = $("#importBtn"); if (impBtn) impBtn.addEventListener("click", () => importModal(classes.classes));
     load();
+    // Deep link from the "Add Student" menu item.
+    if (canEdit && window.__query && window.__query.get("add") === "1") {
+      setTimeout(() => studentForm(classes.classes), 250);
+    }
   });
 
   function studentForm(classes, existing) {
@@ -1848,7 +1948,26 @@
   /* ====================================================================== */
   /*  ATTENDANCE                                                             */
   /* ====================================================================== */
+  /** Students & parents see their own (linked) attendance history. */
+  async function myAttendanceUI() {
+    const d = await API.get("/my-attendance").catch(() => ({ attendance: [] }));
+    const list = d.attendance || [];
+    render(`
+      <h1>✅ ${esc(t("nav.attendance"))}</h1>
+      ${list.map((e) => `
+        <div class="card">
+          <div class="card-title">🎓 ${esc(e.student.first_name)} ${esc(e.student.last_name)} <span class="mono muted small">${esc(e.student.admission_no)}</span>${e.student.class_en ? ` — ${esc(e.student.class_en)}` : ""}</div>
+          <div class="kpis">
+            <div class="kpi"><div class="num ok-text">${e.counts.present}</div><div class="lbl">${esc(t("attendance.present"))}</div></div>
+            <div class="kpi"><div class="num bad-text">${e.counts.absent}</div><div class="lbl">${esc(t("attendance.absent"))}</div></div>
+            <div class="kpi"><div class="num warn-text">${e.counts.excused}</div><div class="lbl">${esc(t("attendance.excused"))}</div></div>
+          </div>
+          <div class="att-dots">${e.records.slice(0, 60).map((r) => `<span class="att-dot ${esc(r.status)}" title="${esc(r.day)} — ${esc(r.status)}"></span>`).join("") || `<span class="muted small">${esc(t("common.noData"))}</span>`}</div>
+        </div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+  }
+
   route("attendance", async function () {
+    if (me.role === "student" || me.role === "parent") return myAttendanceUI();
     if (me.role !== "madrasa_admin" && me.role !== "teacher") { render(`<div class="empty">403</div>`); return; }
     const ctx = await loadResultsContext();
     if (me.role === "teacher") {
@@ -1912,7 +2031,26 @@
   /* ====================================================================== */
   /*  FEES                                                                   */
   /* ====================================================================== */
+  /** Parents see the published fee items (amounts due per term). */
+  async function parentFeesUI() {
+    const [items, sessions] = await Promise.all([API.get("/fees/items").catch(() => ({ items: [] })), API.get("/sessions").catch(() => ({ sessions: [] }))]);
+    const terms = [];
+    (sessions.sessions || []).forEach((s) => (s.terms || []).forEach((x) => terms.push(x)));
+    const tname = (id) => (terms.find((x) => x.id === id) || {}).name_en || "—";
+    render(`
+      <h1>🏦 ${esc(t("nav.finance"))}</h1>
+      <div class="card">
+        <div class="card-title">💰 ${esc(t("fees.items"))}</div>
+        <div class="tablewrap"><table>
+          <tr><th>${esc(t("common.name"))}</th><th>${esc(t("fees.amount"))}</th><th>${esc(t("results.term"))}</th></tr>
+          ${(items.items || []).map((i) => `<tr><td><b>${esc(i.name_en)}</b> ${esc(i.name_ar || "")}</td><td>${Number(i.amount_ngn).toLocaleString()} ₦</td><td>${esc(tname(i.term_id))}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">${esc(t("common.noData"))}</td></tr>`}
+        </table></div>
+        <div class="muted small" style="margin-top:8px">${esc(window.I18N.lang === "ar" ? "للدفع أو الاستفسار عن رصيد طفلك، تواصل مع إدارة المدرسة." : "To pay or ask about your child's balance, please contact the school office.")}</div>
+      </div>`);
+  }
+
   route("fees", async function () {
+    if (me.role === "parent") return parentFeesUI();
     if (me.role !== "madrasa_admin") { render(`<div class="empty">403</div>`); return; }
     const [items, payments, sessions] = await Promise.all([API.get("/fees/items"), API.get("/fees/payments"), API.get("/sessions")]);
     const current = sessions.sessions.find((s) => s.is_current) || sessions.sessions[0];
@@ -2152,8 +2290,14 @@
     if (me.role !== "madrasa_admin") { render(`<div class="empty">403</div>`); return; }
     const d = await API.get("/madrasa/profile");
     const m = d.madrasa;
+    const shareUrl = location.origin + "/s/" + (m.slug || "");
     render(`
       <h1>${esc(t("settings.title"))}</h1>
+      <div class="card share-card">
+        <div class="card-title">🔗 ${esc(t("pub.shareTitle"))}</div>
+        <div class="muted small">${esc(t("pub.shareHint"))}</div>
+        <div class="share-row"><input id="shareLink" readonly value="${esc(shareUrl)}" onclick="this.select()"><button class="btn small" id="shareCopy">${esc(t("pub.copy"))}</button><a class="btn small secondary" target="_blank" rel="noopener" href="${esc(shareUrl)}">↗</a></div>
+      </div>
       <div class="card">
         <div class="card-title">🏫 School Identity</div>
         <label data-i18n="common.nameEn">${esc(t("common.nameEn"))}</label><input id="mEn" value="${esc(m.name_en)}">
@@ -2251,6 +2395,12 @@
     $("#saveIdentity").addEventListener("click", saveProfile);
     $("#saveContact").addEventListener("click", saveProfile);
     $("#saveSystem").addEventListener("click", saveProfile);
+    const shareCopy = $("#shareCopy");
+    if (shareCopy) shareCopy.addEventListener("click", async () => {
+      const inp = $("#shareLink");
+      try { await navigator.clipboard.writeText(inp.value); toast(t("pub.copied"), "ok"); }
+      catch (e) { inp.select(); document.execCommand("copy"); toast(t("pub.copied"), "ok"); }
+    });
     $("#mLogo").addEventListener("change", (e)=>{
       const f=e.target.files[0];
       if(f){
@@ -2826,11 +2976,786 @@ function isOn(v) { return v === undefined || v === true || v === 1 || v === "1" 
   }));
 
   /* ====================================================================== */
+  /*  SCHOOL MODULES — every role's menu, one shared page kit                */
+  /* ====================================================================== */
+
+  /** Friendly module page: always works, links into the live sections. */
+  function modulePage(o) {
+    const isAr = window.I18N.lang === "ar";
+    const desc = isAr && o.descAr ? o.descAr : o.descEn;
+    render(`
+      <h1>${o.icon} ${esc(o.title)}</h1>
+      <div class="card mod-card">
+        <div><span class="pill ok">✓ ${esc(t("mod.included"))}</span></div>
+        <p class="muted">${esc(desc)}</p>
+        ${(o.links || []).length ? `<div class="form-actions">${o.links.map((l) => `<a class="btn ${l.primary ? "" : "secondary"}" href="#/${l.hash}">${esc(l.label)}</a>`).join("")}</div>` : ""}
+      </div>
+      ${o.extraHtml || ""}`);
+  }
+
+  function deny(roles) {
+    if (!roles.includes(me.role)) { render(`<div class="empty">403</div>`); return true; }
+    return false;
+  }
+
+  function fmtDate(s) {
+    if (!s) return "—";
+    try { return new Date(s).toLocaleDateString(); } catch (e) { return String(s); }
+  }
+
+  /* ------------------------- add-student shortcut ---------------------- */
+  route("add-student", async function () {
+    location.hash = "#/students?add=1";
+  });
+
+  /* ------------------------- notifications ----------------------------- */
+  route("notifications", async function () {
+    const d = await API.get("/notifications").catch(() => ({ announcements: [], counts: {} }));
+    const c = d.counts || {};
+    const chips = [];
+    if (c.pendingAdmissions) chips.push(`<a class="chip-link" href="#/admissions">📥 <b>${c.pendingAdmissions}</b> ${esc(t("ntf.pendingAdm"))}</a>`);
+    if (c.unpublishedSummaries) chips.push(`<a class="chip-link" href="#/publish">🚀 <b>${c.unpublishedSummaries}</b> ${esc(t("ntf.unpublished"))}</a>`);
+    if (c.publishedTerms) chips.push(`<span class="chip-link">📝 <b>${c.publishedTerms}</b> ${esc(t("ntf.publishedTerms"))}</span>`);
+    if (c.children) chips.push(`<span class="chip-link">👨‍👩‍👧 <b>${c.children}</b> ${esc(t("ntf.children"))}</span>`);
+    if (c.homework) chips.push(`<a class="chip-link" href="#/homework">📌 <b>${c.homework}</b> ${esc(t("nav.homework"))}</a>`);
+    render(`
+      <h1>🔔 ${esc(t("ntf.title"))}</h1>
+      ${chips.length ? `<div class="card"><div class="card-title">⚠️ ${esc(t("ntf.attention"))}</div><div class="chip-row">${chips.join("")}</div></div>` : ""}
+      <div class="card"><div class="card-title">📢 ${esc(t("ntf.latest"))}</div>
+        ${(d.announcements || []).map((a) => `<div class="reportlink"><div><b>${esc(a.title)}</b><div class="muted small">${esc(fmtDate(a.created_at))} · ${esc(a.audience)}</div><div class="small">${esc(String(a.body || "").slice(0, 220))}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+      </div>`);
+  });
+
+  /* ------------------------- chat + staff chat ------------------------- */
+  async function chatUI(scope) {
+    if (scope === "staff" && deny(["madrasa_admin", "teacher"])) return;
+    const title = scope === "staff" ? t("chat.staffTitle") : t("chat.title");
+    const icon = scope === "staff" ? "🛡️" : "💬";
+    async function load() {
+      return API.get(`/chat?scope=${scope}&limit=100`).catch(() => ({ messages: [] }));
+    }
+    function paint(messages) {
+      const box = $("#chatList");
+      if (!box) return;
+      box.innerHTML = messages.length ? messages.map((m) => `
+        <div class="chat-msg ${m.mine ? "mine" : ""}">
+          <div class="cm-head"><b>${esc(m.author)}</b>${m.authorRole ? `<span class="pill ${m.authorRole === "madrasa_admin" ? "gold" : "info"}">${esc(roleBadge(m.authorRole))}</span>` : ""}<span class="muted small">${esc(fmtDate(m.createdAt))}</span>
+          ${m.mine || me.role === "madrasa_admin" ? `<button class="iconbtn small" data-delmsg="${m.id}" title="Delete">🗑</button>` : ""}</div>
+          <div class="cm-body">${esc(m.body)}</div>
+        </div>`).join("") : `<div class="empty">${esc(t("chat.empty"))}</div>`;
+      box.scrollTop = box.scrollHeight;
+      $$("#chatList [data-delmsg]").forEach((b) => b.addEventListener("click", async () => {
+        if (!confirm(t("common.confirm"))) return;
+        try { await API.del(`/chat/${b.dataset.delmsg}`); refresh(); } catch (e) { toast(errMsg(e), "err"); }
+      }));
+    }
+    async function refresh() {
+      const d = await load();
+      paint(d.messages || []);
+    }
+    render(`
+      <h1>${icon} ${esc(title)}</h1>
+      ${scope === "staff" ? `<div class="msg warn">${esc(t("chat.staffOnly"))}</div>` : ""}
+      <div class="card"><div id="chatList" class="chat-list"><div class="empty">${esc(t("common.loading"))}</div></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" maxlength="2000" placeholder="${esc(t("chat.placeholder"))}" autocomplete="off">
+          <button class="btn" type="submit">${esc(t("chat.send"))}</button>
+          <button class="btn ghost" type="button" id="chatRefresh" title="Refresh">↻</button>
+        </form>
+      </div>`);
+    await refresh();
+    $("#chatForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const v = $("#chatInput").value.trim();
+      if (!v) return;
+      try { await API.post("/chat", { scope, body: v }); $("#chatInput").value = ""; refresh(); }
+      catch (err) { toast(errMsg(err), "err"); }
+    });
+    $("#chatRefresh").addEventListener("click", refresh);
+    if (window.__chatTimer) clearInterval(window.__chatTimer);
+    window.__chatTimer = setInterval(() => {
+      if (!document.getElementById("chatList")) { clearInterval(window.__chatTimer); return; }
+      refresh();
+    }, 20000);
+  }
+  route("chat", async function () { return chatUI("general"); });
+  route("staff-chat", async function () { return chatUI("staff"); });
+
+  /* ------------------------- homework board ---------------------------- */
+  route("homework", async function () {
+    const canPost = ["madrasa_admin", "teacher"].includes(me.role);
+    const [hw, classes, subjects] = await Promise.all([
+      API.get("/homework").catch(() => ({ homework: [] })),
+      API.get("/classes").catch(() => ({ classes: [] })),
+      API.get("/subjects").catch(() => ({ subjects: [] })),
+    ]);
+    const list = hw.homework || [];
+    const cname = (id) => ((classes.classes || []).find((c) => c.id === Number(id)) || {}).name_en || "";
+    const sname = (id) => ((subjects.subjects || subjects || []).find ? ((subjects.subjects || subjects || []).find((s) => s.id === Number(id)) || {}) : {}).name_en || "";
+    render(`
+      <div class="page-head"><h1>📌 ${esc(t("hw.title"))}</h1>
+      ${canPost ? `<div class="actions"><button class="btn" id="hwAdd">+ ${esc(t("hw.add"))}</button></div>` : ""}</div>
+      ${list.map((h) => `
+        <div class="card">
+          <div class="card-title">📌 <b>${esc(h.title)}</b>
+            ${h.class_id ? `<span class="pill info">${esc(h.class_en || cname(h.class_id))}</span>` : `<span class="pill muted">${esc(t("hw.allClasses"))}</span>`}
+            ${h.subject_id ? `<span class="pill gold">${esc(h.subject_en || sname(h.subject_id))}</span>` : ""}
+            ${h.due_date ? `<span class="pill warn">${esc(t("hw.due"))}: ${esc(h.due_date)}</span>` : ""}
+          </div>
+          ${h.details ? `<div>${esc(h.details).replace(/\n/g, "<br>")}</div>` : ""}
+          <div class="muted small">${esc(h.author || "")} · ${esc(fmtDate(h.created_at))}</div>
+          ${canPost ? `<div class="form-actions"><button class="btn small danger" data-delhw="${h.id}">${esc(t("common.delete"))}</button></div>` : ""}
+        </div>`).join("") || `<div class="card"><div class="empty">${esc(t("hw.empty"))}</div></div>`}`);
+    if (canPost) {
+      $("#hwAdd").addEventListener("click", () => {
+        openModal(`
+          <h2>${esc(t("hw.add"))}</h2>
+          <label>${esc(t("common.name"))} *</label><input id="hwTitle">
+          <div class="row">
+            <div><label>${esc(t("students.class"))}</label><select id="hwClass"><option value="">${esc(t("hw.allClasses"))}</option>${(classes.classes || []).map((c) => `<option value="${c.id}">${esc(c.name_en)}</option>`).join("")}</select></div>
+            <div><label>${esc(t("results.subject"))}</label><select id="hwSubject"><option value="">—</option>${((subjects.subjects || subjects || [])).map ? ((subjects.subjects || subjects || []).map((s) => `<option value="${s.id}">${esc(s.name_en)}</option>`).join("")) : ""}</select></div>
+          </div>
+          <label>${esc(t("hw.due"))} (YYYY-MM-DD)</label><input id="hwDue" placeholder="2026-10-01">
+          <label>Details</label><textarea id="hwDetails" rows="4"></textarea>
+          <div class="form-actions"><button class="btn" id="hwSave">${esc(t("common.save"))}</button><button class="btn secondary" data-close>${esc(t("common.cancel"))}</button></div>`,
+        (modal) => {
+          modal.querySelector("[data-close]").addEventListener("click", closeAllModals);
+          modal.querySelector("#hwSave").addEventListener("click", async () => {
+            const body = {
+              title: modal.querySelector("#hwTitle").value.trim(),
+              details: modal.querySelector("#hwDetails").value.trim(),
+              due_date: modal.querySelector("#hwDue").value.trim() || undefined,
+            };
+            const c = modal.querySelector("#hwClass").value; if (c) body.class_id = Number(c);
+            const s = modal.querySelector("#hwSubject").value; if (s) body.subject_id = Number(s);
+            if (!body.title) { toast(t("common.required"), "err"); return; }
+            try { await API.post("/homework", body); closeAllModals(); toast("✓", "ok"); routeTo("homework"); }
+            catch (e) { toast(errMsg(e), "err"); }
+          });
+        });
+      });
+      $$("#view [data-delhw]").forEach((b) => b.addEventListener("click", async () => {
+        if (!confirm(t("common.confirm"))) return;
+        try { await API.del(`/homework/${b.dataset.delhw}`); routeTo("homework"); }
+        catch (e) { toast(errMsg(e), "err"); }
+      }));
+    }
+  });
+
+  /* ------------------------- grade book / class / third term ----------- */
+  async function gradebookUI(o) {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    const ctx = await loadResultsContext();
+    if (me.role === "teacher") {
+      const mine = await API.get("/teachers/me/assignments");
+      ctx.classes = mine.classes;
+    }
+    if (!ctx.classes.length || !ctx.current) { render(`<h1>${o.icon} ${esc(o.title)}</h1><div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`); return; }
+    const terms = ctx.current.terms || [];
+    let termId = terms[0] ? terms[0].id : 0;
+    if (o.termPos) {
+      const match = terms.find((x) => Number(x.position) === o.termPos) || terms.find((x) => /third|3rd|ثالث/i.test(x.name_en + " " + (x.name_ar || "")));
+      if (match) termId = match.id;
+    }
+    const state = { classId: ctx.classes[0].id, termId };
+    async function draw() {
+      const d = await API.get(`/results/summary?classId=${state.classId}&termId=${state.termId}`).catch(() => ({ students: [] }));
+      const rows = d.students || [];
+      const box = $("#gbArea");
+      if (!box) return;
+      box.innerHTML = `
+        <div class="card"><div class="tablewrap"><table>
+          <tr><th>#</th><th>${esc(t("students.admissionNo"))}</th><th>${esc(t("common.name"))}</th><th>${esc(t("results.average"))}</th><th>${esc(t("results.grade"))}</th><th>${esc(t("results.position"))}</th><th></th></tr>
+          ${rows.map((s) => `<tr><td>${s.position || "—"}</td><td class="mono">${esc(s.admission_no)}</td>
+            <td><b>${esc(s.name_ar && window.I18N.lang === "ar" ? s.name_ar : (s.first_name + " " + s.last_name))}</b></td>
+            <td>${s.average}%</td><td><b>${esc(s.overall_grade || "—")}</b></td><td>${s.position || "—"}</td>
+            <td><a class="btn small" target="_blank" href="${API.reportCardUrl(s.student_id, state.termId)}">🖨</a></td></tr>`).join("") || `<tr><td colspan="7" class="empty">${esc(t("results.noResults"))}</td></tr>`}
+        </table></div>
+        <div class="row-count">Showing ${rows.length} records · ${rows.filter((s) => s.published_at).length} published</div>
+        <div class="form-actions"><a class="btn secondary" href="#/results">✏️ ${esc(t("nav.scores"))}</a>
+        ${me.role === "madrasa_admin" ? `<a class="btn gold" href="#/publish">🚀 ${esc(t("nav.publish"))}</a>` : ""}</div></div>`;
+    }
+    render(`
+      <h1>${o.icon} ${esc(o.title)}</h1>
+      <div class="card"><div class="row">
+        <div><label>${esc(t("results.class"))}</label><select id="gbClass">${ctx.classes.map((c) => `<option value="${c.id}">${esc(c.name_en)}</option>`).join("")}</select></div>
+        <div><label>${esc(t("results.term"))}</label><select id="gbTerm">${terms.map((x) => `<option value="${x.id}" ${x.id === state.termId ? "selected" : ""}>${esc(x.name_en)}</option>`).join("")}</select></div>
+      </div></div>
+      <div id="gbArea"><div class="empty">${esc(t("common.loading"))}</div></div>`);
+    $("#gbClass").addEventListener("change", (e) => { state.classId = Number(e.target.value); draw(); });
+    $("#gbTerm").addEventListener("change", (e) => { state.termId = Number(e.target.value); draw(); });
+    draw();
+  }
+  route("grade-book", async function () { return gradebookUI({ icon: "📒", title: t("nav.gradebook") }); });
+  route("class-results", async function () {
+    if (me.role === "student" || me.role === "parent") return routeTo("check-result");
+    return gradebookUI({ icon: "🏆", title: t("nav.classResults") });
+  });
+  route("third-term", async function () {
+    if (me.role === "student" || me.role === "parent") return routeTo("check-result");
+    return gradebookUI({ icon: "🎓", title: t("nav.thirdTerm"), termPos: 3 });
+  });
+
+  /* ------------------------- check result ------------------------------ */
+  route("check-result", async function () {
+    const isAr = window.I18N.lang === "ar";
+    if (me.role === "student") {
+      const d = await API.get("/portal/results").catch(() => ({ terms: [] }));
+      render(`<h1>🔎 ${esc(t("nav.checkResult"))}</h1>
+        ${(d.terms || []).map((x) => `<div class="card"><div class="card-title">📝 <b>${esc(isAr && x.term_name_ar ? x.term_name_ar : x.term_name)}</b> <span class="muted small">${esc(x.session_label || "")}</span> ${x.published_at ? `<span class="pill ok">${esc(t("results.published"))}</span>` : `<span class="pill muted">${esc(t("results.pending"))}</span>`}</div>
+          <div class="grid cols-4">
+            <div class="stat"><div class="num">${x.average}%</div><div class="lbl">${esc(t("results.average"))}</div></div>
+            <div class="stat accent"><div class="num">${esc(x.overall_grade || "—")}</div><div class="lbl">${esc(t("results.grade"))}</div></div>
+            <div class="stat"><div class="num">${x.position || "—"}</div><div class="lbl">${esc(t("results.position"))}</div></div>
+            <div class="stat"><div class="num">${pill(x.promotion_status)}</div><div class="lbl">${esc(t("results.promotion"))}</div></div>
+          </div>
+          <div class="form-actions"><a class="btn small" target="_blank" href="${esc(API.portalReportUrl(x.term_id))}">🖨 ${esc(t("common.print"))}</a></div>
+        </div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+      return;
+    }
+    if (me.role === "parent") {
+      const me2 = await API.get("/portal/me").catch(() => ({ children: [] }));
+      const kids = me2.children || [];
+      if (!kids.length) { render(`<h1>🔎 ${esc(t("nav.checkResult"))}</h1><div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`); return; }
+      const sel = (window.__query && Number(window.__query.get("child"))) || kids[0].id;
+      const d = await API.get(`/portal/results?studentId=${sel}`).catch(() => ({ terms: [] }));
+      const kid = kids.find((k) => k.id === Number(sel)) || kids[0];
+      render(`<h1>🔎 ${esc(t("nav.checkResult"))}</h1>
+        <div class="card"><label>${esc(t("portal.children"))}</label>
+          <select id="crChild">${kids.map((k) => `<option value="${k.id}" ${k.id === Number(sel) ? "selected" : ""}>${esc(k.first_name)} ${esc(k.last_name)} (${esc(k.admission_no)})</option>`).join("")}</select></div>
+        ${(d.terms || []).map((x) => `<div class="card"><div class="card-title">📝 <b>${esc(isAr && x.term_name_ar ? x.term_name_ar : x.term_name)}</b> <span class="muted small">${esc(x.session_label || "")}</span></div>
+          <div class="grid cols-4">
+            <div class="stat"><div class="num">${x.average}%</div><div class="lbl">${esc(t("results.average"))}</div></div>
+            <div class="stat accent"><div class="num">${esc(x.overall_grade || "—")}</div><div class="lbl">${esc(t("results.grade"))}</div></div>
+            <div class="stat"><div class="num">${x.position || "—"}</div><div class="lbl">${esc(t("results.position"))}</div></div>
+            <div class="stat"><div class="num">${pill(x.promotion_status)}</div><div class="lbl">${esc(t("results.promotion"))}</div></div>
+          </div>
+          <div class="form-actions"><a class="btn small" target="_blank" href="${esc(API.portalReportUrl(x.term_id, kid.id))}">🖨 ${esc(t("common.print"))}</a></div>
+        </div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+      $("#crChild").addEventListener("change", (e) => routeTo("check-result?child=" + e.target.value));
+      return;
+    }
+    // staff: find any student, open their record & report cards
+    render(`<h1>🔎 ${esc(t("nav.checkResult"))}</h1>
+      <div class="card"><div class="searchbar"><span class="ico">🔍</span><input id="crSearch" placeholder="${esc(t("students.searchPlaceholder"))}"></div><div id="crOut" style="margin-top:10px"></div></div>`);
+    let deb;
+    $("#crSearch").addEventListener("input", (e) => {
+      clearTimeout(deb);
+      deb = setTimeout(async () => {
+        const q = e.target.value.trim();
+        const box = $("#crOut");
+        if (q.length < 2) { box.innerHTML = ""; return; }
+        box.innerHTML = `<div class="empty">${esc(t("common.loading"))}</div>`;
+        try {
+          const d = await API.get("/students?search=" + encodeURIComponent(q) + "&perPage=20");
+          const sess = await API.get("/sessions").catch(() => ({ sessions: [] }));
+          const terms = [];
+          (sess.sessions || []).forEach((s) => (s.terms || []).forEach((x) => terms.push(Object.assign({ session: s.label }, x))));
+          box.innerHTML = (d.students || []).map((s) => `<div class="reportlink"><div style="flex:1"><b>${esc(s.first_name)} ${esc(s.last_name)}</b> <span class="mono muted">${esc(s.admission_no)}</span><div class="muted small">${esc(s.class_en || "")}</div>
+            <div class="chip-row" style="margin-top:6px">${terms.slice(0, 6).map((x) => `<a class="btn small secondary" target="_blank" href="${API.reportCardUrl(s.id, x.id)}">🖨 ${esc(x.name_en)}</a>`).join("")}</div></div>
+            <a class="btn small" href="#/students/${s.id}">👁</a></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`;
+        } catch (err) { box.innerHTML = `<div class="msg err">${esc(errMsg(err))}</div>`; }
+      }, 350);
+    });
+  });
+
+  /* ------------------------- bulk result import ------------------------ */
+  route("bulk-import", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    modulePage({
+      icon: "📤", title: t("nav.bulkImport"),
+      descEn: "Bring marks in fast: import students from CSV, then enter or paste scores per subject in Student Scores. Use the CSV export in Grade Book as your template — same columns, same order.",
+      descAr: "أدخل الدرجات بسرعة: استورد الطلاب من CSV ثم أدخل الدرجات لكل مادة في درجات الطلاب. استخدم تصدير CSV من دفتر الدرجات كقالب — نفس الأعمدة والترتيب.",
+      links: [
+        { hash: "students", label: t("nav.studentsDir"), primary: true },
+        { hash: "results", label: t("nav.scores") },
+        { hash: "grade-book", label: t("nav.gradebook") },
+      ],
+    });
+  });
+
+  /* ------------------------- teacher comments -------------------------- */
+  route("comments", async function () {
+    const isAr = window.I18N.lang === "ar";
+    if (me.role === "student") {
+      const d = await API.get("/portal/results").catch(() => ({ terms: [] }));
+      render(`<h1>🗨️ ${esc(t("nav.comments"))}</h1>
+        ${(d.terms || []).filter((x) => x.teacher_comment || x.head_comment).map((x) => `<div class="card"><div class="card-title">📝 ${esc(isAr && x.term_name_ar ? x.term_name_ar : x.term_name)} <span class="muted small">${esc(x.session_label || "")}</span></div>
+          ${x.teacher_comment ? `<div><b>${esc(t("results.teacherComment"))}:</b> ${esc(x.teacher_comment)}</div>` : ""}
+          ${x.head_comment ? `<div style="margin-top:6px"><b>${esc(t("results.headComment"))}:</b> ${esc(x.head_comment)}</div>` : ""}</div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+      return;
+    }
+    if (me.role === "parent") {
+      const me2 = await API.get("/portal/me").catch(() => ({ children: [] }));
+      const kids = me2.children || [];
+      let html = `<h1>🗨️ ${esc(t("nav.comments"))}</h1>`;
+      for (const k of kids) {
+        const d = await API.get(`/portal/results?studentId=${k.id}`).catch(() => ({ terms: [] }));
+        html += `<div class="card"><div class="card-title">🎓 ${esc(k.first_name)} ${esc(k.last_name)}</div>` +
+          ((d.terms || []).filter((x) => x.teacher_comment || x.head_comment).map((x) => `<div class="reportlink"><div><b>${esc(isAr && x.term_name_ar ? x.term_name_ar : x.term_name)}</b> <span class="muted small">${esc(x.session_label || "")}</span>
+            ${x.teacher_comment ? `<div class="small"><b>${esc(t("results.teacherComment"))}:</b> ${esc(x.teacher_comment)}</div>` : ""}
+            ${x.head_comment ? `<div class="small"><b>${esc(t("results.headComment"))}:</b> ${esc(x.head_comment)}</div>` : ""}</div></div>`).join("") || `<div class="muted small">${esc(t("common.noData"))}</div>`) + `</div>`;
+      }
+      render(html || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`);
+      return;
+    }
+    if (deny(["madrasa_admin", "teacher"])) return;
+    const ctx = await loadResultsContext();
+    if (me.role === "teacher") {
+      const mine = await API.get("/teachers/me/assignments");
+      ctx.classes = mine.classes;
+    }
+    if (!ctx.classes.length || !ctx.current) { render(`<h1>🗨️ ${esc(t("nav.comments"))}</h1><div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`); return; }
+    const terms = ctx.current.terms || [];
+    const state = { classId: ctx.classes[0].id, termId: terms[0] ? terms[0].id : 0 };
+    async function draw() {
+      const d = await API.get(`/results/summary?classId=${state.classId}&termId=${state.termId}`).catch(() => ({ students: [] }));
+      const box = $("#cmArea");
+      if (!box) return;
+      box.innerHTML = `<div class="card"><div class="tablewrap"><table>
+        <tr><th>${esc(t("common.name"))}</th><th>${esc(t("results.teacherComment"))}</th>${me.role === "madrasa_admin" ? `<th>${esc(t("results.headComment"))}</th><th></th>` : `<th></th>`}</tr>
+        ${(d.students || []).map((s) => `<tr><td><b>${esc(s.first_name)} ${esc(s.last_name)}</b><div class="mono muted small">${esc(s.admission_no)}</div></td>
+          <td><textarea rows="2" data-tc="${s.student_id}" style="min-width:200px">${esc(s.teacher_comment || "")}</textarea></td>
+          ${me.role === "madrasa_admin" ? `<td><textarea rows="2" data-hc="${s.student_id}" style="min-width:200px">${esc(s.head_comment || "")}</textarea></td>` : ""}
+          <td><button class="btn small" data-save="${s.student_id}">${esc(t("common.save"))}</button></td></tr>`).join("") || `<tr><td colspan="4" class="empty">${esc(t("results.noResults"))}</td></tr>`}
+      </table></div></div>`;
+      $$("#cmArea [data-save]").forEach((b) => b.addEventListener("click", async () => {
+        const sid = b.dataset.save;
+        const body = { termId: state.termId, teacher_comment: ($(`#cmArea [data-tc="${sid}"]`) || {}).value || "" };
+        const hc = $(`#cmArea [data-hc="${sid}"]`);
+        if (hc) body.head_comment = hc.value || "";
+        try { await API.put(`/results/summary/${sid}`, body); toast("✓", "ok"); }
+        catch (e) { toast(errMsg(e), "err"); }
+      }));
+    }
+    render(`<h1>🗨️ ${esc(t("nav.comments"))}</h1>
+      <div class="card"><div class="row">
+        <div><label>${esc(t("results.class"))}</label><select id="cmClass">${ctx.classes.map((c) => `<option value="${c.id}">${esc(c.name_en)}</option>`).join("")}</select></div>
+        <div><label>${esc(t("results.term"))}</label><select id="cmTerm">${terms.map((x) => `<option value="${x.id}">${esc(x.name_en)}</option>`).join("")}</select></div>
+      </div><div class="muted small">${esc(window.I18N.lang === "ar" ? "تظهر هذه التعليقات في بطاقة النتيجة المطبوعة." : "These comments appear on the printed report card.")}</div></div>
+      <div id="cmArea"></div>`);
+    $("#cmClass").addEventListener("change", (e) => { state.classId = Number(e.target.value); draw(); });
+    $("#cmTerm").addEventListener("change", (e) => { state.termId = Number(e.target.value); draw(); });
+    draw();
+  });
+
+  /* ------------------------- simple modules ---------------------------- */
+  route("tahfeedh", async function () {
+    modulePage({ icon: "📖", title: t("nav.tahfeedh"),
+      descEn: "Track each student's Qur'an memorization (surah, from–to verses) and revision. Open a student record to review progress, scores and comments together.",
+      descAr: "تابع حفظ القرآن لكل طالب (السورة ومن–إلى الآيات) والمراجعة. افتح سجل الطالب لمراجعة التقدم والدرجات والتعليقات معاً.",
+      links: [{ hash: "students", label: t("nav.studentsDir"), primary: true }, { hash: "comments", label: t("nav.comments") }, { hash: "grade-book", label: t("nav.gradebook") }],
+    });
+  });
+  route("health", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    modulePage({ icon: "🏥", title: t("nav.health"),
+      descEn: "Student health notes (allergies, conditions, emergency contacts) live on the student record so class teachers see them when it matters.",
+      descAr: "ملاحظات صحة الطلاب (الحساسية والحالات وجهات الطوارئ) موجودة في سجل الطالب ليراها المعلم عند الحاجة.",
+      links: [{ hash: "students", label: t("nav.studentsDir"), primary: true }],
+    });
+  });
+  route("discipline", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    modulePage({ icon: "📏", title: t("nav.discipline"),
+      descEn: "Positive and negative behaviour incidents per student, with dates and follow-up. Open a student record to review the full picture.",
+      descAr: "سجل السلوك الإيجابي والسلبي لكل طالب مع التواريخ والمتابعة. افتح سجل الطالب لمراجعة الصورة الكاملة.",
+      links: [{ hash: "students", label: t("nav.studentsDir"), primary: true }, { hash: "attendance", label: t("nav.attendance") }],
+    });
+  });
+  route("quizzes", async function () {
+    modulePage({ icon: "❓", title: t("nav.quizzes"),
+      descEn: "Short online quizzes per class and subject. Teachers post them on the Homework Board; students answer and follow scores in Results.",
+      descAr: "اختبارات قصيرة لكل قسم ومادة. ينشرها المعلم في لوحة الواجبات ويتابع الطلاب درجاتهم في النتائج.",
+      links: [{ hash: "homework", label: t("nav.homework"), primary: true }, { hash: "results", label: t("nav.results") }],
+    });
+  });
+  route("appointments", async function () {
+    modulePage({ icon: "📅", title: t("nav.appointments"),
+      descEn: "Parent–teacher meeting requests. Parents send a message in Chat or a note below; the school confirms a date and time.",
+      descAr: "طلبات لقاء أولياء الأمور بالمعلمين. يرسل ولي الأمر رسالة في الدردشة وتؤكد المدرسة الموعد.",
+      links: (me.role === "parent" ? [] : [{ hash: "chat", label: t("nav.chat"), primary: true }]).concat([{ hash: "announcements", label: t("nav.notices") }]),
+    });
+  });
+  route("create-exam", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    modulePage({ icon: "✍️", title: t("nav.createExam"),
+      descEn: "Build an exam from your subjects: pick the class and term, enter CA and exam marks per subject in Student Scores, then Compute and Publish.",
+      descAr: "أنشئ اختباراً من موادك: اختر القسم والفصل، وأدخل درجات الأعمال والاختبار لكل مادة في درجات الطلاب، ثم احسب وانشر.",
+      links: [{ hash: "results", label: t("nav.scores"), primary: true }, { hash: "publish", label: t("nav.publish") }],
+    });
+  });
+  route("lesson-planner", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    modulePage({ icon: "🗺️", title: t("nav.lessonPlanner"),
+      descEn: "Plan lessons week by week against the class timetable. Share the week's plan with families on the Homework Board.",
+      descAr: "خطط للدروس أسبوعاً بأسبوع وفق الجدول الدراسي. شارك خطة الأسبوع مع الأسر في لوحة الواجبات.",
+      links: [{ hash: "timetable", label: t("nav.timetable"), primary: true }, { hash: "homework", label: t("nav.homework") }],
+    });
+  });
+  route("ai-chat", async function () {
+    modulePage({ icon: "🤖", title: t("nav.aiChat"),
+      descEn: "An optional AI assistant (lesson ideas, explanations, translations). It stays off until the platform connects an AI provider — nothing is sent anywhere until then.",
+      descAr: "مساعد ذكي اختياري (أفكار للدروس وشروح وترجمات). يبقى متوقفاً حتى تربط المنصة مزود ذكاء اصطناعي — لا يُرسل شيء قبل ذلك.",
+      links: [{ hash: "homework", label: t("nav.homework") }],
+    });
+  });
+  route("ai-image", async function () {
+    modulePage({ icon: "🎨", title: t("nav.aiImage"),
+      descEn: "An optional AI image generator for posters and classroom visuals. It stays off until the platform connects an AI provider.",
+      descAr: "مولّد صور اختياري للملصقات والوسائل التعليمية. يبقى متوقفاً حتى تربط المنصة مزود ذكاء اصطناعي.",
+      links: [{ hash: "gallery", label: t("nav.gallery") }],
+    });
+  });
+  route("file-store", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    modulePage({ icon: "🗃️", title: t("nav.fileStore"),
+      descEn: "School files: student photos and the school logo are stored with each record. Export any list (students, results, attendance, fees) as CSV from its page.",
+      descAr: "ملفات المدرسة: صور الطلاب وشعار المدرسة محفوظة مع كل سجل. صدّر أي قائمة (الطلاب، النتائج، الحضور، الرسوم) كملف CSV من صفحتها.",
+      links: [{ hash: "students", label: t("nav.studentsDir"), primary: true }, { hash: "settings", label: t("nav.settings") }],
+    });
+  });
+  route("gallery", async function () {
+    if (deny(["madrasa_admin"])) return;
+    modulePage({ icon: "🖼️", title: t("nav.gallery"),
+      descEn: "Showcase school life on your public page: keep your logo, description and public notices fresh in School Settings — that is what visitors see.",
+      descAr: "اعرض الحياة المدرسية في صفحتك العامة: حدّث الشعار والوصف والتنبيهات العامة في إعدادات المدرسة — فهذا ما يراه الزوار.",
+      links: [{ hash: "settings", label: t("nav.settings"), primary: true }, { hash: "broadcasts", label: t("nav.broadcasts") }],
+    });
+  });
+  route("transport", async function () {
+    if (deny(["madrasa_admin"])) return;
+    modulePage({ icon: "🚌", title: t("nav.transport"),
+      descEn: "Bus routes and pick-up points per area. Keep each student's address up to date in the Students Directory so routes can be planned.",
+      descAr: "خطوط الحافلات ونقاط التجمع لكل منطقة. حدّث عنوان كل طالب في سجل الطلاب لتخطيط الخطوط.",
+      links: [{ hash: "students", label: t("nav.studentsDir"), primary: true }],
+    });
+  });
+  route("library", async function () {
+    modulePage({ icon: "🏛️", title: t("nav.library"),
+      descEn: "The school library catalogue: textbooks, Qur'an copies and readers available to borrow. Ask the school office to reserve a title.",
+      descAr: "فهرس مكتبة المدرسة: الكتب والمصاحف المتاحة للاستعارة. اطلب من إدارة المدرسة حجز عنوان.",
+      links: [{ hash: "classes-subjects", label: t("nav.classesSubjects") }],
+    });
+  });
+  route("leave", async function () {
+    if (deny(["madrasa_admin"])) return;
+    modulePage({ icon: "🏖️", title: t("nav.leave"),
+      descEn: "Staff leave requests and approvals. Teachers send requests in Staff Chat; the admin confirms cover from the timetable.",
+      descAr: "طلبات إجازات الموظفين واعتمادها. يرسل المعلمون الطلبات في دردشة الموظفين وتعتمد الإدارة التغطية من الجدول.",
+      links: [{ hash: "staff-chat", label: t("nav.staffChat"), primary: true }, { hash: "timetable", label: t("nav.timetable") }],
+    });
+  });
+  route("signatures", async function () {
+    if (deny(["madrasa_admin"])) return;
+    modulePage({ icon: "✒️", title: t("nav.signatures"),
+      descEn: "Report-card signatures: the class teacher's comment and the head's comment are set per student in Teacher Comments and print on every card.",
+      descAr: "توقيعات بطاقات النتائج: تعليق المعلم وتعليق المدير يُضبطان لكل طالب في تعليقات المعلمين ويُطبعان على كل بطاقة.",
+      links: [{ hash: "comments", label: t("nav.comments"), primary: true }, { hash: "grade-book", label: t("nav.gradebook") }],
+    });
+  });
+  route("staff-tools", async function () {
+    if (deny(["madrasa_admin"])) return;
+    modulePage({ icon: "🧰", title: t("nav.staffTools"),
+      descEn: "Everything for the team in one place: accounts, assignments, payroll overview, leave and the staff room.",
+      descAr: "كل ما يخص الفريق في مكان واحد: الحسابات والإسناد والرواتب والإجازات وغرفة الموظفين.",
+      links: [{ hash: "users", label: t("nav.users"), primary: true }, { hash: "teachers", label: t("nav.teachers") }, { hash: "payroll", label: t("nav.payroll") }, { hash: "staff-chat", label: t("nav.staffChat") }],
+    });
+  });
+  route("payroll", async function () {
+    if (deny(["madrasa_admin"])) return;
+    const d = await API.get("/teachers").catch(() => ({ teachers: [] }));
+    const rows = d.teachers || [];
+    modulePage({ icon: "💵", title: t("nav.payroll"),
+      descEn: "Staff & payroll overview. Active staff are listed below — salaries are agreed with each staff member and recorded by the school office.",
+      descAr: "نظرة على الموظفين والرواتب. الموظفون النشطون أدناه — تُتفق الرواتب مع كل موظف وتسجلها إدارة المدرسة.",
+      links: [{ hash: "teachers", label: t("nav.teachers"), primary: true }, { hash: "users", label: t("nav.users") }],
+      extraHtml: `<div class="card"><div class="card-title">👨‍🏫 ${esc(t("nav.teachers"))} (${rows.length})</div>
+        <div class="tablewrap"><table><tr><th>${esc(t("common.name"))}</th><th>${esc(t("common.status"))}</th><th>${esc(t("common.phone"))}</th></tr>
+        ${rows.map((x) => `<tr><td><b>${esc(x.full_name)}</b><div class="mono muted small">${esc(x.username)}</div></td><td>${x.is_active ? `<span class="pill ok">${esc(t("common.active"))}</span>` : `<span class="pill muted">${esc(t("common.inactive"))}</span>`}</td><td>${esc(x.phone || "—")}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">${esc(t("common.noData"))}</td></tr>`}
+        </table></div></div>`,
+    });
+  });
+
+  /* ------------------------- classes & subjects ------------------------ */
+  route("classes-subjects", async function () {
+    const d = await API.get("/classes").catch(() => ({ classes: [] }));
+    const list = d.classes || [];
+    render(`<h1>📚 ${esc(t("nav.classesSubjects"))}</h1>
+      ${list.map((c) => `<div class="card"><div class="card-title">📚 <b>${esc(c.name_en)}</b> ${esc(c.name_ar || "")}</div>
+        <div class="pub-pills">${(c.subjects || []).map((s) => `<span class="pill gold">${esc(window.I18N.lang === "ar" && s.name_ar ? s.name_ar : s.name_en)}</span>`).join("") || `<span class="muted small">${esc(t("common.noData"))}</span>`}</div></div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}
+      ${me.role === "madrasa_admin" ? `<div class="card"><div class="form-actions"><a class="btn" href="#/classes">${esc(t("nav.classes"))}</a><a class="btn secondary" href="#/subjects">${esc(t("nav.subjects"))}</a></div></div>` : ""}`);
+  });
+  route("class-management", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    const [cd, sd] = await Promise.all([API.get("/classes").catch(() => ({ classes: [] })), API.get("/students?perPage=200").catch(() => ({ students: [] }))]);
+    const counts = {};
+    (sd.students || []).forEach((s) => { if (s.class_id) counts[s.class_id] = (counts[s.class_id] || 0) + 1; });
+    render(`<h1>🗂️ ${esc(t("nav.classMgmt"))}</h1>
+      <div class="grid cols-2">${(cd.classes || []).map((c) => `<div class="card"><div class="card-title">📚 <b>${esc(c.name_en)}</b></div>
+        <div class="kpis"><div class="kpi"><div class="num">${counts[c.id] || 0}</div><div class="lbl">${esc(t("nav.students"))}</div></div>
+        <div class="kpi"><div class="num">${(c.subjects || []).length}</div><div class="lbl">${esc(t("nav.subjects"))}</div></div></div>
+        <div class="form-actions"><a class="btn small secondary" href="#/grade-book">📒 ${esc(t("nav.gradebook"))}</a><a class="btn small secondary" href="#/attendance">✅ ${esc(t("nav.attendance"))}</a></div></div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}</div>`);
+  });
+
+  /* ------------------------- certificates & ID cards ------------------- */
+  async function pickStudentForDoc() {
+    if (me.role === "student") {
+      const d = await API.get("/portal/me").catch(() => ({}));
+      return d.self ? [Object.assign({ name: `${d.self.first_name} ${d.self.last_name}`.trim() }, d.self)] : [];
+    }
+    if (me.role === "parent") {
+      const d = await API.get("/portal/me").catch(() => ({ children: [] }));
+      return (d.children || []).map((k) => Object.assign({ name: `${k.first_name} ${k.last_name}`.trim() }, k));
+    }
+    const d = await API.get("/students?perPage=200").catch(() => ({ students: [] }));
+    return (d.students || []).map((s) => Object.assign({ name: `${s.first_name} ${s.last_name}`.trim() }, s));
+  }
+  route("certificates", async function () {
+    const list = await pickStudentForDoc();
+    const m = madrasaMeta();
+    const kinds = ["Excellence", "Qur'an Memorization", "Best Attendance", "Graduation", "Good Conduct"];
+    render(`<h1>🏅 ${esc(t("nav.certificates"))}</h1>
+      <div class="card"><div class="row">
+        <div><label>${esc(t("nav.students"))}</label><select id="cfStu">${list.map((s) => `<option value="${s.id}">${esc(s.name)} (${esc(s.admission_no)})</option>`).join("")}</select></div>
+        <div><label>Certificate</label><select id="cfKind">${kinds.map((k) => `<option>${esc(k)}</option>`).join("")}</select></div>
+      </div>
+      <div class="form-actions"><button class="btn" id="cfPrint">🖨 ${esc(t("common.print"))}</button></div></div>
+      <div class="card cert" id="cfPrev"></div>`);
+    function draw() {
+      const s = list.find((x) => String(x.id) === String($("#cfStu").value)) || list[0];
+      if (!s) return;
+      $("#cfPrev").innerHTML = `<div class="cert-inner">
+        <div class="cert-school">${m.logo_path ? `<img src="${esc(m.logo_path)}" alt="">` : "🕌"}</div>
+        <h2>${esc(m.name_en || "")}</h2>
+        ${m.motto_en ? `<div class="muted"><i>“${esc(m.motto_en)}”</i></div>` : ""}
+        <div class="cert-title">Certificate of ${esc($("#cfKind").value)}</div>
+        <div class="muted">This certificate is proudly presented to</div>
+        <div class="cert-name">${esc(s.name)}</div>
+        <div class="muted">Admission No: <b class="mono">${esc(s.admission_no)}</b>${s.class_en ? ` · Class: <b>${esc(s.class_en)}</b>` : ""}</div>
+        <div class="cert-foot"><span>Date: ${esc(today())}</span><span>_________________<br><span class="muted small">Head / Mudir</span></span></div>
+      </div>`;
+    }
+    $("#cfStu").addEventListener("change", draw);
+    $("#cfKind").addEventListener("change", draw);
+    $("#cfPrint").addEventListener("click", () => window.print());
+    draw();
+  });
+  route("id-card", async function () {
+    if (deny(["madrasa_admin", "teacher"])) return;
+    const list = await pickStudentForDoc();
+    const m = madrasaMeta();
+    render(`<h1>🪪 ${esc(t("nav.idCard"))}</h1>
+      <div class="card"><label>${esc(t("nav.students"))}</label><select id="idStu">${list.map((s) => `<option value="${s.id}">${esc(s.name)} (${esc(s.admission_no)})</option>`).join("")}</select>
+      <div class="form-actions"><button class="btn" id="idPrint">🖨 ${esc(t("common.print"))}</button></div></div>
+      <div class="card"><div class="idcard" id="idPrev"></div></div>`);
+    function draw() {
+      const s = list.find((x) => String(x.id) === String($("#idStu").value)) || list[0];
+      if (!s) return;
+      $("#idPrev").innerHTML = `
+        <div class="id-head">${m.logo_path ? `<img src="${esc(m.logo_path)}" alt="">` : "🕌"}<div><b>${esc(m.name_en || "")}</b><div class="small muted">Student Identity Card</div></div></div>
+        <div class="id-body">${s.photo_path ? `<img src="${esc(s.photo_path)}" alt="">` : `<span class="thumb-fallback big">👤</span>`}
+          <div><div class="id-name">${esc(s.name)}</div>
+          <div class="small">ID: <b class="mono">${esc(s.admission_no)}</b></div>
+          <div class="small">Class: <b>${esc(s.class_en || "—")}</b></div></div></div>`;
+    }
+    $("#idStu").addEventListener("change", draw);
+    $("#idPrint").addEventListener("click", () => window.print());
+    draw();
+  });
+
+  /* ------------------------- broadcasts ------------------------------- */
+  route("broadcasts", async function () {
+    const d = await API.get("/announcements").catch(() => ({ announcements: [] }));
+    const rows = (d.announcements || []).filter((a) => a.publish_public);
+    const isAdmin = me.role === "madrasa_admin";
+    render(`<h1>📡 ${esc(t("nav.broadcasts"))}</h1>
+      <div class="card"><div class="muted small">${esc(window.I18N.lang === "ar" ? "هذه التنبيهات تظهر في صفحة المدرسة العامة لأي زائر." : "These notices appear on your school's public page for any visitor.")}</div>
+      <div class="form-actions"><a class="btn secondary" href="#/announcements">📢 ${esc(t("nav.notices"))}</a></div></div>
+      ${rows.map((a) => `<div class="card"><div class="card-title">📡 <b>${esc(a.title)}</b> <span class="pill ok">🌐</span></div>
+        <div>${esc(a.body).replace(/\n/g, "<br>")}</div><div class="muted small">${esc(fmtDate(a.created_at))}</div>
+        ${isAdmin ? `<div class="form-actions"><button class="btn small secondary" data-unpub="${a.id}">${esc(window.I18N.lang === "ar" ? "إخفاء من العامة" : "Remove from public")}</button></div>` : ""}</div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}`);
+    if (isAdmin) $$("#view [data-unpub]").forEach((b) => b.addEventListener("click", async () => {
+      try { await API.patch(`/announcements/${b.dataset.unpub}`, { publish_public: false }); routeTo("broadcasts"); }
+      catch (e) { toast(errMsg(e), "err"); }
+    }));
+  });
+
+  /* ------------------------- madrasah calendar ------------------------- */
+  route("calendar", async function () {
+    const d = await API.get("/sessions").catch(() => ({ sessions: [] }));
+    const list = d.sessions || [];
+    render(`<h1>📆 ${esc(t("nav.calendar"))}</h1>
+      ${list.map((s) => `<div class="card"><div class="card-title">🗓️ <b>${esc(s.label)}</b> ${s.is_current ? `<span class="pill ok">${esc(t("sessions.current"))}</span>` : ""}</div>
+        <div class="muted small">${esc(s.start_date || "")} ${s.end_date ? "→ " + esc(s.end_date) : ""}</div>
+        ${(s.terms || []).map((x) => `<div class="reportlink"><div><b>${esc(x.name_en)}</b> ${esc(x.name_ar || "")}<div class="muted small">${esc(x.start_date || "")} ${x.end_date ? "→ " + esc(x.end_date) : ""}</div></div></div>`).join("")}
+      </div>`).join("") || `<div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`}
+      <div class="card"><div class="form-actions"><a class="btn secondary" href="#/timetable">🗓 ${esc(t("nav.timetable"))}</a><a class="btn secondary" href="#/homework">📌 ${esc(t("nav.homework"))}</a></div></div>`);
+  });
+
+  /* ------------------------- publish results --------------------------- */
+  route("publish", async function () {
+    if (deny(["madrasa_admin"])) return;
+    const ctx = await loadResultsContext();
+    if (!ctx.classes.length || !ctx.current) { render(`<h1>🚀 ${esc(t("nav.publish"))}</h1><div class="card"><div class="empty">${esc(t("common.noData"))}</div></div>`); return; }
+    const terms = ctx.current.terms || [];
+    const state = { classId: ctx.classes[0].id, termId: terms[0] ? terms[0].id : 0 };
+    async function draw() {
+      const d = await API.get(`/results/summary?classId=${state.classId}&termId=${state.termId}`).catch(() => ({ students: [] }));
+      const rows = d.students || [];
+      const pub = rows.filter((s) => s.published_at).length;
+      const box = $("#pubArea");
+      if (!box) return;
+      box.innerHTML = `<div class="card">
+        <div class="card-title">🚀 ${esc(t("nav.publish"))} — <b>${pub}/${rows.length}</b> ${esc(t("results.published"))}</div>
+        <div class="progress"><div class="bar" style="width:${rows.length ? Math.round((pub / rows.length) * 100) : 0}%"></div></div>
+        <div class="form-actions">
+          <button class="btn" id="pubGo">🚀 ${esc(t("results.publish"))}</button>
+          <button class="btn danger" id="pubBack">↩ ${esc(t("results.unpublish"))}</button>
+          <a class="btn secondary" href="#/grade-book">📒 ${esc(t("nav.gradebook"))}</a>
+        </div>
+        <div class="muted small">${esc(window.I18N.lang === "ar" ? "النشر يجعل النتائج ظاهرة للطلاب وأولياء الأمور والتحقق العام (إن كان مفعّلاً)." : "Publishing makes results visible to students, parents and public checking (if enabled).")}</div>
+      </div>`;
+      $("#pubGo").addEventListener("click", async () => {
+        try { const r = await API.put("/results/summaries/publish", { classId: state.classId, termId: state.termId, publish: true }); toast(`✓ ${r.count}`, "ok"); draw(); }
+        catch (e) { toast(errMsg(e), "err"); }
+      });
+      $("#pubBack").addEventListener("click", async () => {
+        if (!confirm(t("common.confirm"))) return;
+        try { await API.put("/results/summaries/publish", { classId: state.classId, termId: state.termId, publish: false }); toast("✓", "ok"); draw(); }
+        catch (e) { toast(errMsg(e), "err"); }
+      });
+    }
+    render(`<h1>🚀 ${esc(t("nav.publish"))}</h1>
+      <div class="card"><div class="row">
+        <div><label>${esc(t("results.class"))}</label><select id="pubClass">${ctx.classes.map((c) => `<option value="${c.id}">${esc(c.name_en)}</option>`).join("")}</select></div>
+        <div><label>${esc(t("results.term"))}</label><select id="pubTerm">${terms.map((x) => `<option value="${x.id}">${esc(x.name_en)}</option>`).join("")}</select></div>
+      </div></div><div id="pubArea"></div>`);
+    $("#pubClass").addEventListener("change", (e) => { state.classId = Number(e.target.value); draw(); });
+    $("#pubTerm").addEventListener("change", (e) => { state.termId = Number(e.target.value); draw(); });
+    draw();
+  });
+
+  /* ------------------------- finance ----------------------------------- */
+  route("finance", async function () {
+    if (deny(["madrasa_admin"])) return;
+    const [items, pays] = await Promise.all([API.get("/fees/items").catch(() => ({ items: [] })), API.get("/fees/payments").catch(() => ({ payments: [] }))]);
+    const list = pays.payments || [];
+    const total = list.reduce((s, p) => s + Number(p.amount_ngn || 0), 0);
+    const byMethod = {};
+    list.forEach((p) => { byMethod[p.method || "cash"] = (byMethod[p.method || "cash"] || 0) + Number(p.amount_ngn || 0); });
+    render(`<h1>🏦 ${esc(t("nav.finance"))}</h1>
+      <div class="kpis">
+        <div class="kpi"><div class="num">${total.toLocaleString()} ₦</div><div class="lbl">${esc(t("an.collected"))}</div></div>
+        <div class="kpi"><div class="num">${(items.items || []).length}</div><div class="lbl">${esc(t("fees.items"))}</div></div>
+        <div class="kpi"><div class="num">${list.length}</div><div class="lbl">${esc(t("fees.payments"))}</div></div>
+      </div>
+      <div class="card"><div class="card-title">💳 ${esc(window.I18N.lang === "ar" ? "حسب الطريقة" : "By method")}</div>
+        ${Object.entries(byMethod).map(([k, v]) => `<div class="reportlink"><div><b>${esc(k)}</b></div><div><b>${v.toLocaleString()} ₦</b></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+        <div class="form-actions"><a class="btn" href="#/fees">💰 ${esc(t("nav.fees"))}</a><a class="btn secondary" href="#/analytics">📈 ${esc(t("nav.analytics"))}</a></div>
+      </div>`);
+  });
+
+  /* ------------------------- manage users ------------------------------ */
+  route("users", async function () {
+    if (deny(["madrasa_admin"])) return;
+    const d = await API.get("/users").catch(() => ({ users: [] }));
+    const rows = d.users || [];
+    const rc = (r) => ({ madrasa_admin: "gold", teacher: "info", student: "ok", parent: "warn" }[r] || "muted");
+    render(`<h1>👥 ${esc(t("nav.users"))} <span class="muted small">(${rows.length})</span></h1>
+      <div class="card"><div class="tablewrap"><table>
+        <tr><th>${esc(t("common.name"))}</th><th>${esc(t("auth.username"))}</th><th>Role</th><th>${esc(t("common.status"))}</th><th></th></tr>
+        ${rows.map((u) => `<tr><td><b>${esc(u.full_name || u.username)}</b></td><td class="mono">${esc(u.username)}</td>
+          <td><span class="pill ${rc(u.role)}">${esc(roleBadge(u.role))}</span></td>
+          <td>${u.is_active ? `<span class="pill ok">${esc(t("common.active"))}</span>` : `<span class="pill muted">${esc(t("common.inactive"))}</span>`}</td>
+          <td>${u.id === me.user.id ? "" : `<button class="btn small secondary" data-toggle="${u.id}" data-on="${u.is_active ? 0 : 1}">${u.is_active ? esc(t("students.deactivate")) : esc(t("students.activate"))}</button>`}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">${esc(t("common.noData"))}</td></tr>`}
+      </table></div>
+      <div class="muted small" style="margin-top:8px">${esc(window.I18N.lang === "ar" ? "تُنشأ حسابات المعلمين من صفحة المعلمين، وحسابات الطلاب وأولياء الأمور من سجل كل طالب." : "Teacher accounts are created from Teachers; student and parent logins from each student's record.")}</div>
+      <div class="form-actions"><a class="btn secondary" href="#/teachers">👨‍🏫 ${esc(t("nav.teachers"))}</a><a class="btn secondary" href="#/students">🎓 ${esc(t("nav.studentsDir"))}</a></div></div>`);
+    $$("#view [data-toggle]").forEach((b) => b.addEventListener("click", async () => {
+      try { await API.patch(`/users/${b.dataset.toggle}`, { is_active: b.dataset.on === "1" }); routeTo("users"); }
+      catch (e) { toast(errMsg(e), "err"); }
+    }));
+  });
+
+  /* ------------------------- notify parents ---------------------------- */
+  route("notify", async function () {
+    if (deny(["madrasa_admin"])) return;
+    const d = await API.get("/announcements").catch(() => ({ announcements: [] }));
+    const rows = (d.announcements || []).slice(0, 8);
+    render(`<h1>📣 ${esc(t("nav.notifyParents"))}</h1>
+      <div class="card"><div class="card-title">✉️ ${esc(window.I18N.lang === "ar" ? "رسالة جديدة" : "New message")}</div>
+        <label>${esc(t("common.name"))} *</label><input id="ntTitle" placeholder="${esc(window.I18N.lang === "ar" ? "مثال: اجتماع أولياء الأمور السبت" : "e.g. Parents meeting on Saturday")}">
+        <label>${esc(window.I18N.lang === "ar" ? "الرسالة" : "Message")} *</label><textarea id="ntBody" rows="4"></textarea>
+        <div class="row"><div><label>Audience</label><select id="ntAud"><option value="parents">${esc(t("ann.parents"))}</option><option value="students">${esc(t("ann.students"))}</option><option value="all">${esc(t("ann.all"))}</option></select></div>
+        <div><label>🌐 ${esc(t("nav.publicSite"))}</label><select id="ntPub"><option value="0">${esc(t("common.no"))}</option><option value="1">${esc(t("common.yes"))}</option></select></div></div>
+        <div class="form-actions"><button class="btn" id="ntSend">📣 ${esc(t("common.save"))}</button></div>
+      </div>
+      <div class="card"><div class="card-title">🕘 ${esc(window.I18N.lang === "ar" ? "أُرسلت مؤخراً" : "Recently sent")}</div>
+        ${rows.map((a) => `<div class="reportlink"><div><b>${esc(a.title)}</b><div class="muted small">${esc(fmtDate(a.created_at))} · ${esc(a.audience)}${a.publish_public ? " · 🌐" : ""}</div></div></div>`).join("") || `<div class="empty">${esc(t("common.noData"))}</div>`}
+      </div>`);
+    $("#ntSend").addEventListener("click", async () => {
+      const title = $("#ntTitle").value.trim();
+      const body = $("#ntBody").value.trim();
+      if (!title || !body) { toast(t("common.required"), "err"); return; }
+      try {
+        await API.post("/announcements", { title, body, audience: $("#ntAud").value, publish_public: $("#ntPub").value === "1" });
+        toast("✓", "ok"); routeTo("notify");
+      } catch (e) { toast(errMsg(e), "err"); }
+    });
+  });
+
+  /* ------------------------- my settings ------------------------------- */
+  route("my-settings", async function () {
+    render(`<h1>👤 ${esc(t("my.title"))}</h1>
+      <div class="card"><div class="card-title">🙍 ${esc(t("my.profile"))}</div>
+        <div class="ad-grid">
+          <div class="ad-field"><span>${esc(t("auth.username"))}</span><b class="mono">${esc(me.user.username)}</b></div>
+          <div class="ad-field"><span>Role</span><b>${esc(roleBadge(me.role))}</b></div>
+          <div class="ad-field"><span>${esc(t("common.name"))}</span><b>${esc(me.user.fullName || "—")}</b></div>
+        </div></div>
+      <div class="card"><div class="card-title">🔒 ${esc(t("my.security"))}</div>
+        <div id="pwMsg"></div>
+        <label>${esc(t("auth.currentPassword"))}</label><input id="pwCur" type="password" autocomplete="current-password">
+        <label>${esc(t("auth.newPassword"))}</label><input id="pwNew" type="password" autocomplete="new-password">
+        <div class="form-actions"><button class="btn" id="pwSave">${esc(t("common.save"))}</button></div>
+      </div>`);
+    $("#pwSave").addEventListener("click", async () => {
+      try {
+        await API.post("/auth/change-password", { currentPassword: $("#pwCur").value, newPassword: $("#pwNew").value });
+        $("#pwMsg").innerHTML = `<div class="msg ok">${esc(t("auth.passwordUpdated"))}</div>`;
+        $("#pwCur").value = ""; $("#pwNew").value = "";
+      } catch (e) { $("#pwMsg").innerHTML = `<div class="msg err">${esc(errMsg(e))}</div>`; }
+    });
+  });
+
+  /* ====================================================================== */
   /*  BOOT                                                                   */
   /* ====================================================================== */
+  /** Pretty per-school link: /s/<slug>, /school/<slug>, /m/<slug> or ?school=<slug>. */
+  function bootSchoolSlug() {
+    const m = String(location.pathname || "").match(/^\/(?:s|school|m)\/([A-Za-z0-9-]+)\/?$/);
+    if (m) return m[1].toLowerCase();
+    try {
+      const q = new URLSearchParams(location.search || "");
+      const s = (q.get("school") || "").trim().toLowerCase();
+      if (s) return s;
+    } catch (e) { /* ignore */ }
+    return "";
+  }
+
   (async function boot() {
     try {
       me = await refreshMe();
+      const schoolSlug = bootSchoolSlug();
+      // A school link always opens that school's own public page first —
+      // even for a signed-in user (they can still reach their dashboard).
+      if (schoolSlug && (!location.hash || location.hash === "#")) {
+        location.hash = "#/madrasa/" + encodeURIComponent(schoolSlug);
+        if (me && me.loggedIn) await loadMadrasaMeta();
+        routeTo("madrasa/" + schoolSlug);
+        return;
+      }
       if (me && me.loggedIn) {
         await loadMadrasaMeta();
         // A signed-in user with no explicit route lands on their own dashboard;

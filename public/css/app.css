@@ -986,3 +986,55 @@ table.tt-grid{min-width:720px}
   .pub-madrasa,.card{box-shadow:none;break-inside:avoid}
   .storage-note,.pub-chips{display:none !important}
 }
+
+/* ================= SCHOOL MODULES (menus, chat, docs, share) ============= */
+.pub-feats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+@media (max-width:760px){.pub-feats{grid-template-columns:1fr}}
+.feat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:6px}
+.f-ico{font-size:1.6rem}
+.feat p{margin:0;color:var(--muted);font-size:.88rem}
+.pub-roles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+@media (max-width:900px){.pub-roles{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.pub-roles{grid-template-columns:1fr}}
+.role-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:6px}
+.role-card p{margin:0 0 6px;color:var(--muted);font-size:.85rem}
+.pub-roles-sec{margin-top:6px}
+.share-card{border-style:dashed}
+.pub-share{margin-top:12px}
+.share-row{display:flex;gap:8px;margin-top:8px}
+.share-row input{flex:1;min-width:0;font-family:ui-monospace,monospace;font-size:.82rem}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip-link{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:.85rem;color:inherit;text-decoration:none}
+a.chip-link:hover{border-color:var(--accent)}
+.chat-list{display:flex;flex-direction:column;gap:8px;max-height:56vh;overflow-y:auto;padding:6px 2px}
+.chat-msg{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:8px 12px;max-width:88%}
+.chat-msg.mine{align-self:flex-end;background:var(--accent-soft,#e8f5e9);border-color:var(--accent)}
+.cm-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}
+.cm-body{white-space:pre-wrap;word-break:break-word}
+.chat-form{display:flex;gap:8px;margin-top:10px}
+.chat-form input{flex:1;min-width:0}
+.att-dots{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.att-dot{width:14px;height:14px;border-radius:50%;display:inline-block}
+.att-dot.present{background:#22c55e}.att-dot.absent{background:#ef4444}.att-dot.excused{background:#f59e0b}
+.ok-text{color:#16a34a}.bad-text{color:#dc2626}.warn-text{color:#d97706}
+.mod-card p{max-width:60ch}
+.progress{height:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:999px;overflow:hidden;margin:8px 0}
+.progress .bar{height:100%;background:var(--accent);width:0;transition:width .3s}
+.cert-inner{text-align:center;padding:28px 18px;border:3px double var(--accent);border-radius:12px}
+.cert-school{font-size:2.4rem}
+.cert-school img{height:64px}
+.cert-title{font-size:1.4rem;font-weight:800;margin:12px 0 4px;color:var(--accent)}
+.cert-name{font-size:1.8rem;font-weight:800;margin:10px 0}
+.cert-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px}
+.idcard{max-width:420px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.id-head{display:flex;gap:10px;align-items:center;background:var(--accent);color:#fff;padding:10px 14px}
+.id-head img{height:40px;background:#fff;border-radius:8px;padding:2px}
+.id-body{display:flex;gap:14px;padding:14px;align-items:center}
+.id-body img{width:84px;height:84px;object-fit:cover;border-radius:10px}
+.thumb-fallback.big{font-size:3rem}
+.id-name{font-size:1.15rem;font-weight:800}
+@media print{
+  .appbar,.sidebar,.drawer-backdrop,.hamburger,.form-actions,.page-head .actions{display:none !important}
+  .main{margin:0;padding:0}
+  .card{box-shadow:none;break-inside:avoid}
+}

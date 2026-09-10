@@ -485,6 +485,42 @@ const MIGRATIONS = [
       await api.run(`ALTER TABLE admission_requests ADD COLUMN admission_no_assigned VARCHAR(60) NOT NULL DEFAULT ''`);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "011_school_extras",
+    up: async (api, dialect) => {
+      // School chat (general + staff-only scopes) and the homework board.
+      // Both are tenant-owned (madrasa_id) like every other school table.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS messages (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          scope VARCHAR(20) NOT NULL DEFAULT 'general',
+          user_id INT,
+          author_name VARCHAR(160) NOT NULL DEFAULT '',
+          body TEXT NOT NULL,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_messages ON messages (madrasa_id, scope, id)`);
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS homework (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          class_id INT,
+          subject_id INT,
+          title VARCHAR(200) NOT NULL,
+          details TEXT,
+          due_date DATE,
+          created_by INT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_homework ON homework (madrasa_id, class_id, id)`);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

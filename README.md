@@ -154,6 +154,18 @@ render.yaml        NEW Render service definition (production)
   `madrasa_id`. A separate platform-wide view for the super admin covers tenant
   growth, plan mix, largest madaris and activity volume.
 
+- **Per-school share links** — every registered madrasa gets its own link
+  (`/s/<slug>`, with `/school/<slug>` and `/m/<slug>` aliases) that opens
+  that school's own public page directly instead of the platform landing.
+  The link is shown with a copy button on the school's public page and in
+  `School Settings`, and on the super-admin's madrasa detail screen.
+- **Expanded role menus** — each role signs in to the modules it needs:
+  notifications, school chat and staff-only chat, homework board, grade
+  book, class and third-term results, result checking, teacher comments,
+  publish centre, manage users, notify parents, finance overview,
+  certificates, ID cards, broadcasts, madrasah calendar and personal
+  settings — all bilingual (EN/AR) and tenant-isolated.
+
 ## Future SaaS roadmap (designed for, NOT built)
 
 Subscriptions & payment, SMS/WhatsApp/email notifications, certificates,

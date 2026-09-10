@@ -26,6 +26,43 @@ Nothing in the application can prevent this — the `rm -rf` is the platform's,
 not ours. What the application *can* do is (a) refuse to be silent about it,
 (b) make the loss recoverable, and (c) give you a one-line fix.
 
+### 1.1 The other way data disappears: two database files
+
+The same symptom had a second, purely internal cause, and it is the one that
+made reports come and go ("it disappeared… then it was back… then again"). The
+SQLite file name used to be picked from `NODE_ENV`:
+
+```
+NODE_ENV=production   -> DATA_DIR/madrasa_platform.sqlite
+anything else         -> DATA_DIR/madrasa_platform_dev.sqlite
+```
+
+So every boot whose environment differed — a deploy that *added* `NODE_ENV`, a
+`npm run backup` / `npm run reset-admin-password` from a Render shell that did
+not carry it, a re-created service — did **not** fail. It silently opened (or
+created) the *other* file, ran the migrations on it, seeded a fresh super admin,
+and served an empty platform. Your madaris were one directory entry away, safe
+and untouched, in the file the previous boot had used.
+
+Fix: **one file per `DATA_DIR`, whatever `NODE_ENV` says**
+(`DATA_DIR/madrasa_platform.sqlite`). `server/config.js#resolveSqliteDatabaseFile()`
+is deterministic and data-preserving:
+
+1. an explicit `DATABASE_FILE` always wins (that is how you run two instances);
+2. otherwise the canonical `madrasa_platform.sqlite`;
+3. otherwise — if only an *older*, env-suffixed file exists — that file is
+   adopted, so upgrading never leaves you on a new empty database;
+4. any other `*.sqlite` in the directory is never opened, but it *is* reported
+   (`SPLIT_DATABASE_FILES`, and every CLI prints the file it is about to use).
+
+The command-line tools refuse to invent an empty database beside a real one
+(`npm run backup`, `npm run reset-admin-password` — add `--force` to say you
+really mean it), and `server/index.js` logs its database file on every boot:
+
+```
+Database file: /var/data/madrasa_platform.sqlite [canonical file in DATA_DIR]
+```
+
 Two code paths make the loss worse than it needs to be, and both are fixed:
 
 * **Half-created tenants.** Creating a madrasa and its administrator used to be
@@ -44,7 +81,7 @@ backups unless each is overridden:
 
 ```
 DATA_DIR=./data
-├── madrasa_platform[_dev].sqlite   # DATABASE_FILE when not set explicitly
+├── madrasa_platform.sqlite         # the ONLY database file, for every NODE_ENV
 ├── uploads/                        # UPLOAD_DIR (logos, student photos, imports)
 ├── backups/                        # BACKUP_DIR (JSON snapshots)
 └── .platform-state.json            # storage marker (see 2.3)
@@ -82,6 +119,8 @@ Verdict codes (safe to alert on):
 | `NO_STATE_MARKER` | warn | no marker in the data dir → fresh container |
 | `DATA_LOSS_DETECTED` | critical | marker says rows existed; the database is empty now |
 | `HOST_CHANGED` | warn | booted on a different container — only volumes survive that |
+| `SPLIT_DATABASE_FILES` | warn | another `*.sqlite` sits in `DATA_DIR`; the app only ever reads one |
+| `AUTO_RESTORED` | info | a boot found an empty database and restored a snapshot |
 | `UNKNOWN_MOUNT` | warn | `/proc/mounts` unreadable (non-Linux) → verify by hand |
 | `ACKNOWLEDGED` | info | you set `DATA_PERSISTENT_ACK=1`, so the checks are quiet |
 
@@ -126,6 +165,20 @@ When they are taken:
 
 Retention is `BACKUP_KEEP` (default 10), oldest-first.
 
+### 2.5 A boot that finds nothing puts it back
+
+`AUTO_RESTORE_ON_EMPTY_DB` (default **on**) closes the loop: after migrations,
+if the live database has **zero** madaris, users, students and results *and*
+`BACKUP_DIR` holds a snapshot with rows in it, the newest such snapshot is
+restored before anything is seeded. The restore takes its own `pre-restore`
+snapshot first, so it is always undoable, and it is recorded both in the log and
+in the diagnostics banner (`AUTO_RESTORED`, with the snapshot it used).
+
+It cannot damage a database that has data — being *completely* empty is the
+trigger — and it never runs against an external MySQL (`DATABASE_URL`), where
+"empty" is a decision, not an accident. Set `AUTO_RESTORE_ON_EMPTY_DB=0` if you
+want an empty database to stay empty (a demo box, a deliberate reset).
+
 ## 3. Operator runbook
 
 **Check storage from the shell** (needs a super-admin session, or run the CLI):
@@ -152,6 +205,19 @@ npm run backup -- --restore snapshot-….json --dry-run
 npm run backup -- --restore snapshot-….json
 npm run backup -- --import /tmp/from-old-host.json
 ```
+
+**Check which file you are actually on** (the first thing to do when data looks
+missing — it is usually in a *different* file, not gone):
+
+```bash
+grep "Database file:" <the service's boot log>       # what the app opened
+ls -la "$DATA_DIR"/*.sqlite                          # what else is sitting there
+npm run backup -- --list                             # what can be put back
+```
+
+If the data is in `madrasa_platform_dev.sqlite` (an older build's name) while
+the app reads `madrasa_platform.sqlite`, stop the app and rename the file that
+has your tenants — or run once with `DATABASE_FILE=<that file>` to confirm.
 
 **After a total loss:** attach the disk (below), redeploy, then restore the newest
 snapshot from the old container if you can still reach it — otherwise re-create

@@ -29,12 +29,21 @@ function usage(code = 0) {
   npm run backup -- --import <path.json>  restore a downloaded file
 
 A restore REPLACES every row in every table. A pre-restore snapshot is written
-first, so the restore itself can be undone.`);
+first, so the restore itself can be undone.
+
+Every command prints the database it is about to touch. Add --force to write a
+snapshot to a database file that does not exist yet (normally refused, because
+backing up an empty database is how an empty database becomes permanent).`);
   process.exit(code);
 }
 
 async function main() {
   const argv = process.argv.slice(2);
+  // A snapshot of an empty database is worse than no snapshot: it becomes the
+  // newest file and then gets restored by mistake. Listing and restoring stay
+  // allowed with no database at all — restoring is how you get data back.
+  const readsOnly = argv.indexOf("--list") >= 0 || argv.indexOf("--restore") >= 0 || argv.indexOf("--import") >= 0;
+  require("./db-target").announce({ allowCreate: readsOnly });
   const flag = (name) => argv.indexOf(name);
   const value = (name, fallback) => {
     const i = flag(name);

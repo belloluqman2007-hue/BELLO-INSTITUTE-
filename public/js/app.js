@@ -2922,6 +2922,9 @@ function isOn(v) { return v === undefined || v === true || v === 1 || v === "1" 
         <div class="card-title">${esc(t("storage.title"))}</div>
         <div class="ad-grid">
           <div class="ad-field"><span>Driver</span><b>${esc(p.driver || "—")}${p.externalDatabase ? " (external)" : ""}</b></div>
+          <div class="ad-field"><span>Database file</span><b class="mono small">${esc(p.databaseFile || (p.externalDatabase ? "external database" : "—"))}</b>
+            ${p.databaseFileReason ? `<div class="muted small">${esc(p.databaseFileReason)}</div>` : ""}</div>
+          ${(p.otherDatabaseFiles || []).length ? `<div class="ad-field"><span>Other DB files here</span><b class="mono small">${(p.otherDatabaseFiles || []).map((f) => `${esc(f.name)} (${Math.round((f.bytes || 0) / 1024)} KB)`).join(", ")}</b></div>` : ""}
           <div class="ad-field"><span>Data dir</span><b class="mono small">${esc((p.dataDir || {}).dir || "—")}</b></div>
           <div class="ad-field"><span>Mount</span><b class="mono small">${esc((p.dataDir || {}).mountPoint || "/")} · ${esc((p.dataDir || {}).fsType || "?")}</b></div>
           <div class="ad-field"><span>Boots seen</span><b>${esc(diag && diag.bootCount != null ? diag.bootCount : "—")}</b></div>

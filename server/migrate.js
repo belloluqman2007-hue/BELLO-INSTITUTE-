@@ -554,6 +554,9 @@ async function migrate(options = {}) {
 }
 
 if (require.main === module) {
+  // Say which file this run touches: a migrate against the wrong SQLite file is
+  // how a "new empty database" appears next to the real one.
+  require("./db-target").announce({ allowCreate: true });
   migrate()
     .then(() => process.exit(0))
     .catch((err) => {

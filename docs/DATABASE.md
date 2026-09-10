@@ -11,7 +11,7 @@ contacted by this codebase.
 
 | Driver | When | Connection source |
 | ------ | ---- | ----------------- |
-| `sqlite` (Node built-in `node:sqlite`) | development | file path `DATABASE_FILE` (default `./data/madrasa_platform_dev.sqlite`) |
+| `sqlite` (Node built-in `node:sqlite`) | development | file path `DATABASE_FILE` (default `DATA_DIR/madrasa_platform.sqlite`, the **same for every `NODE_ENV`**) |
 | `mysql` (`mysql2`) | production | `DATABASE_URL` or `DB_HOST/DB_USER/DB_PASSWORD/DB_NAME` |
 
 The driver is selected by `DATABASE_DRIVER`. The app **only ever opens the
@@ -62,7 +62,7 @@ clean dev database, delete the file and re-run (the server re-migrates and
 re-seeds the super-admin on boot):
 
 ```bash
-rm -f data/madrasa_platform_dev.sqlite*
+rm -f data/madrasa_platform.sqlite*   # and any *_dev/_prod leftovers, see PERSISTENCE.md §1.1
 npm run dev
 ```
 
@@ -81,7 +81,8 @@ npm run seed -- --demo
 ## Where the file lives (and why that matters)
 
 The SQLite path is `DB_CONFIG.file`: `DATABASE_FILE` when you set it, otherwise
-`DATA_DIR/madrasa_platform[_dev].sqlite`. `DATA_DIR` is the single knob for a
+`DATA_DIR/madrasa_platform.sqlite` — one name for every environment, so no boot can
+silently invent a second, empty database. `DATA_DIR` is the single knob for a
 host with a mounted volume:
 
 ```bash

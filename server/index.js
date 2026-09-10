@@ -17,13 +17,35 @@ const persistence = require("./services/persistence");
     // tell a restart from a wiped volume, and warns out loud when storage will
     // not survive the next deploy. See services/persistence.js.
     const marker = persistence.touchMarker({ appVersion: "1.0.0" });
-    if (config.IS_PRODUCTION) for (const w of config.persistenceWarnings()) console.warn("⚠ " + w);
+    // Which database file this process opened, and why that one. Saying it out
+    // loud on every boot is what turns "the madrasa disappeared" into a
+    // one-glance diagnosis: two *.sqlite files in one directory means only one
+    // of them is ever read, and the data in the other looks deleted.
+    if (config.DATABASE_DRIVER === "sqlite") {
+      console.log("Database file: " + config.DB_CONFIG.file + " [" + config.SQLITE_DB.reason + "]");
+    }
+    for (const w of config.persistenceWarnings()) console.warn("⚠ " + w);
     // Always ensure the (new) database schema is up to date (snapshots itself
     // first, so a migration can always be rolled back to the previous data).
     await migrate();
     if (!marker.volumeSurvivedRestarts && config.IS_PRODUCTION) {
       console.warn("⚠ No previous state marker in " + config.DATA_DIR + ". If this service has run before, its data " +
         "directory is not persistent — attach a disk (render.yaml: disk.mountPath) or point DATABASE_URL at MySQL.");
+    }
+    // A brand-new, completely empty database is almost never what the operator
+    // wanted. If BACKUP_DIR holds a snapshot with rows in it, put the data back
+    // before anyone has to notice it is missing (AUTO_RESTORE_ON_EMPTY_DB=0
+    // turns this off). The restore writes a pre-restore snapshot of its own.
+    const recovered = await persistence.autoRecover(db);
+    if (recovered && recovered.restored) {
+      console.warn("⚠ The database was EMPTY, so snapshot " + recovered.snapshot + " was restored (" +
+        Number((recovered.counts || {}).madaris || 0) + " madrasa(s), " +
+        Number((recovered.counts || {}).users || 0) + " user(s)). Previous state kept as " + recovered.safetySnapshot +
+        ". Check Platform → Backups & storage for why it was empty.");
+    } else if (recovered && recovered.error) {
+      console.error("⚠ Automatic restore failed (" + recovered.error + "). The database is still empty — restore manually from Platform → Backups.");
+    } else if (recovered && recovered.skipped === "AUTO_RESTORE_ON_EMPTY_DB=0") {
+      console.warn("⚠ Automatic restore of an empty database is disabled (AUTO_RESTORE_ON_EMPTY_DB=0).");
     }
     // Bootstrap a fresh database on every boot: default plans + the single
     // super admin. Both are idempotent (only created if absent), so an

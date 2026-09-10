@@ -240,14 +240,27 @@ test("the super admin can list, create, download and plan", async () => {
 });
 
 test("file names are validated, so the endpoint cannot be walked out of BACKUP_DIR", async () => {
+  // BACKUP_DIR is <tmpRoot>/data/backups, so a "../.." walk lands in tmpRoot.
+  // Put a canary there (a stand-in for a real .env) and prove that no endpoint
+  // can read, plan, restore or delete it. The repo's own .env is deliberately
+  // not used: a test must never create or destroy a developer's secrets file,
+  // and it must not depend on one happening to exist.
+  const canary = "SESSION_SECRET=must-not-be-read-or-deleted";
+  const sentinel = path.join(tmpRoot, ".env");
+  fs.writeFileSync(sentinel, canary);
+  const enc = (v) => encodeURIComponent(v);
   for (const name of ["..%2f..%2fconfig", "%2e%2e%2fserver%2fconfig.js", "config.js", "snapshot-x.txt"]) {
     const r = await sa.api("GET", "/api/platform/backups/" + name + "/download");
     assert.ok(r.status === 404 || r.status === 400, name + " → " + r.status);
   }
   assert.equal((await sa.api("GET", "/api/platform/backups/snapshot-not-here.json/plan")).status, 404, "a well-named but missing file says so");
   assert.equal((await sa.api("GET", "/api/platform/backups/../../.env/download")).status, 404, "and cannot be pointed at another file");
+  assert.equal((await sa.api("GET", "/api/platform/backups/" + enc("../../.env") + "/plan")).status, 400, "…nor reached through the plan endpoint");
+  assert.equal((await sa.api("POST", "/api/platform/backups/restore", { name: "../../.env", confirm: true })).status, 400, "…nor restored from");
   assert.equal((await sa.api("DELETE", "/api/platform/backups/%2e%2e%2f%2e%2e%2f.env")).status, 400);
-  assert.ok(fs.existsSync(path.join(process.cwd(), ".env")), "…and the file it tried to reach is untouched");
+  assert.ok(fs.existsSync(sentinel), "…and the file it tried to reach is untouched");
+  assert.equal(fs.readFileSync(sentinel, "utf8"), canary, "…byte for byte");
+  fs.rmSync(sentinel, { force: true });
 });
 
 test("restore reverses damage and leaves its own undo point", async () => {

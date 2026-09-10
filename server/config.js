@@ -51,16 +51,109 @@ const BACKUP_KEEP = Number(process.env.BACKUP_KEEP || 10);
 // data directory on the machine's own volume). Silences the ephemeral-storage
 // warnings — it does NOT disable backups.
 const DATA_PERSISTENT_ACK = ["1", "true", "yes"].includes(String(process.env.DATA_PERSISTENT_ACK || "").toLowerCase());
+// When a boot finds a COMPLETELY EMPTY database but a snapshot with real rows
+// in BACKUP_DIR, restore that snapshot instead of staying empty. That is what
+// puts "the madrasa I added" back after the host wiped the file — or after the
+// app booted on the wrong one. The restore takes its own `pre-restore`
+// snapshot first, so it can always be undone. Set to 0 to disable.
+const AUTO_RESTORE_ON_EMPTY_DB = !["0", "false", "no"].includes(String(process.env.AUTO_RESTORE_ON_EMPTY_DB || "1").toLowerCase());
+
+/* ---------------------------------------------------------------------------
+   WHICH SQLITE FILE?  (this is where "my madrasa disappeared" used to come from)
+   The file name used to depend on NODE_ENV: production read
+   `madrasa_platform.sqlite`, everything else read `madrasa_platform_dev.sqlite`.
+   Switching NODE_ENV — or running a CLI in a shell that does not carry the
+   service's env — therefore did NOT fail: it silently created a brand-new,
+   EMPTY database next to the real one, and every madrasa, user and result
+   "vanished" (until the next boot with the other NODE_ENV, when they were back
+   again). The name must never depend on anything the operator has to remember.
+
+   Resolution order (deterministic, data-preserving):
+     1. an explicit DATABASE_FILE always wins (relative paths resolve against cwd);
+     2. the canonical DATA_DIR/madrasa_platform.sqlite if it exists;
+     3. otherwise a legacy, env-suffixed file that already exists — so an
+        existing installation keeps its data instead of booting on an empty one;
+     4. otherwise the canonical path (a genuinely new database).
+   Any other *.sqlite found alongside is reported, never opened.
+--------------------------------------------------------------------------- */
+const SQLITE_FILE_BASENAME = "madrasa_platform.sqlite";
+/** File names older builds of this app picked, per environment. */
+const SQLITE_LEGACY_BASENAMES = [
+  "madrasa_platform_dev.sqlite",           // every non-production NODE_ENV
+  "madrasa_platform_test.sqlite",
+  "madrasa_platform_production.sqlite",
+  "madrasa_platform_prod.sqlite",
+];
+
+/**
+ * Pure + injectable so it can be unit-tested without touching the real disk.
+ * Returns { file, reason, usedLegacy, otherFiles }.
+ */
+function resolveSqliteDatabaseFile(options = {}) {
+  const opts = options || {};
+  const fsImpl = opts.fs || fs;
+  const dataDir = path.resolve(opts.dataDir || DATA_DIR);
+  const nodeEnv = String(opts.nodeEnv || NODE_ENV || "development").toLowerCase();
+  const cwd = opts.cwd || process.cwd();
+  const explicit = opts.explicit !== undefined ? opts.explicit : process.env.DATABASE_FILE;
+
+  const listDir = (dir) => {
+    try { return fsImpl.readdirSync(dir); } catch (e) { return []; }
+  };
+  const statOf = (full) => {
+    try { return fsImpl.statSync(full); } catch (e) { return null; }
+  };
+  const describe = (dir, names) => names.map((name) => {
+    const st = statOf(path.join(dir, name));
+    return { name, bytes: st ? st.size : 0, mtimeMs: st ? st.mtimeMs : 0 };
+  });
+
+  if (explicit) {
+    const file = path.resolve(cwd, String(explicit));
+    const dir = path.dirname(file);
+    const others = describe(dir, listDir(dir).filter((n) => /\.sqlite$/i.test(n) && path.join(dir, n) !== file));
+    return { file, reason: "explicit DATABASE_FILE", usedLegacy: false, otherFiles: others };
+  }
+
+  const canonical = path.join(dataDir, SQLITE_FILE_BASENAME);
+  const present = listDir(dataDir).filter((n) => /\.sqlite$/i.test(n));
+  const legacy = present.filter((n) => n !== SQLITE_FILE_BASENAME && SQLITE_LEGACY_BASENAMES.includes(n));
+  const others = describe(dataDir, present.filter((n) => n !== SQLITE_FILE_BASENAME && !legacy.includes(n)));
+
+  if (present.includes(SQLITE_FILE_BASENAME)) {
+    const legacyOthers = describe(dataDir, legacy);
+    return { file: canonical, reason: "canonical file in DATA_DIR", usedLegacy: false, otherFiles: others.concat(legacyOthers) };
+  }
+  if (legacy.length) {
+    // Prefer the file an older build would have used for THIS environment, then
+    // the most recently written one. Never create a new empty database while a
+    // populated legacy file sits in the same directory.
+    const preferred = nodeEnv === "production" ? "" : "madrasa_platform_dev.sqlite";
+    const ranked = describe(dataDir, legacy).sort((a, b) => {
+      const pa = a.name === preferred ? 0 : 1;
+      const pb = b.name === preferred ? 0 : 1;
+      return pa - pb || b.mtimeMs - a.mtimeMs;
+    });
+    const chosen = ranked[0];
+    return {
+      file: path.join(dataDir, chosen.name),
+      reason: "legacy database file (no " + SQLITE_FILE_BASENAME + " here yet)",
+      usedLegacy: true,
+      otherFiles: ranked.slice(1).concat(others),
+    };
+  }
+  return { file: canonical, reason: "new database in DATA_DIR", usedLegacy: false, otherFiles: others };
+}
+
+const SQLITE_DB = resolveSqliteDatabaseFile();
 
 const DB_CONFIG = {
   driver: DATABASE_DRIVER,
   url: DATABASE_URL,
   // An explicit DATABASE_FILE keeps its historic meaning: absolute paths stay
   // absolute, relative ones resolve against the working directory. When unset,
-  // the database lives inside DATA_DIR.
-  file: process.env.DATABASE_FILE
-    ? path.resolve(process.cwd(), String(process.env.DATABASE_FILE))
-    : path.join(DATA_DIR, NODE_ENV === "production" ? "madrasa_platform.sqlite" : "madrasa_platform_dev.sqlite"),
+  // the database lives inside DATA_DIR — under ONE name for every environment.
+  file: SQLITE_DB.file,
   host: String(process.env.DB_HOST || "").trim(),
   port: Number(process.env.DB_PORT || 3306),
   user: String(process.env.DB_USER || "").trim(),
@@ -146,11 +239,43 @@ function persistenceWarnings() {
         "See docs/PERSISTENCE.md."
       );
     }
+    if (SQLITE_DB.usedLegacy) {
+      warnings.push(
+        "Using the existing database file \"" + path.basename(DB_CONFIG.file) + "\" in " + DATA_DIR + " because there is no " +
+        SQLITE_FILE_BASENAME + " yet. Your data was found; rename the file to " + SQLITE_FILE_BASENAME +
+        " (stop the app first) or set DATABASE_FILE to pin it."
+      );
+    }
+    if (SQLITE_DB.otherFiles && SQLITE_DB.otherFiles.length) {
+      warnings.push(
+        "Other SQLite files in " + path.dirname(DB_CONFIG.file) + " that this app does NOT open: " +
+        SQLITE_DB.otherFiles.map((f) => f.name + " (" + Math.round(f.bytes / 1024) + " KB)").join(", ") +
+        ". If your madaris seem missing, they may be in one of those — run " +
+        "\"npm run backup -- --list\" to inspect them or set DATABASE_FILE. Never two at once: keep one file."
+      );
+    }
     if (!fs.existsSync(DB_CONFIG.file)) {
-      warnings.push("No database file yet at " + DB_CONFIG.file + " — a fresh, empty database is being created.");
+      const snap = newestSnapshotFile();
+      warnings.push(
+        "No database file yet at " + DB_CONFIG.file + " — a fresh, empty database is being created." +
+        (snap
+          ? " Snapshots DO exist in " + BACKUP_DIR + " (newest: " + snap + "); the app will restore it automatically " +
+            "on this boot if the new database is empty, or run \"npm run backup -- --restore " + snap + "\"."
+          : "")
+      );
     }
   }
   return warnings;
+}
+
+/** Newest snapshot name in BACKUP_DIR, or null. Names sort chronologically. */
+function newestSnapshotFile(dir) {
+  try {
+    const names = fs.readdirSync(dir || BACKUP_DIR).filter((n) => /^snapshot-.*\.json$/.test(n)).sort();
+    return names.length ? names[names.length - 1] : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function isUnder(child, parent) {
@@ -207,8 +332,14 @@ module.exports = {
   BACKUP_KEEP,
   PERSISTENT_VOLUME_DIR,
   DATA_PERSISTENT_ACK,
+  AUTO_RESTORE_ON_EMPTY_DB,
+  SQLITE_FILE_BASENAME,
+  SQLITE_LEGACY_BASENAMES,
+  SQLITE_DB,
+  resolveSqliteDatabaseFile,
   isUnder,
   persistenceWarnings,
+  newestSnapshotFile,
   validate,
   // Helper for generating secure random values (used by seed + docs).
   randomSecret: (bytes = 48) => crypto.randomBytes(bytes).toString("hex"),

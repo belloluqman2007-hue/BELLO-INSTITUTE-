@@ -34,6 +34,7 @@ const publicRouter = require("./routes/public");
 const admissionsRouter = require("./routes/admissions");
 const timetableRouter = require("./routes/timetable").router;
 const exportsRouter = require("./routes/exports");
+const extrasRouter = require("./routes/extras");
 const backupsRouter = require("./routes/backups").router;
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
@@ -92,6 +93,19 @@ function createApp() {
   // Static frontend + uploads
   app.use(express.static(path.join(__dirname, "..", "public")));
   app.use("/uploads", express.static(config.UPLOAD_DIR, { maxAge: "1h", fallthrough: true }));
+
+  /* ----------------- pretty per-school links (/s/<slug>) --------------- */
+  // Every registered madrasa gets its own shareable link,
+  // e.g. https://your-domain/s/noor-ul-islam — it opens that school's own
+  // public page directly (not the platform landing). The SPA reads the slug
+  // from the path on boot and routes to #/madrasa/<slug>. /school/ and /m/
+  // are accepted aliases of the same link.
+  const schoolLinkHandler = (req, res) => {
+    res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+  };
+  app.get("/s/:slug", schoolLinkHandler);
+  app.get("/school/:slug", schoolLinkHandler);
+  app.get("/m/:slug", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */
   // The logged-out public site (directory, madrasa profile, online admission,
@@ -154,6 +168,7 @@ function createApp() {
   api.use("/admissions", admissionsRouter);
   api.use("/timetable", timetableRouter);
   api.use("/exports", exportsRouter);
+  api.use("/", extrasRouter); // /api/chat, /api/homework, /api/notifications, /api/users
   // Backups & storage diagnostics (super admin). Mounted before /platform so
   // the platform router never sees these paths.
   api.use("/platform/backups", backupsRouter);

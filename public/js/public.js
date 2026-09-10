@@ -158,7 +158,8 @@
           <p class="ph-sub">${esc(d.site.tagline || "")}</p>
           ${d.site.intro ? `<p class="ph-intro">${esc(d.site.intro)}</p>` : ""}
           <div class="ph-cta">
-            <a class="btn" href="#/results-check">🔎 ${esc(t("pub.hero.resultsBtn"))}</a>
+            <a class="btn" href="#/madaris">🏫 ${esc(t("pub.viewSchools"))}</a>
+            <a class="btn secondary" href="#/results-check">🔎 ${esc(t("pub.hero.resultsBtn"))}</a>
             <a class="btn secondary" href="#/apply">📝 ${esc(t("pub.hero.applyBtn"))}</a>
             <a class="btn ghost" href="#/login">${esc(t("pub.nav.login"))} →</a>
           </div>
@@ -169,6 +170,19 @@
           </div>` : ""}
         </div>
       </section>
+      <section class="pub-section">
+        <h2>${esc(t("pub.whyTitle"))}</h2>
+        <p class="muted">${esc(t("pub.whySub"))}</p>
+        <div class="pub-feats">
+          <div class="feat"><span class="f-ico">📝</span><b>${esc(t("pub.f1t"))}</b><p>${esc(t("pub.f1d"))}</p></div>
+          <div class="feat"><span class="f-ico">📥</span><b>${esc(t("pub.f2t"))}</b><p>${esc(t("pub.f2d"))}</p></div>
+          <div class="feat"><span class="f-ico">✅</span><b>${esc(t("pub.f3t"))}</b><p>${esc(t("pub.f3d"))}</p></div>
+          <div class="feat"><span class="f-ico">📌</span><b>${esc(t("pub.f4t"))}</b><p>${esc(t("pub.f4d"))}</p></div>
+          <div class="feat"><span class="f-ico">🌐</span><b>${esc(t("pub.f5t"))}</b><p>${esc(t("pub.f5d"))}</p></div>
+          <div class="feat"><span class="f-ico">🔒</span><b>${esc(t("pub.f6t"))}</b><p>${esc(t("pub.f6d"))}</p></div>
+        </div>
+        <div class="ph-cta" style="margin-top:14px"><a class="btn" href="#/madaris">🏫 ${esc(t("pub.viewSchools"))} →</a></div>
+      </section>
       ${d.directoryEnabled ? `
       <section class="pub-section">
         <div class="pub-sec-head">
@@ -177,6 +191,15 @@
         </div>
         <div id="pubList">${gridOf(list)}</div>
       </section>` : ""}
+      <section class="pub-section">
+        <h2>${esc(t("pub.rolesTitle"))}</h2>
+        <div class="pub-roles">
+          <div class="role-card"><span class="f-ico">👨‍💼</span><b>${esc(t("pub.roleAdmin"))}</b><p>${esc(t("pub.roleAdminD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+          <div class="role-card"><span class="f-ico">👨‍🏫</span><b>${esc(t("pub.roleTeacher"))}</b><p>${esc(t("pub.roleTeacherD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+          <div class="role-card"><span class="f-ico">🎓</span><b>${esc(t("pub.roleStudent"))}</b><p>${esc(t("pub.roleStudentD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+          <div class="role-card"><span class="f-ico">👨‍👩‍👧</span><b>${esc(t("pub.roleParent"))}</b><p>${esc(t("pub.roleParentD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+        </div>
+      </section>
       <section class="pub-section">
         <h2>${esc(t("pub.how"))}</h2>
         <div class="pub-steps">
@@ -261,10 +284,24 @@
           <div class="pp-cta">
             ${m.canCheckResults ? `<a class="btn" href="#/results-check?madrasa=${encodeURIComponent(m.slug)}">🔎 ${esc(t("pub.results.title"))}</a>` : ""}
             ${m.canApply ? `<a class="btn secondary" href="#/apply/${encodeURIComponent(m.slug)}">📝 ${esc(t("pub.apply.title"))}</a>` : ""}
-            <a class="btn ghost" href="#/login">${esc(t("pub.nav.login"))} →</a>
+            <a class="btn ghost" href="#/login">${esc(t("pub.openLogin"))} →</a>
+          </div>
+          <div class="share-card pub-share">
+            <div class="card-title">🔗 ${esc(t("pub.shareTitle"))}</div>
+            <div class="muted small">${esc(t("pub.shareHint"))}</div>
+            <div class="share-row"><input id="pubShareLink" readonly value="${esc(location.origin + (m.sharePath || ("/s/" + m.slug)))}" onclick="this.select()"><button class="btn small" id="pubShareCopy">${esc(t("pub.copy"))}</button></div>
           </div>
         </div>
       </div>
+      <section class="pub-section pub-roles-sec">
+        <h2>${esc(t("pub.rolesTitle"))}</h2>
+        <div class="pub-roles">
+          <div class="role-card"><span class="f-ico">👨‍💼</span><b>${esc(t("pub.roleAdmin"))}</b><p>${esc(t("pub.roleAdminD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+          <div class="role-card"><span class="f-ico">👨‍🏫</span><b>${esc(t("pub.roleTeacher"))}</b><p>${esc(t("pub.roleTeacherD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+          <div class="role-card"><span class="f-ico">🎓</span><b>${esc(t("pub.roleStudent"))}</b><p>${esc(t("pub.roleStudentD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+          <div class="role-card"><span class="f-ico">👨‍👩‍👧</span><b>${esc(t("pub.roleParent"))}</b><p>${esc(t("pub.roleParentD"))}</p><a class="btn small secondary" href="#/login">${esc(t("pub.signIn"))} →</a></div>
+        </div>
+      </section>
       <div class="pub-tabs">
         <button class="tab on" data-tab="about">${esc(t("pub.overview"))}</button>
         <button class="tab" data-tab="notices">${esc(t("pub.notices"))} ${d.notices && d.notices.length ? `<span class="pill info">${d.notices.length}</span>` : ""}</button>
@@ -309,6 +346,12 @@
       if (key === "apply") wireApply(box, m);
     }
     $$("#view .tab").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
+    const copyBtn = $("#pubShareCopy");
+    if (copyBtn) copyBtn.addEventListener("click", async () => {
+      const inp = $("#pubShareLink");
+      try { await navigator.clipboard.writeText(inp.value); toast(t("pub.copied"), "ok"); }
+      catch (e) { inp.select(); document.execCommand("copy"); toast(t("pub.copied"), "ok"); }
+    });
     show(window.__pubWantApply === m.slug ? "apply" : "about");
   }
 

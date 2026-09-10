@@ -25,7 +25,7 @@ npm install
 npm run dev        # migrate + serve on http://localhost:3000
 ```
 
-First run creates the dev SQLite database (`data/madrasa_platform_dev.sqlite`)
+First run creates the dev SQLite database (`data/madrasa_platform.sqlite`)
 and one super-admin account.
 
 ```bash

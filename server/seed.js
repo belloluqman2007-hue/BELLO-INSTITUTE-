@@ -442,6 +442,7 @@ async function runSeed({ demo = false } = {}) {
 module.exports = { seedPlans, seedSuperAdmin, seedDemo, runSeed };
 
 if (require.main === module) {
+  require("./db-target").announce({ allowCreate: true });
   runSeed({ demo: process.argv.includes("--demo") }).catch((err) => {
     console.error("Seed failed:", err);
     process.exit(1);

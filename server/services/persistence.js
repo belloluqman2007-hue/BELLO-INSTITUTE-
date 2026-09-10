@@ -23,6 +23,9 @@ const path = require("path");
 const config = require("../config");
 
 const MARKER_NAME = ".platform-state.json";
+/* The tables "did I lose data?" is really about. An empty one of these with a
+   non-empty snapshot on disk is an accident, not a fresh install. */
+const COUNTED_TABLES = ["madaris", "users", "students", "results"];
 const REAL_DEVICE = /^\/dev\/(sd[a-z]|nvme|vd[a-z]|xvd[a-z]|disk\/|mapper\/|md)/;
 const EPHEMERAL_FS = new Set(["overlay", "tmpfs", "ramfs", "devtmpfs", "9p", "squashfs", "fuse-overlayfs"]);
 
@@ -118,6 +121,9 @@ function touchMarker(info) {
     // Written on graceful shutdown so a boot can tell "restart" from "kill -9".
     lastCleanShutdownAt: (prev && prev.lastCleanShutdownAt) || null,
     lastKnownCounts: (prev && prev.lastKnownCounts) || null,
+    // Kept across boots: the record of "this boot had to restore a snapshot
+    // because the database came up empty" (see autoRecover).
+    lastAutoRestore: (prev && prev.lastAutoRestore) || null,
   };
   const volumeSurvivedRestarts = !!prev;
   // Bookkeeping must never break the boot.
@@ -130,12 +136,9 @@ function touchMarker(info) {
 
 /** Records counters at shutdown so a later "empty database" boot can be explained. */
 async function recordCounts(db) {
-  const counts = {};
+  let counts = {};
   try {
-    for (const table of ["madaris", "users", "students", "results"]) {
-      const row = await db.get("SELECT COUNT(*) AS n FROM " + table);
-      counts[table] = Number(row && row.n ? row.n : 0);
-    }
+    counts = await tableCounts(db);
     const file = path.join(config.DATA_DIR, MARKER_NAME);
     let prev = null;
     try { prev = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { return; }
@@ -144,6 +147,87 @@ async function recordCounts(db) {
     fs.writeFileSync(file, JSON.stringify(prev, null, 2));
   } catch (e) { /* best effort */ }
   return counts;
+}
+
+/** Row counts of the tables a "did I lose data?" question is really about. */
+async function tableCounts(db, tables = COUNTED_TABLES) {
+  const counts = {};
+  for (const table of tables) {
+    const row = await db.get("SELECT COUNT(*) AS n FROM " + table);
+    counts[table] = Number(row && row.n ? row.n : 0);
+  }
+  return counts;
+}
+
+/**
+ * THE SAFETY NET: an empty database plus a snapshot that is not empty.
+ *
+ * A tenant's rows can come up missing for two reasons: the host threw the
+ * storage away, or the app booted on a different SQLite file than the one the
+ * data is in (that second one used to be guaranteed whenever NODE_ENV changed).
+ * In both cases the next boot faces the same picture — a schema with zero rows —
+ * while BACKUP_DIR (often on the mounted volume even when the database is not)
+ * still holds a snapshot of everything. Restoring it turns "my madrasa is gone"
+ * into "the platform put it back".
+ *
+ * Guards: SQLite only, the live database must be COMPLETELY empty (nothing can
+ * be overwritten), the snapshot must actually contain rows, and `backup.restore`
+ * writes a `pre-restore` snapshot first, so the decision is itself undoable.
+ * Set AUTO_RESTORE_ON_EMPTY_DB=0 to turn it off.
+ */
+async function autoRecover(db) {
+  if (!config.AUTO_RESTORE_ON_EMPTY_DB) return { skipped: "AUTO_RESTORE_ON_EMPTY_DB=0" };
+  if (config.DATABASE_DRIVER !== "sqlite") return { skipped: "not SQLite" };
+  let counts;
+  try {
+    counts = await tableCounts(db);
+  } catch (e) {
+    return { skipped: "database not readable: " + e.message };
+  }
+  const empty = COUNTED_TABLES.every((t) => !counts[t]);
+  if (!empty) return { skipped: "database already has data", counts };
+
+  const backup = require("./backup");
+  let candidate = null;
+  try {
+    candidate = backup.listSync().find((b) => b.counts && COUNTED_TABLES.some((t) => Number(b.counts[t] || 0) > 0)) || null;
+  } catch (e) {
+    return { skipped: "no readable snapshots" };
+  }
+  if (!candidate) return { skipped: "no snapshot with data to restore", counts };
+
+  try {
+    const snapshot = backup.readSnapshot(candidate.name);
+    const result = await backup.restore(db, snapshot);
+    const info = {
+      restored: true,
+      snapshot: candidate.name,
+      snapshotCreatedAt: candidate.createdAt,
+      tables: result.restored.length,
+      counts: snapshot.counts,
+      safetySnapshot: result.safetySnapshot,
+      at: new Date().toISOString(),
+      file: config.DB_CONFIG.file,
+      host: os.hostname(),
+    };
+    noteAutoRestore(info);
+    return info;
+  } catch (e) {
+    // Never block a boot on a recovery attempt — the UI still offers a manual one.
+    return { error: e.message, snapshot: candidate.name };
+  }
+}
+
+/** Records what autoRecover did, so diagnostics can explain it after the fact. */
+function noteAutoRestore(info) {
+  const file = path.join(config.DATA_DIR, MARKER_NAME);
+  try {
+    let prev = null;
+    try { prev = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { prev = {}; }
+    prev.lastAutoRestore = info;
+    fs.mkdirSync(config.DATA_DIR, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(prev, null, 2));
+  } catch (e) { /* bookkeeping only */ }
 }
 
 /**
@@ -164,13 +248,7 @@ async function report(db) {
 
   let counts = null;
   if (db) {
-    try {
-      counts = {};
-      for (const table of ["madaris", "users", "students", "results"]) {
-        const row = await db.get("SELECT COUNT(*) AS n FROM " + table);
-        counts[table] = Number(row && row.n ? row.n : 0);
-      }
-    } catch (e) { counts = null; }
+    try { counts = await tableCounts(db); } catch (e) { counts = null; }
   }
 
   const warnings = [];
@@ -222,6 +300,36 @@ async function report(db) {
     warnings.push({ code: "HOST_CHANGED", message: "This boot is on a different container (" + marker.previousBootHost + " → " + marker.lastBootHost + "); only mounted volumes survive that switch, so check that " + config.DATA_DIR + " is one." });
   }
 
+  // Two database files in one directory: the classic way to "lose" a tenant
+  // while it is perfectly safe on disk.
+  // Only judge files that live where the app's own database lives: an operator
+  // who pinned DATABASE_FILE to another directory is not "split", they chose it.
+  const dbInDataDir = !externalDb && path.dirname(config.DB_CONFIG.file) === config.DATA_DIR;
+  if (dbInDataDir && config.SQLITE_DB.otherFiles && config.SQLITE_DB.otherFiles.length) {
+    if (level === "ok") level = "warn";
+    warnings.push({
+      code: "SPLIT_DATABASE_FILES",
+      message:
+        "This app reads " + (config.SQLITE_DB.file || "?") + ", but " + config.SQLITE_DB.otherFiles.length +
+        " other SQLite file(s) sit in the same directory (" +
+        config.SQLITE_DB.otherFiles.map((f) => f.name).join(", ") +
+        "). Data written while the app used one of those is invisible here. Keep exactly one file " +
+        "(set DATABASE_FILE, or rename the one with your data to " + config.SQLITE_FILE_BASENAME + ").",
+    });
+  }
+  // If a boot had to restore a snapshot, say so — silently coming back with
+  // data is a good outcome but the admin must know it happened.
+  if (marker && marker.lastAutoRestore && marker.lastAutoRestore.restored) {
+    warnings.push({
+      code: "AUTO_RESTORED",
+      message:
+        "On " + marker.lastAutoRestore.at + " the database was empty and snapshot " + marker.lastAutoRestore.snapshot +
+        " (" + Number((marker.lastAutoRestore.counts || {}).madaris || 0) +
+        " madrasa(s)) was restored automatically. The state from before that restore is kept as " +
+        marker.lastAutoRestore.safetySnapshot + ".",
+    });
+  }
+
   if (acknowledged && !externalDb && config.IS_PRODUCTION) {
     warnings.push({ code: "ACKNOWLEDGED", message: "Storage checks were silenced with DATA_PERSISTENT_ACK=1 — backups are still your safety net (Platform → Backups)." });
   }
@@ -232,6 +340,11 @@ async function report(db) {
     driver: config.DATABASE_DRIVER,
     externalDatabase: externalDb,
     databaseFile: externalDb ? null : config.DB_CONFIG.file,
+    // WHICH file, and why that one: the whole "my data is gone" conversation
+    // starts here, because two SQLite files in one directory means only one of
+    // them is ever read.
+    databaseFileReason: externalDb ? null : (config.SQLITE_DB.reason || ""),
+    otherDatabaseFiles: externalDb ? [] : (config.SQLITE_DB.otherFiles || []),
     dataDir: data,
     uploadsDir: uploads,
     backupDir: backups,
@@ -244,4 +357,14 @@ async function report(db) {
   };
 }
 
-module.exports = { report, touchMarker, recordCounts, describeStorage, findMountFor };
+module.exports = {
+  report,
+  touchMarker,
+  recordCounts,
+  tableCounts,
+  autoRecover,
+  describeStorage,
+  findMountFor,
+  COUNTED_TABLES,
+  MARKER_NAME,
+};

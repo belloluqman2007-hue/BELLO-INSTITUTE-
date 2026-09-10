@@ -26,6 +26,8 @@ const bcrypt = require("bcryptjs");
 const db = require("./db");
 const config = require("./config");
 
+require("./db-target").announce({ allowCreate: false });
+
 (async () => {
   try {
     if (!config.SUPER_ADMIN_PASSWORD) {

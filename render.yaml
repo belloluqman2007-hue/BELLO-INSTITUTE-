@@ -77,6 +77,12 @@ services:
         value: "360"
       - key: BACKUP_KEEP
         value: "10"
+      # A boot that finds a completely EMPTY database (the host threw the
+      # container filesystem away, or the app was pointed at another file)
+      # restores the newest snapshot before seeding, so tenants created days
+      # ago come back by themselves. Keep it on; 0 disables it.
+      - key: AUTO_RESTORE_ON_EMPTY_DB
+        value: "1"
       - key: MAX_UPLOAD_MB
         value: "5"
       # Logged-out (public site) traffic gets its own buckets.

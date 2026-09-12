@@ -512,8 +512,9 @@ window.BelloRegister = (function () {
       <section class="reg-hero section-pattern">
         <div class="container">
           <div class="reg-hero-content">
-            <div class="eyebrow"><span class="eyebrow-dot"></span> Institution Onboarding</div>
+            <div class="eyebrow"><span class="eyebrow-dot"></span> Institution Onboarding · <span lang="ar" dir="rtl">تسجيل المدارس</span></div>
             <h1>Register Your Madrasa</h1>
+            <p class="reg-hero-ar" lang="ar" dir="rtl">سجِّل مدرستك الإسلامية على منصة بيلو التعليمية</p>
             <p class="reg-subtitle">
               Bring your madrasa into the BELLO digital learning community. Create your institution profile and manage your madrasa from one platform.
             </p>

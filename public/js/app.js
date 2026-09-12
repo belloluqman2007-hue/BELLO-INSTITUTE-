@@ -127,7 +127,7 @@
   }
 
   function renderHomepage() {
-    document.body.classList.remove("western-experience", "western-menu-open");
+    document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) themeMeta.content = "#0b402c";
     document.title = "BELLO — Education Platform";
@@ -517,8 +517,9 @@
 
   function renderCategory(kind) {
     document.body.classList.remove("western-experience", "western-menu-open");
+    document.body.classList.toggle("islamic-experience", kind === "islamic");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#0b402c";
+    if (themeMeta) themeMeta.content = kind === "islamic" ? "#075E54" : "#0b402c";
     const data = categoryData[kind];
     if (!data) return renderHomepage();
     document.title = `BELLO — ${data.shortName}`;
@@ -636,8 +637,9 @@
 
   function renderRegistration() {
     document.body.classList.remove("western-experience", "western-menu-open");
+    document.body.classList.add("islamic-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#0b402c";
+    if (themeMeta) themeMeta.content = "#075E54";
     if (window.BelloRegister && typeof window.BelloRegister.mount === "function") {
       window.BelloRegister.mount();
     }
@@ -650,7 +652,7 @@
     // Already mounted: let dashboard.js's own hashchange listener handle
     // in-dashboard navigation instead of tearing the whole shell down.
     if (document.getElementById("dash-app")) return;
-    document.body.classList.remove("western-experience", "western-menu-open");
+    document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
     if (scrollHandler) { window.removeEventListener("scroll", scrollHandler); scrollHandler = null; }
     document.getElementById("app").innerHTML = '<div id="dash-app"></div>';
     if (window.BelloDashboard && typeof window.BelloDashboard.boot === "function") {

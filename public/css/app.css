@@ -2275,30 +2275,190 @@ body.western-menu-open { overflow: hidden; }
   .western-container { width: min(calc(100% - 34px), var(--wa-container)); }.western-nav-shell { width: min(calc(100% - 32px), var(--wa-container)); }.western-brand { min-width: 0; gap: 7px; }.western-brand-icon { width: 37px; height: 37px; border-radius: 10px; }.western-brand-name strong { font-size: .96rem; }.western-brand-name small { font-size: .43rem; }.western-brand-divider, .western-brand-section { display: none; }.western-hero { padding: 48px 0 58px; }.western-eyebrow { font-size: .58rem; letter-spacing: .065em; }.western-hero h1 { font-size: clamp(2.65rem, 12.2vw, 3.55rem); }.western-hero-text { margin: 20px 0 24px; font-size: .91rem; line-height: 1.66; }.western-hero-actions { display: grid; grid-template-columns: 1fr; }.western-button { width: 100%; }.western-hero-trust { align-items: flex-start; font-size: .67rem; }.western-hero-trust > span { margin-top: 1px; }.western-hero-visual { width: calc(100% - 11px); min-height: 291px; padding: 0; }.western-photo-frame { height: 288px; border-width: 5px; border-radius: 18px; }.western-photo-frame::after { border-radius: 12px; }.western-photo-label { right: 10px; bottom: 10px; font-size: .55rem; }.western-float-card { padding: 8px; border-radius: 10px; }.western-float-card--program { bottom: -17px; left: -11px; }.western-float-card--future { top: 16px; right: -9px; }.western-float-card small { font-size: .47rem; }.western-float-card strong { font-size: .56rem; }.western-float-icon, .western-future-orbit { width: 28px; height: 28px; border-radius: 8px; }.western-float-icon svg { width: 14px; height: 14px; }.western-proof-grid { grid-template-columns: 1fr; }.western-proof-grid > div, .western-proof-grid > div:first-child, .western-proof-grid > div:nth-child(3) { min-height: 66px; padding: 11px 4px; border-top: 1px solid #e2eaf3; border-left: 0; }.western-proof-grid > div:first-child { border-top: 0; }.western-proof-grid strong { font-size: .7rem; }.western-proof-grid small { font-size: .58rem; }.western-section { padding: 71px 0; }.western-section-heading { margin-bottom: 30px; }.western-section-heading h2, .western-identity-copy h2, .western-registration-card h2 { font-size: 2.15rem; }.western-section-heading > p:last-child { font-size: .84rem; }.western-heading-row { display: block; }.western-heading-row > p { margin: 13px 0 0; }.western-heading-row .western-inline-link { margin-top: 16px; }.western-why-grid { grid-template-columns: 1fr; gap: 10px; }.western-why-card { display: grid; grid-template-columns: 42px 1fr; min-height: 0; column-gap: 14px; padding: 17px; }.western-why-card .western-icon { grid-row: span 2; width: 40px; height: 40px; margin: 0; }.western-why-card h3 { align-self: end; margin: 0 0 3px; font-size: .91rem; }.western-why-card p { grid-column: 2; font-size: .71rem; }.western-subject-grid { grid-template-columns: 1fr; gap: 9px; }.western-subject-card { min-height: 105px; padding: 18px 18px 18px 73px; }.western-subject-card .western-icon { left: 18px; width: 40px; height: 40px; }.academy-grid { grid-template-columns: 1fr; gap: 12px; }.academy-card { min-height: 0; padding: 19px; }.academy-card > p { min-height: 0; }.academy-view-link { margin-top: 18px; }.western-find-section { padding: 70px 0; }.western-find-heading { margin-bottom: 24px; }.western-find-heading h2 { font-size: 2.3rem; }.western-find-heading > p:not(.western-kicker) { font-size: .84rem; }.western-search-form { padding: 14px; border-radius: 13px; }.western-search-grid { grid-template-columns: 1fr; gap: 10px; }.western-filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }.western-filter-title { width: auto; grid-column: 1 / -1; }.western-filter-row label { min-height: 36px; }.western-filter-row select { font-size: .63rem; }.western-search-actions { align-items: flex-start; flex-wrap: wrap; gap: 11px 15px; }.western-search-actions .western-button { width: 100%; }.western-search-actions p { width: 100%; margin: 0; font-size: .64rem; }.western-level-grid { grid-template-columns: 1fr 1fr; gap: 9px; }.western-level-card { min-height: 188px; padding: 15px; }.western-level-card:nth-child(4) { grid-column: auto; }.western-level-card:last-child { grid-column: 1 / -1; min-height: 153px; }.western-level-card:last-child p { max-width: 210px; }.western-level-icon { width: 35px; height: 35px; margin-bottom: 22px; }.western-level-card h3 { min-height: 0; font-size: .8rem; }.western-level-card p { font-size: .63rem; }.western-identity-section { padding: 72px 0; }.western-identity-copy > p:not(.western-kicker) { font-size: .84rem; }.western-identity-copy li { align-items: flex-start; font-size: .7rem; }.academy-site-preview { width: calc(100% - 11px); border-width: 4px; border-radius: 12px; transform: rotate(0); }.academy-browser-top { height: 29px; }.academy-browser-top b { padding: 3px 18px; font-size: .42rem; }.academy-preview-nav { padding: 8px 11px; }.academy-preview-nav strong { font-size: .47rem; }.academy-preview-nav strong i { width: 14px; height: 14px; font-size: .45rem; }.academy-preview-nav > span { font-size: .38rem; }.academy-preview-hero { min-height: 137px; padding: 22px 17px; }.academy-preview-hero small { font-size: .39rem; }.academy-preview-hero h3 { margin: 6px 0 9px; font-size: 1.1rem; }.academy-preview-hero button { min-height: 22px; font-size: .42rem; }.academy-preview-stats span { padding: 8px 4px; font-size: .42rem; }.academy-preview-stats b { font-size: .62rem; }.western-registration-section { padding: 64px 0; }.western-registration-card { gap: 20px; padding: 28px 21px; border-radius: 17px; }.western-registration-card p:not(.western-kicker) { font-size: .8rem; }.western-button--navy { min-width: 0; }.western-footer { padding-top: 47px; }.western-footer-grid { grid-template-columns: 1fr 1fr; gap: 29px 20px; padding-bottom: 34px; }.western-footer-intro { grid-column: 1 / -1; }.western-footer-column:last-child { grid-column: 1 / -1; }.western-footer-bottom { display: grid; gap: 8px; font-size: .57rem; }
 }
 
-/* Islamic directory palette — richer emerald and warm gold, aligned with BELLO's identity. */
-.category-page--islamic {
-  --islamic-emerald: #006b3c;
-  --islamic-emerald-dark: #004d2b;
-  --islamic-gold: #d6a719;
-  --islamic-cream: #fffaf0;
+
+/* =========================================================================
+   ISLAMIC PUBLIC WEBSITE — premium emerald & gold identity
+   Palette: Deep Emerald #075E54 (brand), Dark Green #064E45, Teal #0F766E,
+   Gold #D4A72C (accents), Soft Gold #F4E7B2, Warm Ivory #FAF9F2 (page bg),
+   White #FFFFFF, Deep Charcoal #17211F, Muted Green-Gray #66736F.
+   Scoped to body.islamic-experience so the BELLO homepage and Western
+   Academy experience keep their own colour schemes.
+   ========================================================================= */
+body.islamic-experience {
+  /* Brand / structural greens */
+  --forest-950: #043a34;
+  --forest-900: #064E45;   /* Dark Green — headings */
+  --forest-850: #075E54;
+  --forest-800: #075E54;   /* Deep Emerald — main brand */
+  --forest-700: #0F766E;   /* Teal — secondary brand */
+  --forest-600: #0F766E;
+  /* Text */
+  --ink: #17211F;          /* Deep Charcoal */
+  --ink-soft: #33413C;
+  --muted: #66736F;        /* Muted Green-Gray */
+  /* Gold accents */
+  --gold-600: #9A7714;     /* deep gold — legible gold text on light bg */
+  --gold: #D4A72C;         /* Gold — accents & highlights */
+  --gold-light: #F4E7B2;   /* Soft Gold */
+  /* Surfaces */
+  --paper: #FFFFFF;        /* White */
+  --canvas: #FAF9F2;       /* Warm Ivory — main page background */
+  --surface: #F3EFE0;      /* warm ivory panel */
+  --line: #E7E0CC;         /* warm ivory hairline */
+  /* Emerald-tinted shadows */
+  --shadow-sm: 0 10px 25px rgba(7, 94, 84, .07);
+  --shadow: 0 20px 50px rgba(6, 78, 69, .12);
+  --shadow-deep: 0 30px 70px rgba(4, 58, 52, .3);
+  background: var(--canvas);
 }
-.category-page--islamic .category-hero {
-  background: linear-gradient(122deg, #fffaf0 0%, #f3f8ed 55%, #e2f1e7 100%);
-}
+
+/* ---- Shared page chrome (header / footer / buttons) ---- */
+body.islamic-experience .site-header { background: rgba(250, 249, 242, .92); }
+body.islamic-experience .site-header.is-scrolled { background: rgba(255, 255, 255, .97); border-color: rgba(7, 94, 84, .16); box-shadow: 0 6px 24px rgba(6, 78, 69, .08); }
+body.islamic-experience .brand-logo { box-shadow: 0 4px 14px rgba(7, 94, 84, .16); }
+body.islamic-experience .desktop-nav a, body.islamic-experience .login-link { color: #3c534d; }
+body.islamic-experience .desktop-nav a:hover, body.islamic-experience .desktop-nav a.active, body.islamic-experience .login-link:hover { color: var(--forest-800); }
+body.islamic-experience .desktop-nav a.active::after { background: var(--gold); }
+body.islamic-experience .button { box-shadow: 0 9px 16px rgba(6, 78, 69, .18); }
+body.islamic-experience .button:hover { box-shadow: 0 12px 22px rgba(6, 78, 69, .26); }
+body.islamic-experience .button-secondary { border-color: #cbdcd6; background: rgba(255, 255, 255, .7); color: var(--forest-800); }
+body.islamic-experience .button-secondary:hover { border-color: var(--forest-700); color: var(--forest-900); }
+body.islamic-experience .button:focus-visible,
+body.islamic-experience a:focus-visible,
+body.islamic-experience .menu-toggle:focus-visible { outline-color: var(--gold); }
+body.islamic-experience .button-gold { background: var(--gold); color: var(--forest-900); box-shadow: 0 10px 20px rgba(154, 119, 20, .22); }
+body.islamic-experience .button-gold:hover { background: #e0b53f; color: var(--forest-950); }
+body.islamic-experience .menu-toggle { color: var(--forest-800); }
+body.islamic-experience .eyebrow { border-color: rgba(7, 94, 84, .22); background: rgba(255, 255, 255, .74); }
+body.islamic-experience .eyebrow, body.islamic-experience .section-kicker { color: var(--forest-700); }
+body.islamic-experience .eyebrow-dot { background: var(--gold); box-shadow: 0 0 0 4px rgba(212, 167, 44, .2); }
+body.islamic-experience .text-link { color: var(--forest-700); }
+body.islamic-experience .mobile-nav a { color: var(--forest-900); }
+
+/* Footer */
+body.islamic-experience .site-footer { background: #FAF9F2; border-top: 1px solid var(--line); }
+body.islamic-experience .socials a { border-color: #ddd3b8; color: var(--forest-700); }
+body.islamic-experience .socials a:hover { background: var(--forest-800); color: #fff; }
+body.islamic-experience .footer-col h3 { color: var(--forest-900); }
+body.islamic-experience .footer-col a:hover { color: var(--forest-700); }
+body.islamic-experience .footer-bottom > span:last-child { color: var(--forest-700); }
+body.islamic-experience .footer-bottom i { background: var(--gold); }
+
+/* ---- Islamic category (directory) page ---- */
+.category-page--islamic .category-hero { background: linear-gradient(122deg, #FAF9F2 0%, #F1F3E7 52%, #E4F0EC 100%); }
 .category-page--islamic .category-hero-copy .eyebrow,
-.category-page--islamic .breadcrumb { color: var(--islamic-emerald); }
-.category-page--islamic .category-hero-copy .eyebrow { border-color: rgba(0,107,60,.2); }
-.category-page--islamic .category-hero-copy .eyebrow-dot {
-  background: var(--islamic-gold);
-  box-shadow: 0 0 0 4px rgba(214,167,25,.17);
-}
-.category-page--islamic .category-feature-icon,
-.category-page--islamic .directory-preview-icon { background: #e1f1e6; color: var(--islamic-emerald); }
+.category-page--islamic .breadcrumb { color: var(--forest-700); }
+.category-page--islamic .category-hero-copy .eyebrow { border-color: rgba(7, 94, 84, .22); }
+.category-page--islamic .breadcrumb span { color: #b8c2ac; }
+.category-page--islamic .category-hero-copy .eyebrow-dot { background: var(--gold); box-shadow: 0 0 0 4px rgba(212, 167, 44, .2); }
+.category-page--islamic .category-hero-image { border-color: rgba(255, 255, 255, .9); }
+.category-page--islamic .category-hero-image-shade { background: linear-gradient(145deg, transparent 47%, rgba(4, 58, 52, .5)); }
+.category-page--islamic .category-image-badge { background: rgba(6, 78, 69, .82); border-color: rgba(244, 231, 178, .45); color: #FAF9F2; }
+.category-page--islamic .category-image-badge svg { color: var(--gold); }
+
+.category-page--islamic .category-feature-card { border-color: #e7e0cc; box-shadow: 0 4px 16px rgba(6, 78, 69, .05); }
+.category-page--islamic .category-feature-card:hover { border-color: var(--gold); box-shadow: 0 16px 28px rgba(6, 78, 69, .12); }
+.category-page--islamic .category-feature-icon { background: #E2F0EC; color: var(--forest-800); }
+.category-page--islamic .category-feature-card h3 { color: var(--forest-900); }
+
 .category-page--islamic .institution-types-section,
-.category-page--islamic .directory-preview-section { background: var(--islamic-cream); }
-.category-page--islamic .institution-type-icon { background: #fff0bf; color: #9b7100; }
+.category-page--islamic .directory-preview-section { background: var(--surface); }
+.category-page--islamic .institution-type-card { border-color: #e7e0cc; background: rgba(255, 255, 255, .9); }
+.category-page--islamic .institution-type-card > span { color: var(--gold); }
+.category-page--islamic .institution-type-icon { background: var(--gold-light); color: var(--gold-600); }
+.category-page--islamic .institution-type-card h3 { color: var(--forest-900); }
+
+.category-page--islamic .directory-preview-card { border-color: #e7e0cc; background: #fff; }
+.category-page--islamic .directory-preview-icon { background: #E2F0EC; color: var(--forest-800); }
+.category-page--islamic .directory-preview-card h2 { color: var(--forest-900); }
+
+.category-page--islamic .category-register-section { background: #FAF9F2; }
 .category-page--islamic .category-register-card {
-  background: linear-gradient(120deg, var(--islamic-emerald-dark), var(--islamic-emerald));
-  box-shadow: 0 24px 50px rgba(0,77,43,.18);
+  background: linear-gradient(120deg, var(--forest-900) 0%, var(--forest-800) 55%, var(--forest-700) 100%);
+  box-shadow: 0 24px 50px rgba(4, 58, 52, .24);
+  border: 1px solid rgba(212, 167, 44, .28);
 }
-.category-page--islamic .button-gold { background: var(--islamic-gold); color: #173522; }
+.category-page--islamic .category-register-card h2 { color: #fff; }
+.category-page--islamic .category-register-card p:not(.section-kicker) { color: #d9e7e1; }
+.category-page--islamic .category-register-card .light-kicker { color: var(--gold); }
+.category-page--islamic .category-register-card .button-gold { background: var(--gold); color: var(--forest-900); }
+.category-page--islamic .category-register-card .button-gold:hover { background: #e6bd44; }
+
+/* ---- Islamic School / Madrasa registration page ---- */
+body.islamic-experience .reg-hero { background: linear-gradient(113deg, #FAF9F2 0%, #F3F1E4 54%, #E7F1ED 100%); border-bottom-color: var(--line); }
+body.islamic-experience .reg-form-section,
+body.islamic-experience .reg-card,
+body.islamic-experience .review-card { border-color: var(--line); }
+body.islamic-experience .section-badge,
+body.islamic-experience .mobile-step-pct { background: #E2F0EC; color: var(--forest-800); }
+body.islamic-experience .card-kicker { color: var(--gold-600); }
+
+/* Stepper */
+body.islamic-experience .stepper-track { background: #E7E0CC; }
+body.islamic-experience .stepper-bar { background: linear-gradient(90deg, var(--forest-800), var(--gold)); }
+body.islamic-experience .stepper-bubble { background: #E2F0EC; color: var(--forest-800); box-shadow: 0 4px 12px rgba(6, 78, 69, .1); }
+body.islamic-experience .stepper-item.is-active .stepper-bubble { background: var(--forest-800); box-shadow: 0 0 0 4px rgba(212, 167, 44, .4), 0 6px 16px rgba(6, 78, 69, .2); }
+body.islamic-experience .stepper-item.is-complete .stepper-bubble { background: var(--forest-800); }
+
+/* Form fields */
+body.islamic-experience .reg-form-section input[type="text"],
+body.islamic-experience .reg-form-section input[type="email"],
+body.islamic-experience .reg-form-section input[type="tel"],
+body.islamic-experience .reg-form-section input[type="url"],
+body.islamic-experience .reg-form-section input[type="number"],
+body.islamic-experience .reg-form-section input[type="password"],
+body.islamic-experience .reg-form-section select,
+body.islamic-experience .reg-form-section textarea,
+body.islamic-experience .status-search-form input { border-color: #d7d0bc; }
+body.islamic-experience .reg-form-section input:focus,
+body.islamic-experience .reg-form-section select:focus,
+body.islamic-experience .reg-form-section textarea:focus,
+body.islamic-experience .status-search-form input:focus { border-color: var(--forest-700); box-shadow: 0 0 0 3px rgba(15, 118, 110, .15); }
+
+/* Logo dropzone */
+body.islamic-experience .dropzone { border-color: #cfc6ac; background: #FCFBF4; }
+body.islamic-experience .dropzone:hover, body.islamic-experience .dropzone.drag-over { border-color: var(--forest-700); background: #EDF5F1; }
+body.islamic-experience .dropzone-icon { background: #E2F0EC; color: var(--forest-800); }
+
+/* Subject chips */
+body.islamic-experience .subject-chip-card { border-color: #ddd4bc; }
+body.islamic-experience .subject-chip-card:hover { border-color: var(--forest-700); background: #F7FAF8; }
+body.islamic-experience .subject-chip-card.is-selected { border-color: var(--forest-800); background: #EAF4EF; box-shadow: 0 0 0 2px rgba(15, 118, 110, .18); }
+body.islamic-experience .chip-icon { background: #E2F0EC; color: var(--forest-800); }
+body.islamic-experience .subject-chip-card.is-selected .chip-icon { background: var(--forest-800); }
+body.islamic-experience .subject-chip-card.is-selected .chip-check { background: var(--forest-800); border-color: var(--forest-800); }
+
+/* Age pills */
+body.islamic-experience .age-pill-card { border-color: #ddd4bc; }
+body.islamic-experience .age-pill-card:hover { border-color: var(--forest-700); background: #F7FAF8; }
+body.islamic-experience .age-pill-card.is-selected { background: var(--forest-800); border-color: var(--forest-800); }
+
+/* Administrator callout & password meter */
+body.islamic-experience .admin-callout { background: #FCF7E6; border-color: var(--gold-light); }
+body.islamic-experience .callout-icon { color: var(--gold-600); }
+body.islamic-experience .bar.is-gold { background: var(--gold); }
+body.islamic-experience .checkbox-container input[type="checkbox"] { accent-color: var(--forest-800); }
+
+/* Badges */
+body.islamic-experience .badge-gold { background: var(--gold-light); color: var(--gold-600); border-color: #e6cf7d; }
+
+/* Sidebar */
+body.islamic-experience .sidebar-steps-list li.is-done .check-dot { background: var(--forest-800); }
+body.islamic-experience .sidebar-steps-list li.is-current .check-dot { background: var(--gold); box-shadow: 0 0 0 3px rgba(212, 167, 44, .32); }
+body.islamic-experience .benefit-tick { background: #E2F0EC; color: var(--forest-700); }
+
+/* Review + success + receipt */
+body.islamic-experience .review-card-top { background: #F7F9F5; border-bottom-color: #e9e2ce; }
+body.islamic-experience .review-chip { background: #E9F3EE; color: var(--forest-800); }
+body.islamic-experience .success-ring-outer { background: rgba(212, 167, 44, .2); }
+body.islamic-experience .success-ring-inner { background: rgba(7, 94, 84, .12); }
+body.islamic-experience .success-icon-badge { background: var(--forest-800); box-shadow: 0 8px 20px rgba(6, 78, 69, .26); }
+body.islamic-experience .reg-receipt-card { background: #FAF9F2; border-color: #e9e2ce; }
+body.islamic-experience .status-pending { background: var(--gold-light); border-color: #e6cf7d; color: var(--gold-600); }
+body.islamic-experience .status-dot-pulse { background: var(--gold); box-shadow: 0 0 0 4px rgba(212, 167, 44, .32); }
+body.islamic-experience .copy-ref-btn { background: #E9F3EE; border-color: #cbdacf; color: var(--forest-800); }
+body.islamic-experience .copy-ref-btn:hover { background: var(--forest-800); color: #fff; }
+
+/* Modals */
+body.islamic-experience .modal-backdrop { background: rgba(6, 78, 69, .66); }
+body.islamic-experience .modal-icon { background: #E2F0EC; color: var(--forest-800); }

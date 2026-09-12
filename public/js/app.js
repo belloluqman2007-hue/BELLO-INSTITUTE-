@@ -643,11 +643,28 @@
     }
   }
 
+  /* Institution admin dashboard (Islamic + Western) — a self-contained
+     module (public/js/dashboard.js) mounted into its own container so it
+     never shares markup or styles with the public marketing site. */
+  function renderDashboard() {
+    // Already mounted: let dashboard.js's own hashchange listener handle
+    // in-dashboard navigation instead of tearing the whole shell down.
+    if (document.getElementById("dash-app")) return;
+    document.body.classList.remove("western-experience", "western-menu-open");
+    if (scrollHandler) { window.removeEventListener("scroll", scrollHandler); scrollHandler = null; }
+    document.getElementById("app").innerHTML = '<div id="dash-app"></div>';
+    if (window.BelloDashboard && typeof window.BelloDashboard.boot === "function") {
+      window.BelloDashboard.boot();
+    }
+  }
+
   function renderRoute() {
     const path = window.location.pathname.replace(/\/+$/, "") || "/";
     const hash = window.location.hash;
 
-    if (path === "/register-madrasa" || hash === "#/register-madrasa" || hash === "#register-madrasa") {
+    if (hash.startsWith("#/app") || hash === "#/login" || hash.startsWith("#/login")) {
+      renderDashboard();
+    } else if (path === "/register-madrasa" || hash === "#/register-madrasa" || hash === "#register-madrasa") {
       renderRegistration();
     } else if (path === "/islamic-schools") {
       renderCategory("islamic");
@@ -688,13 +705,23 @@
   };
 
   window.addEventListener("popstate", renderRoute);
+  window.addEventListener("hashchange", renderRoute);
   renderRoute();
 
   /* Small compatibility surface kept for existing integrations. */
   window.App = {
     mount: renderRoute,
     routeTo: async (path) => window.BelloRouter.navigate("/" + String(path).replace(/^\//, "")),
-    refreshMe: async () => null,
+    refreshMe: async () => {
+      try {
+        const me = await window.API.me();
+        window.App.me = me && me.loggedIn ? me : null;
+        return window.App.me;
+      } catch (e) {
+        window.App.me = null;
+        return null;
+      }
+    },
     me: null
   };
 })();

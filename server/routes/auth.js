@@ -12,7 +12,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../db");
-const { cleanStr, logActivity } = require("../util");
+const { cleanStr, logActivity, asyncHandler } = require("../util");
 
 const router = express.Router();
 
@@ -74,6 +74,16 @@ router.post("/login", async (req, res) => {
     }
   }
 
+  // Madrasa-scoped users also carry their institution's category (islamic /
+  // western) so the SPA can route straight to the right admin dashboard
+  // without a second round trip.
+  let category = null;
+  let institutionName = null;
+  if (user.madrasa_id) {
+    const madrasa = await db.get("SELECT category, name_en, verified FROM madaris WHERE id = ?", [user.madrasa_id]);
+    if (madrasa) { category = madrasa.category || "islamic"; institutionName = madrasa.name_en; }
+  }
+
   req.session.regenerate((err) => {
     if (err) return res.status(500).json({ error: "Session error." });
     req.session.userId = user.id;
@@ -90,6 +100,8 @@ router.post("/login", async (req, res) => {
       ok: true,
       role: user.role,
       madrasaId: user.madrasa_id,
+      category,
+      institutionName,
       user: {
         id: user.id,
         username: user.username,
@@ -111,12 +123,29 @@ router.post("/logout", (req, res) => {
   });
 });
 
-router.get("/me", (req, res) => {
+router.get("/me", asyncHandler(async (req, res) => {
   if (!req.user) return res.json({ loggedIn: false });
+  let category = null;
+  let institutionName = null;
+  let institutionSlug = null;
+  let verified = false;
+  if (req.user.madrasaId) {
+    const madrasa = await db.get("SELECT category, name_en, slug, verified FROM madaris WHERE id = ?", [req.user.madrasaId]);
+    if (madrasa) {
+      category = madrasa.category || "islamic";
+      institutionName = madrasa.name_en;
+      institutionSlug = madrasa.slug;
+      verified = Number(madrasa.verified) === 1;
+    }
+  }
   res.json({
     loggedIn: true,
     role: req.user.role,
     madrasaId: req.user.madrasaId,
+    category,
+    institutionName,
+    institutionSlug,
+    verified,
     user: {
       id: req.user.id,
       username: req.user.username,
@@ -125,7 +154,7 @@ router.get("/me", (req, res) => {
       fullNameAr: req.user.fullNameAr,
     },
   });
-});
+}));
 
 router.post("/change-password", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Authentication required." });

@@ -115,3 +115,43 @@ test("madrasa detail returns real student/teacher counts", async () => {
   assert.ok(Number(r.data.madrasa.teacher_count) >= 1, "teacher_count for madrasa A");
   assert.equal(r.data.madrasa.plan_code, "free");
 });
+
+test("super admin creates a Western academy with its category and starter data", async () => {
+  const r = await sa.api("POST", "/api/platform/madaris", {
+    slug: "northbridge", name_en: "Northbridge Academy", category: "western",
+    plan_id: 1, city: "Lekki", state_name: "Lagos",
+    admin_username: "north-admin", admin_password: "NorthAdmin1234", admin_full_name: "North Admin",
+  });
+  assert.equal(r.status, 200);
+
+  const detail = await sa.req("GET", `/api/platform/madaris/${r.data.id}`);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.data.madrasa.category, "western");
+  assert.equal(detail.data.madrasa.institution_type, "Academy");
+
+  // Starter academic session + three terms + the Western subject catalogue.
+  const sessions = await ctx.db.all("SELECT id FROM academic_sessions WHERE madrasa_id = ?", [r.data.id]);
+  assert.equal(sessions.length, 1, "one starter session seeded");
+  const terms = await ctx.db.all("SELECT name_en FROM terms WHERE madrasa_id = ? ORDER BY position", [r.data.id]);
+  assert.deepEqual(terms.map((t) => t.name_en), ["First Term", "Second Term", "Third Term"]);
+  const subjects = await ctx.db.all("SELECT name_en FROM subjects WHERE madrasa_id = ?", [r.data.id]);
+  assert.ok(subjects.some((s) => s.name_en === "Mathematics"), "Western catalogue seeded");
+  assert.ok(!subjects.some((s) => s.name_en === "Fiqh"), "no Islamic subjects for a Western academy");
+
+  // The new admin lands in the Western dashboard.
+  const c = new Client(ctx.base);
+  const lr = await c.login("north-admin", "NorthAdmin1234");
+  assert.equal(lr.status, 200);
+  assert.equal(lr.data.category, "western");
+});
+
+test("activity log joins username and madrasa names", async () => {
+  const r = await sa.req("GET", "/api/platform/activity?limit=100");
+  assert.equal(r.status, 200);
+  const rows = r.data.activity || [];
+  assert.ok(rows.length > 0, "activity exists after the tests above");
+  for (const row of rows) {
+    assert.ok("username" in row, "username column is joined");
+    assert.ok("madrasa_slug" in row && "madrasa_name" in row, "madrasa columns are joined");
+  }
+});

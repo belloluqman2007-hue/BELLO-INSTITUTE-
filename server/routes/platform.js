@@ -107,6 +107,12 @@ router.post("/madaris", asyncHandler(async (req, res) => {
     if (taken) return err(res, 400, "That username is already taken.");
   }
 
+  // Islamic School vs Western Academy. An explicit category wins; otherwise
+  // the institution_type catalogue decides; otherwise safe default islamic.
+  const category = institution.normalizeCategory(b.category, b.institution_type);
+  const institutionType = cleanStr(b.institution_type, 60)
+    || (category === "western" ? "Academy" : "Madrasa");
+
   // Create the madrasa and its first administrator as ONE unit: if any
   // statement fails the whole thing rolls back, so a madrasa can never exist
   // without a login (or a login point at nothing). The manual compensating
@@ -117,11 +123,13 @@ router.post("/madaris", asyncHandler(async (req, res) => {
   const adminHash = adminGiven ? bcrypt.hashSync(adminPass, 10) : "";
   try {
     const created = await db.transaction(async (tx) => {
-      const cols = ["slug", "name_en", "name_ar", "motto_en", "motto_ar", "address", "city", "state_name",
+      const cols = ["slug", "name_en", "name_ar", "category", "institution_type",
+                    "motto_en", "motto_ar", "address", "city", "state_name",
                     "phone", "email", "plan_id", "status", "description_en", "description_ar",
                     "founded_year", "website", "public_listing", "public_results", "public_admissions"];
       const vals = [
-        slug, nameEn, cleanStr(b.name_ar, 160), cleanStr(b.motto_en, 160), cleanStr(b.motto_ar, 160),
+        slug, nameEn, cleanStr(b.name_ar, 160), category, institutionType,
+        cleanStr(b.motto_en, 160), cleanStr(b.motto_ar, 160),
         cleanStr(b.address, 255), cleanStr(b.city, 80), cleanStr(b.state_name, 80),
         cleanStr(b.phone, 60), cleanStr(b.email, 120), plan.id, "active",
         cleanStr(b.description_en, 4000), cleanStr(b.description_ar, 4000),
@@ -144,6 +152,24 @@ router.post("/madaris", asyncHandler(async (req, res) => {
           [id, adminUser, adminHash, "madrasa_admin", cleanStr(b.admin_full_name, 160) || "Madrasa Administrator"]
         );
         adminCreated = true;
+      }
+      // Seed a starter academic session, its three terms and the subject
+      // catalogue for this category so the new admin's dashboard is ready to
+      // use on day one (mirrors registration approval).
+      const year = new Date().getFullYear();
+      const s = await tx.run(
+        "INSERT INTO academic_sessions (madrasa_id, label, is_current) VALUES (?,?,1)",
+        [id, `${year}/${year + 1}`]
+      );
+      const termDefaults = ["First Term", "Second Term", "Third Term"];
+      for (let i = 0; i < termDefaults.length; i++) {
+        await tx.run(
+          "INSERT INTO terms (madrasa_id, session_id, position, name_en) VALUES (?,?,?,?)",
+          [id, s.lastInsertRowid, i + 1, termDefaults[i]]
+        );
+      }
+      for (const subjectName of institution.subjectCatalogue(category)) {
+        await tx.run("INSERT INTO subjects (madrasa_id, name_en) VALUES (?,?)", [id, subjectName]);
       }
       return { id, adminCreated };
     });
@@ -461,9 +487,13 @@ router.patch("/plans/:id", asyncHandler(async (req, res) => {
 router.get("/activity", asyncHandler(async (req, res) => {
   const mid = toNum(req.query.madrasaId, 0);
   const limit = Math.min(200, toNum(req.query.limit, 50));
+  const base = `SELECT a.*, u.username, m.slug AS madrasa_slug, m.name_en AS madrasa_name
+                 FROM activity_log a
+                 LEFT JOIN users u ON u.id = a.user_id
+                 LEFT JOIN madaris m ON m.id = a.madrasa_id`;
   const rows = mid
-    ? await db.all("SELECT * FROM activity_log WHERE madrasa_id = ? ORDER BY id DESC LIMIT ?", [mid, limit])
-    : await db.all("SELECT * FROM activity_log ORDER BY id DESC LIMIT ?", [limit]);
+    ? await db.all(base + " WHERE a.madrasa_id = ? ORDER BY a.id DESC LIMIT ?", [mid, limit])
+    : await db.all(base + " ORDER BY a.id DESC LIMIT ?", [limit]);
   ok(res, { activity: rows });
 }));
 

@@ -46,6 +46,11 @@
     shield: `<svg viewBox="0 0 24 24"><path d="M12 3 19 6v5.4c0 4.2-2.8 7.8-7 9.6-4.2-1.8-7-5.4-7-9.6V6l7-3Z"/></svg>`,
     search: `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
     trash: `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+    chart: `<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-7"/></svg>`,
+    activity: `<svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>`,
+    file: `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+    download: `<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>`,
+    refresh: `<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/></svg>`,
   };
 
   /* --------------------------------------------------------------------
@@ -193,11 +198,30 @@
   }
 
   /* --------------------------------------------------------------------
+     Super Admin sidebar — the platform operator's whole menu. Completely
+     separate from the institution admin schema: no tenant modules, only the
+     platform-level routes that server/routes/platform.js + backups expose.
+     -------------------------------------------------------------------- */
+  function superAdminSchema() {
+    return [
+      { key: "platform", label: "Overview", icon: "dashboard", route: "platform" },
+      { key: "madaris", label: "Madrasas & Academies", icon: "building", route: "platform/madaris" },
+      { key: "registrations", label: "Registrations", icon: "admissions", route: "platform/registrations" },
+      { key: "plans", label: "Subscription Plans", icon: "money", route: "platform/plans" },
+      { key: "analytics", label: "Platform Analytics", icon: "chart", route: "platform/analytics" },
+      { key: "activity", label: "Activity Log", icon: "activity", route: "platform/activity" },
+      { key: "backups", label: "Backups & Storage", icon: "file", route: "platform/backups" },
+      { key: "settings", label: "Platform Settings", icon: "settings", route: "platform/settings" },
+    ];
+  }
+
+  /* --------------------------------------------------------------------
      App state
      -------------------------------------------------------------------- */
   const state = {
     booted: false,
     me: null,           // { role, madrasaId, category, institutionName, ... }
+    superAdmin: false,  // true when /api/auth/me reports role === "super_admin"
     category: "islamic",
     route: "dashboard",
     sidebarOpen: false,
@@ -275,19 +299,30 @@
       return;
     }
     state.me = me;
+    state.superAdmin = me.role === "super_admin";
     state.category = me.category === "western" ? "western" : "islamic";
     document.body.classList.remove("dash-islamic", "dash-western");
     document.body.classList.add(state.category === "western" ? "dash-western" : "dash-islamic");
 
-    try {
-      state.profile = await window.API.get("/madrasa/profile");
-    } catch (e) {
-      toast("Could not load institution profile.", "error");
+    // Super admins have no tenant, so the institution profile endpoint does
+    // not apply to them (and would 403). Only fetch it for tenant admins.
+    if (!state.superAdmin) {
+      try {
+        state.profile = await window.API.get("/madrasa/profile");
+      } catch (e) {
+        toast("Could not load institution profile.", "error");
+      }
     }
 
-    window.addEventListener("hashchange", () => { state.route = currentRoute(); renderApp(root); });
-    state.route = currentRoute();
+    window.addEventListener("hashchange", () => { state.route = normalizeRoute(currentRoute()); renderApp(root); });
+    state.route = normalizeRoute(currentRoute());
     renderApp(root);
+  }
+
+  /** The super admin's "dashboard" is the platform overview, not a tenant. */
+  function normalizeRoute(route) {
+    if (state.superAdmin && (route === "dashboard" || route === "")) return "platform";
+    return route;
   }
 
   /* --------------------------------------------------------------------
@@ -338,6 +373,21 @@
      Shell (sidebar + header + routed content)
      -------------------------------------------------------------------- */
   function pageTitleFor(route) {
+    if (state.superAdmin) {
+      const smap = {
+        platform: "Platform Overview",
+        "platform/madaris": "Madrasas & Academies",
+        "platform/registrations": "Registrations",
+        "platform/plans": "Subscription Plans",
+        "platform/analytics": "Platform Analytics",
+        "platform/activity": "Activity Log",
+        "platform/backups": "Backups & Storage",
+        "platform/settings": "Platform Settings",
+      };
+      if (smap[route]) return smap[route];
+      if (route.startsWith("platform/madaris/")) return "Madrasa / Academy Detail";
+      return "Super Admin";
+    }
     const top = route.split("/")[0];
     const map = {
       dashboard: "Dashboard", institution: "My Institution", students: "Students",
@@ -350,7 +400,7 @@
 
   function renderApp(root) {
     const cat = state.category;
-    const schema = sidebarSchema(cat);
+    const schema = state.superAdmin ? superAdminSchema() : sidebarSchema(cat);
     const t = T();
     const m = (state.profile && state.profile.madrasa) || {};
     const verified = Number(m.verified) === 1;
@@ -364,8 +414,8 @@
             <div class="dash-brand">
               <span class="dash-brand-logo"><img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO"></span>
               <span class="dash-brand-words">
-                <strong>${esc(m.name_en || "BELLO")}</strong>
-                <small>${cat === "western" ? "Western Academy Admin" : "Islamic School Admin"}</small>
+                <strong>${state.superAdmin ? "BELLO" : esc(m.name_en || "BELLO")}</strong>
+                <small>${state.superAdmin ? "Super Admin" : (cat === "western" ? "Western Academy Admin" : "Islamic School Admin")}</small>
               </span>
             </div>
             <nav class="dash-nav" id="dashNav">${renderNav(schema)}</nav>
@@ -381,10 +431,12 @@
                 <div class="sub">Welcome, ${esc(state.me.user.fullName || state.me.user.username)}</div>
               </div>
               <div class="dash-header-spacer"></div>
-              <span class="dash-badge ${verified ? "verified" : "pending"}">${verified ? I.check + " Verified" : I.clock + " Pending Review"}</span>
+              ${state.superAdmin
+                ? `<span class="dash-badge verified">${I.shield} Super Admin</span>`
+                : `<span class="dash-badge ${verified ? "verified" : "pending"}">${verified ? I.check + " Verified" : I.clock + " Pending Review"}</span>`}
               <div class="dash-header-user">
                 <span class="dash-header-avatar">${esc(initials)}</span>
-                <span class="who"><strong>${esc(state.me.user.fullName || state.me.user.username)}</strong><small>${esc(m.name_en || "")}</small></span>
+                <span class="who"><strong>${esc(state.me.user.fullName || state.me.user.username)}</strong><small>${state.superAdmin ? "Platform Administrator" : esc(m.name_en || "")}</small></span>
               </div>
             </header>
             <main class="dash-content"><div class="dash-content-inner" id="dashContent"></div></main>
@@ -458,6 +510,7 @@
     content.innerHTML = `<div class="dash-coming-soon"><div class="icon">${I.clock}</div><h3>Loading…</h3></div>`;
     const route = state.route;
     try {
+      if (state.superAdmin) return await renderSuperRoute(content, route);
       if (route === "dashboard") return await pageDashboard(content);
       if (route === "institution/profile" || route === "institution/information") return await pageInstitutionProfile(content);
       if (route === "institution/website") return await pageWebsiteOverview(content);
@@ -1207,6 +1260,752 @@
         toast("Password updated.", "success");
         e.target.reset();
       } catch (err) { toast(err.message || "Could not update password.", "error"); }
+    });
+  }
+
+  /* ============================ SUPER ADMIN ============================== */
+  /* Every page below talks only to the /api/platform/* endpoints, which the
+     backend mounts behind requireSuperAdmin. The super admin has no tenant,
+     so none of these call the /api/madrasa or /api/students families. */
+
+  function catPill(cat) {
+    return cat === "western"
+      ? `<span class="dash-pill info">Western Academy</span>`
+      : `<span class="dash-pill warn">Islamic School</span>`;
+  }
+  function statusPill(status) {
+    const s = String(status || "").toLowerCase();
+    if (s === "active") return "ok";
+    if (s === "suspended") return "danger";
+    return "info";
+  }
+  function fmtLimit(n) {
+    return Number(n) < 0 ? "Unlimited" : String(n);
+  }
+  function shortLabel(label) {
+    const s = String(label || "");
+    let m = s.match(/^(\d{4})-(\d{2})$/);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, 1).toLocaleDateString("en-GB", { month: "short" });
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return Number(m[3]);
+    return s;
+  }
+  /** Hand-rolled bar chart over [{label, value}] — CSP forbids chart libs. */
+  function saBars(series, height) {
+    const vals = (series || []).map((s) => Number(s.value) || 0);
+    const max = Math.max(1, ...vals);
+    return `<div class="dash-bars" style="height:${height || 140}px;">
+      ${(series || []).map((s) => {
+        const v = Number(s.value) || 0;
+        return `<div class="dash-bar-col" title="${esc(s.label)}: ${v}">
+          <div class="dash-bar" style="height:${Math.max(4, Math.round((v / max) * 100))}px;"></div>
+          <div class="dash-bar-label">${esc(shortLabel(s.label))}</div>
+        </div>`;
+      }).join("")}
+    </div>`;
+  }
+  function planOptions(plans, selected) {
+    return (plans || []).map((p) => `<option value="${p.id}" ${Number(p.id) === Number(selected) ? "selected" : ""}>${esc(p.name || p.code)}</option>`).join("");
+  }
+
+  function openModal(title, bodyHtml) {
+    let wrap = document.querySelector(".dash-modal-backdrop");
+    if (wrap) wrap.remove();
+    wrap = document.createElement("div");
+    wrap.className = "dash-modal-backdrop";
+    wrap.innerHTML = `
+      <div class="dash-modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <div class="dash-modal-head"><h3>${esc(title)}</h3><button class="dash-modal-close" type="button" aria-label="Close">${I.close}</button></div>
+        <div class="dash-modal-body">${bodyHtml}</div>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener("click", (e) => { if (e.target === wrap) closeModal(); });
+    wrap.querySelector(".dash-modal-close").addEventListener("click", closeModal);
+    return wrap;
+  }
+  function closeModal() {
+    const w = document.querySelector(".dash-modal-backdrop");
+    if (w) w.remove();
+  }
+
+  async function renderSuperRoute(content, route) {
+    if (route === "platform" || route === "dashboard") return await pageSuperOverview(content);
+    if (route === "platform/madaris") return await pageSuperMadaris(content);
+    if (route.startsWith("platform/madaris/")) return await pageSuperMadarisDetail(content, decodeURIComponent(route.slice("platform/madaris/".length)));
+    if (route === "platform/registrations") return await pageSuperRegistrations(content);
+    if (route === "platform/plans") return await pageSuperPlans(content);
+    if (route === "platform/analytics") return await pageSuperAnalytics(content);
+    if (route === "platform/activity") return await pageSuperActivity(content);
+    if (route === "platform/backups") return await pageSuperBackups(content);
+    if (route === "platform/settings") return await pageSuperSettings(content);
+    return pageComingSoon(content, "Platform", route);
+  }
+
+  /* ------------------------- Overview ---------------------------- */
+  async function pageSuperOverview(content) {
+    let data = null;
+    let regs = { registrations: [] };
+    try {
+      [data, regs] = await Promise.all([
+        window.API.get("/platform/stats"),
+        window.API.get("/platform/registrations?status=Pending").catch(() => ({ registrations: [] })),
+      ]);
+    } catch (e) {
+      data = null;
+    }
+    const pendingRegs = (regs.registrations || []).length;
+    const act = (data && data.recentActivity) || [];
+    const planMax = Math.max(1, ...((data && data.byPlan) || []).map((p) => Number(p.n) || 0));
+
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Platform Overview</h2><p>Every institution on BELLO, at a glance.</p></div>
+        <button class="dash-btn dash-btn-primary" data-nav-route="platform/madaris">${I.plus} Add Madrasa / Academy</button></div>
+
+      ${data ? `<div class="dash-stats-grid">
+        ${statCard("building", `${Number(data.activeMadaris)}<small style="font-size:.7em;color:var(--d-muted)"> / ${Number(data.madaris)}</small>`, "Active Madrasas / Total")}
+        ${statCard("users", data.students, "Students")}
+        ${statCard("teacher", data.teachers, "Teachers")}
+        ${statCard("shield", data.madrasaAdmins, "Institution Admins")}
+        ${statCard("mail", data.parents, "Parents")}
+        ${statCard("admissions", pendingRegs, "Registrations Pending", true)}
+      </div>` : `<div class="dash-coming-soon"><div class="icon">${I.close}</div><h3>Could not load stats</h3></div>`}
+
+      <div class="dash-grid-2">
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Institutions by Plan</h3><span class="hint">Tenant mix</span></div>
+          <div class="dash-card-pad">
+            ${data && data.byPlan && data.byPlan.length
+              ? `<div class="dash-bars" style="height:150px;">
+                  ${data.byPlan.map((p) => `<div class="dash-bar-col" title="${esc(p.code)}: ${Number(p.n) || 0}">
+                    <div class="dash-bar" style="height:${Math.max(4, Math.round(((Number(p.n) || 0) / planMax) * 100))}px;"></div>
+                    <div class="dash-bar-label">${esc(p.code)}</div>
+                  </div>`).join("")}
+                </div>`
+              : `<div class="dash-coming-soon"><p>No plans configured.</p></div>`}
+          </div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Recent Activity</h3><a class="dash-btn dash-btn-ghost dash-btn-sm" data-nav-route="platform/activity">View all</a></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Action</th><th>Who</th></tr></thead>
+            <tbody>
+              ${act.length ? act.slice(0, 8).map((a) => `<tr><td>${esc(a.action)}</td><td>${esc(a.username || "—")}${a.madrasa_slug ? ` · ${esc(a.madrasa_slug)}` : ""}</td></tr>`).join("")
+                : `<tr class="dash-empty-row"><td colspan="2">No activity yet.</td></tr>`}
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    `;
+    content.querySelectorAll("[data-nav-route]").forEach((el) => el.addEventListener("click", (e) => { e.preventDefault(); go(el.getAttribute("data-nav-route")); }));
+  }
+
+  /* ------------------------- Madrasas list ---------------------------- */
+  async function pageSuperMadaris(content) {
+    const [data, plansData] = await Promise.all([
+      window.API.get("/platform/madaris"),
+      window.API.get("/platform/plans").catch(() => ({ plans: [] })),
+    ]);
+    const plans = plansData.plans || [];
+    const rows = data.madaris || [];
+
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Madrasas & Academies</h2><p>${rows.length} institution(s) on the platform.</p></div>
+        <button class="dash-btn dash-btn-primary" id="saAddMadrasa">${I.plus} Add Madrasa / Academy</button></div>
+
+      <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table">
+        <thead><tr><th>Institution</th><th>Category</th><th>Plan</th><th>Students</th><th>Teachers</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map((m) => `
+            <tr>
+              <td><strong>${esc(m.name_en)}</strong><div style="font-size:.74rem;color:var(--d-muted);">/${esc(m.slug)}</div></td>
+              <td>${catPill(m.category)}</td>
+              <td><select data-plan="${m.id}" aria-label="Plan for ${esc(m.name_en)}">${planOptions(plans, m.plan_id)}</select></td>
+              <td>${Number(m.student_count) || 0}</td>
+              <td>${Number(m.teacher_count) || 0}</td>
+              <td><span class="dash-pill ${statusPill(m.status)}">${esc(m.status)}</span></td>
+              <td style="white-space:nowrap;text-align:right;">
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" data-view="${m.id}">${I.external} View</button>
+                <button class="dash-btn dash-btn-sm ${m.status === "active" ? "dash-btn-danger" : "dash-btn-primary"}" data-status="${m.id}" data-to="${m.status === "active" ? "suspended" : "active"}">${m.status === "active" ? "Suspend" : "Activate"}</button>
+              </td>
+            </tr>`).join("")
+            : `<tr class="dash-empty-row"><td colspan="7">No institutions yet — add the first one.</td></tr>`}
+        </tbody>
+      </table></div></div>
+    `;
+
+    content.querySelector("#saAddMadrasa").addEventListener("click", () => renderAddMadrasaModal(plans, content));
+    content.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => go("platform/madaris/" + b.getAttribute("data-view"))));
+    content.querySelectorAll("[data-status]").forEach((b) => b.addEventListener("click", async () => {
+      const id = b.getAttribute("data-status");
+      const to = b.getAttribute("data-to");
+      b.disabled = true;
+      try {
+        await window.API.patch("/platform/madaris/" + id, { status: to });
+        toast(to === "suspended" ? "Institution suspended." : "Institution activated.", "success");
+        pageSuperMadaris(content);
+      } catch (err) { toast(err.message || "Could not update status.", "error"); b.disabled = false; }
+    }));
+    content.querySelectorAll("[data-plan]").forEach((sel) => sel.addEventListener("change", async () => {
+      const id = sel.getAttribute("data-plan");
+      try {
+        await window.API.patch("/platform/madaris/" + id, { plan_id: Number(sel.value) });
+        toast("Plan updated.", "success");
+      } catch (err) { toast(err.message || "Could not update plan.", "error"); pageSuperMadaris(content); }
+    }));
+  }
+
+  function renderAddMadrasaModal(plans, content) {
+    const wrap = openModal("Add Madrasa / Academy", `
+      <form id="saMadrasaForm">
+        <div class="dash-form-grid">
+          <div class="dash-field" style="grid-column:1/-1;"><label>Category</label>
+            <select name="category"><option value="islamic">Islamic School</option><option value="western">Western Academy</option></select>
+          </div>
+          <div class="dash-field"><label>English Name <span class="req">*</span></label><input name="name_en" required></div>
+          <div class="dash-field"><label>Arabic Name</label><input name="name_ar"></div>
+          <div class="dash-field"><label>Slug <span class="req">*</span></label><input name="slug" placeholder="noor-ul-islam" required></div>
+          <div class="dash-field"><label>Plan</label><select name="plan_id">${planOptions(plans, "")}</select></div>
+          <div class="dash-field"><label>City</label><input name="city"></div>
+          <div class="dash-field"><label>State</label><input name="state_name"></div>
+          <div class="dash-field"><label>Phone</label><input name="phone"></div>
+          <div class="dash-field"><label>Email</label><input name="email" type="email"></div>
+        </div>
+        <div style="margin:16px 0 4px;font-size:.8rem;font-weight:800;color:var(--d-text);">Administrator account (optional but recommended)</div>
+        <div class="dash-form-grid">
+          <div class="dash-field"><label>Admin Username</label><input name="admin_username" autocomplete="off"></div>
+          <div class="dash-field"><label>Admin Password</label><input name="admin_password" type="password" autocomplete="new-password" minlength="8"></div>
+          <div class="dash-field"><label>Admin Full Name</label><input name="admin_full_name"></div>
+        </div>
+        <div class="dash-modal-foot" style="margin:18px -22px -20px;border-top:1px solid var(--d-line);">
+          <button class="dash-btn dash-btn-ghost" type="button" id="saMadrasaCancel">Cancel</button>
+          <button class="dash-btn dash-btn-primary" type="submit">${I.check} Create Institution</button>
+        </div>
+      </form>`);
+    wrap.querySelector("#saMadrasaCancel").addEventListener("click", closeModal);
+    wrap.querySelector("#saMadrasaForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = {};
+      ["category", "name_en", "name_ar", "slug", "plan_id", "city", "state_name", "phone", "email", "admin_username", "admin_password", "admin_full_name"].forEach((k) => { const v = fd.get(k); if (v) body[k] = v; });
+      body.plan_id = Number(body.plan_id || 1);
+      const btn = e.target.querySelector("button[type=submit]");
+      btn.disabled = true; btn.textContent = "Creating…";
+      try {
+        const r = await window.API.post("/platform/madaris", body);
+        toast(r.adminCreated ? "Institution created with an administrator account." : "Institution created (no admin account).", "success");
+        closeModal();
+        pageSuperMadaris(content);
+      } catch (err) {
+        toast(err.message || "Could not create institution.", "error");
+        btn.disabled = false; btn.textContent = "Create Institution";
+      }
+    });
+  }
+
+  /* ------------------------- Madrasa detail ---------------------------- */
+  async function pageSuperMadarisDetail(content, id) {
+    const num = Number(id);
+    let data;
+    try { data = await window.API.get("/platform/madaris/" + num); }
+    catch (e) {
+      content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Madrasa / Academy</h2></div></div>
+        <div class="dash-card"><div class="dash-coming-soon"><div class="icon">${I.close}</div><h3>Not found</h3><p>${esc(e.message || "This institution does not exist.")}</p></div></div>`;
+      return;
+    }
+    const [plansData] = await Promise.all([window.API.get("/platform/plans").catch(() => ({ plans: [] }))]);
+    const m = data.madrasa;
+    const admin = data.admin;
+    const plans = plansData.plans || [];
+
+    content.innerHTML = `
+      <div class="dash-page-head">
+        <div><div class="dash-crumb"><a href="#/app/platform/madaris">Platform / Madrasas & Academies</a></div><h2>${esc(m.name_en)}</h2>
+          <p>/${esc(m.slug)} · ${catPill(m.category)} · <span class="dash-pill ${statusPill(m.status)}">${esc(m.status)}</span></p></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="dash-btn dash-btn-ghost" data-nav-route="platform/madaris">${I.chev} Back</button>
+          <button class="dash-btn ${m.status === "active" ? "dash-btn-danger" : "dash-btn-primary"}" id="saToggleStatus">${m.status === "active" ? "Suspend" : "Activate"}</button>
+        </div>
+      </div>
+
+      <div class="dash-grid-2">
+        <div class="dash-card"><div class="dash-card-head"><h3>Profile</h3></div><div class="dash-card-pad">
+          <form id="saEditForm">
+            <div class="dash-form-grid">
+              <div class="dash-field"><label>Name (English)</label><input name="name_en" value="${esc(m.name_en)}"></div>
+              <div class="dash-field"><label>Name (Arabic)</label><input name="name_ar" value="${esc(m.name_ar || "")}"></div>
+              <div class="dash-field"><label>Motto / Tagline</label><input name="motto_en" value="${esc(m.motto_en || "")}"></div>
+              <div class="dash-field"><label>City</label><input name="city" value="${esc(m.city || "")}"></div>
+              <div class="dash-field"><label>State</label><input name="state_name" value="${esc(m.state_name || "")}"></div>
+              <div class="dash-field"><label>Phone</label><input name="phone" value="${esc(m.phone || "")}"></div>
+              <div class="dash-field"><label>Email</label><input name="email" value="${esc(m.email || "")}"></div>
+              <div class="dash-field"><label>Website</label><input name="website" value="${esc(m.website || "")}"></div>
+              <div class="dash-field"><label>Plan</label><select name="plan_id">${planOptions(plans, m.plan_id)}</select></div>
+              <div class="dash-field" style="grid-column:1/-1;"><label>Address</label><input name="address" value="${esc(m.address || "")}"></div>
+              <div class="dash-field" style="grid-column:1/-1;"><label>Description (English)</label><textarea name="description_en">${esc(m.description_en || "")}</textarea></div>
+            </div>
+            <div style="margin:16px 0 0;display:flex;gap:12px;flex-wrap:wrap;">
+              <label class="dash-checkbox-row"><input type="checkbox" name="public_listing" ${Number(m.public_listing) ? "checked" : ""}> Public directory listing</label>
+              <label class="dash-checkbox-row"><input type="checkbox" name="public_results" ${Number(m.public_results) ? "checked" : ""}> Public result checking</label>
+              <label class="dash-checkbox-row"><input type="checkbox" name="public_admissions" ${Number(m.public_admissions) ? "checked" : ""}> Online admissions</label>
+            </div>
+            <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px;">${I.check} Save Changes</button>
+          </form>
+        </div></div>
+
+        <div class="dash-stack">
+          <div class="dash-card">
+            <div class="dash-card-head"><h3>Administrator Account</h3></div>
+            <div class="dash-card-pad">
+              ${admin ? `<p style="margin:0 0 12px;font-size:.85rem;color:var(--d-muted);">Current: <strong>${esc(admin.username)}</strong>${admin.full_name ? ` · ${esc(admin.full_name)}` : ""}</p>`
+                        : `<p style="margin:0 0 12px;font-size:.85rem;color:var(--d-warn);">No administrator account yet.</p>`}
+              <form id="saAdminForm">
+                <div class="dash-form-grid">
+                  <div class="dash-field"><label>Username</label><input name="username" value="${esc(admin ? admin.username : "")}" required></div>
+                  <div class="dash-field"><label>New Password</label><input name="password" type="password" minlength="8" required></div>
+                  <div class="dash-field"><label>Full Name</label><input name="full_name" value="${esc(admin ? admin.full_name || "" : "")}"></div>
+                  <div class="dash-field"><label>Email</label><input name="email" value="${esc(admin ? admin.email || "" : "")}"></div>
+                  <div class="dash-field"><label>Phone</label><input name="phone" value="${esc(admin ? admin.phone || "" : "")}"></div>
+                </div>
+                <button class="dash-btn dash-btn-ghost" type="submit" style="margin-top:14px;">${I.refresh} ${admin ? "Reset Admin Credentials" : "Create Admin Account"}</button>
+              </form>
+            </div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-head"><h3>Facts</h3></div>
+            <div class="dash-card-pad" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:.85rem;">
+              <div><small class="dash-field-hint">Students</small><div style="font-weight:800;">${Number(m.student_count) || 0}</div></div>
+              <div><small class="dash-field-hint">Teachers</small><div style="font-weight:800;">${Number(m.teacher_count) || 0}</div></div>
+              <div><small class="dash-field-hint">Plan</small><div style="font-weight:800;">${esc(m.plan_code || "—")}</div></div>
+              <div><small class="dash-field-hint">Created</small><div style="font-weight:800;">${fmtDate(m.created_at)}</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    content.querySelector("#saToggleStatus").addEventListener("click", async () => {
+      try {
+        await window.API.patch("/platform/madaris/" + num, { status: m.status === "active" ? "suspended" : "active" });
+        toast("Status updated.", "success");
+        pageSuperMadarisDetail(content, id);
+      } catch (err) { toast(err.message || "Could not update status.", "error"); }
+    });
+    content.querySelectorAll("[data-nav-route]").forEach((el) => el.addEventListener("click", (e) => { e.preventDefault(); go(el.getAttribute("data-nav-route")); }));
+    content.querySelector("#saEditForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = { plan_id: Number(fd.get("plan_id")) };
+      ["name_en", "name_ar", "motto_en", "city", "state_name", "phone", "email", "website", "address", "description_en"].forEach((k) => { const v = fd.get(k); if (v) body[k] = v; });
+      ["public_listing", "public_results", "public_admissions"].forEach((k) => { body[k] = fd.get(k) === "on"; });
+      try { await window.API.patch("/platform/madaris/" + num, body); toast("Saved.", "success"); pageSuperMadarisDetail(content, id); }
+      catch (err) { toast(err.message || "Could not save.", "error"); }
+    });
+    content.querySelector("#saAdminForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        await window.API.post("/platform/madaris/" + num + "/admin", {
+          username: fd.get("username"), password: fd.get("password"),
+          full_name: fd.get("full_name"), email: fd.get("email"), phone: fd.get("phone"),
+        });
+        toast("Administrator credentials saved.", "success");
+        pageSuperMadarisDetail(content, id);
+      } catch (err) { toast(err.message || "Could not save administrator.", "error"); }
+    });
+  }
+
+  /* ------------------------- Registrations ---------------------------- */
+  async function pageSuperRegistrations(content) {
+    const statusFilter = content.getAttribute("data-sa-reg-status") || "";
+    const q = statusFilter ? ("?status=" + encodeURIComponent(statusFilter)) : "";
+    const data = await window.API.get("/platform/registrations" + q).catch(() => ({ registrations: [] }));
+    const rows = data.registrations || [];
+
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Registrations</h2><p>Public sign-ups awaiting review — approving promotes an application into a live institution with its own admin login.</p></div></div>
+
+      <div class="dash-card" style="margin-bottom:16px;"><div class="dash-card-pad" style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${[["", "All"], ["Pending", "Pending"], ["Approved", "Approved"], ["Rejected", "Rejected"]].map(([v, label]) =>
+          `<button class="dash-btn dash-btn-sm ${statusFilter === v ? "dash-btn-primary" : "dash-btn-ghost"}" data-sa-reg-filter="${v}">${label}</button>`).join("")}
+      </div></div>
+
+      <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table">
+        <thead><tr><th>Institution</th><th>Category</th><th>Type</th><th>Location</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map((r) => `
+            <tr>
+              <td><strong>${esc(r.name)}</strong>${r.adminFullName ? `<div style="font-size:.74rem;color:var(--d-muted);">${esc(r.adminFullName)}</div>` : ""}</td>
+              <td>${catPill(r.category)}</td>
+              <td>${esc(r.institutionType || "—")}</td>
+              <td>${esc(r.city || "—")}</td>
+              <td>${fmtDate(r.submittedAt)}</td>
+              <td><span class="dash-pill ${pillFor(r.status)}">${esc(r.status)}</span></td>
+              <td style="white-space:nowrap;text-align:right;">
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" data-reg-view="${r.id}">${I.external} Review</button>
+                ${r.status === "Pending" ? `<button class="dash-btn dash-btn-sm dash-btn-primary" data-reg-approve="${r.id}">${I.check} Approve</button>
+                <button class="dash-btn dash-btn-sm dash-btn-danger" data-reg-reject="${r.id}">Reject</button>` : ""}
+              </td>
+            </tr>`).join("")
+            : `<tr class="dash-empty-row"><td colspan="7">No registrations${statusFilter ? " in this state" : ""} yet.</td></tr>`}
+        </tbody>
+      </table></div></div>
+    `;
+
+    content.querySelectorAll("[data-sa-reg-filter]").forEach((b) => b.addEventListener("click", async () => {
+      content.setAttribute("data-sa-reg-status", b.getAttribute("data-sa-reg-filter"));
+      await pageSuperRegistrations(content);
+    }));
+    content.querySelectorAll("[data-reg-view]").forEach((b) => b.addEventListener("click", () => openRegistrationModal(b.getAttribute("data-reg-view"), content)));
+    content.querySelectorAll("[data-reg-approve]").forEach((b) => b.addEventListener("click", () => openRegistrationModal(b.getAttribute("data-reg-approve"), content, "approve")));
+    content.querySelectorAll("[data-reg-reject]").forEach((b) => b.addEventListener("click", () => openRegistrationModal(b.getAttribute("data-reg-reject"), content, "reject")));
+  }
+
+  async function openRegistrationModal(id, content, focusAction) {
+    const detail = await window.API.get("/platform/registrations/" + id).catch(() => null);
+    const plansData = await window.API.get("/platform/plans").catch(() => ({ plans: [] }));
+    const raw = detail ? detail.registration : null;
+    if (!raw) { toast("Could not load this registration.", "error"); return; }
+    // The detail endpoint returns the raw DB row (snake_case) plus category.
+    const r = {
+      registrationId: raw.registration_id,
+      status: raw.status,
+      name: raw.name,
+      officialName: raw.official_name,
+      description: raw.description,
+      institutionType: raw.institution_type,
+      stateName: raw.state_name,
+      city: raw.city,
+      address: raw.address,
+      phone: raw.phone,
+      email: raw.email,
+      website: raw.website,
+      adminFullName: raw.admin_full_name,
+      adminEmail: raw.admin_email,
+      adminPhone: raw.admin_phone,
+      category: raw.category,
+      subjects: raw.subjects || [],
+      ageGroups: raw.ageGroups || [],
+    };
+    const subjects = r.subjects;
+    const ageGroups = r.ageGroups;
+    const isPending = r.status === "Pending";
+
+    openModal(`Registration ${r.registrationId || id}`, `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;font-size:.85rem;">
+        <div><small class="dash-field-hint">Institution</small><div><strong>${esc(r.name)}</strong></div></div>
+        <div><small class="dash-field-hint">Official Name</small><div>${esc(r.officialName || "—")}</div></div>
+        <div><small class="dash-field-hint">Category</small><div>${catPill(r.category)} ${esc(r.institutionType || "")}</div></div>
+        <div><small class="dash-field-hint">Location</small><div>${esc([r.city, r.stateName].filter(Boolean).join(", ") || "—")}</div></div>
+        <div><small class="dash-field-hint">Contact</small><div>${esc(r.adminEmail || r.email || "—")}<br>${esc(r.adminPhone || r.phone || "—")}</div></div>
+        <div><small class="dash-field-hint">Status</small><div><span class="dash-pill ${pillFor(r.status)}">${esc(r.status)}</span></div></div>
+        <div style="grid-column:1/-1;"><small class="dash-field-hint">Description</small><div>${esc(r.description || "—")}</div></div>
+        <div style="grid-column:1/-1;"><small class="dash-field-hint">Subjects / programs</small><div>${subjects.length ? subjects.map((s) => `<span class="dash-pill muted">${esc(typeof s === "string" ? s : s.name || s.label || JSON.stringify(s))}</span>`).join(" ") : "—"}</div></div>
+        <div style="grid-column:1/-1;"><small class="dash-field-hint">Age groups</small><div>${ageGroups.length ? ageGroups.map((a) => esc(typeof a === "string" ? a : a.label || JSON.stringify(a))).join(", ") : "—"}</div></div>
+      </div>
+
+      ${isPending ? `
+        <div id="saRegActions" style="margin-top:18px;border-top:1px solid var(--d-line);padding-top:16px;">
+          <div class="dash-form-grid" style="margin-bottom:14px;">
+            <div class="dash-field"><label>Slug (optional)</label><input id="saRegSlug" placeholder="Leave blank to derive from the name"></div>
+            <div class="dash-field"><label>Plan</label><select id="saRegPlan">${planOptions(plansData.plans || [], "")}</select></div>
+          </div>
+          <div class="dash-field" style="margin-bottom:14px;"><label>Rejection note</label><textarea id="saRegNote" placeholder="Required only when rejecting"></textarea></div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="dash-btn dash-btn-danger" id="saRegRejectBtn">Reject</button>
+            <button class="dash-btn dash-btn-primary" id="saRegApproveBtn">${I.check} Approve &amp; Create Institution</button>
+          </div>
+        </div>` : ""}
+    `);
+
+    if (!isPending) return;
+    const slug = document.getElementById("saRegSlug");
+    const plan = document.getElementById("saRegPlan");
+    const note = document.getElementById("saRegNote");
+    document.getElementById("saRegApproveBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("saRegApproveBtn");
+      btn.disabled = true; btn.textContent = "Approving…";
+      try {
+        const body = { plan_id: Number(plan.value || 1) };
+        if (slug.value.trim()) body.slug = slug.value.trim();
+        const res = await window.API.post("/platform/registrations/" + id + "/approve", body);
+        toast(`Approved — ${res.slug} is live (admin: ${res.username}).`, "success");
+        closeModal();
+        pageSuperRegistrations(content);
+      } catch (err) { toast(err.message || "Could not approve.", "error"); btn.disabled = false; btn.textContent = "Approve & Create Institution"; }
+    });
+    document.getElementById("saRegRejectBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("saRegRejectBtn");
+      btn.disabled = true; btn.textContent = "Rejecting…";
+      try {
+        await window.API.post("/platform/registrations/" + id + "/reject", { note: note.value.trim() });
+        toast("Registration rejected.", "success");
+        closeModal();
+        pageSuperRegistrations(content);
+      } catch (err) { toast(err.message || "Could not reject.", "error"); btn.disabled = false; btn.textContent = "Reject"; }
+    });
+    if (focusAction === "approve") setTimeout(() => { const b = document.getElementById("saRegApproveBtn"); if (b) b.focus(); }, 0);
+    if (focusAction === "reject") setTimeout(() => { const b = document.getElementById("saRegRejectBtn"); if (b) b.focus(); }, 0);
+  }
+
+  /* ------------------------- Plans ---------------------------- */
+  async function pageSuperPlans(content) {
+    const data = await window.API.get("/platform/plans").catch(() => ({ plans: [] }));
+    const plans = data.plans || [];
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Subscription Plans</h2><p>Limits and pricing applied to institutions. −1 means unlimited.</p></div>
+        <button class="dash-btn dash-btn-primary" id="saAddPlan">${I.plus} New Plan</button></div>
+      <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table">
+        <thead><tr><th>Code</th><th>Name</th><th>Price / month</th><th>Student limit</th><th>Teacher limit</th><th>Madrasas</th><th></th></tr></thead>
+        <tbody>
+          ${plans.length ? plans.map((p) => `
+            <tr>
+              <td><strong>${esc(p.code)}</strong></td>
+              <td>${esc(p.name)}${p.name_ar ? ` · <span lang="ar" dir="rtl">${esc(p.name_ar)}</span>` : ""}</td>
+              <td>${fmtMoney(p.price_ngn)}</td>
+              <td>${fmtLimit(p.student_limit)}</td>
+              <td>${fmtLimit(p.teacher_limit)}</td>
+              <td>${Number(p.madaris_count) || 0}</td>
+              <td style="text-align:right;"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-plan-edit="${p.id}">${I.edit} Edit</button></td>
+            </tr>`).join("")
+            : `<tr class="dash-empty-row"><td colspan="7">No plans yet.</td></tr>`}
+        </tbody>
+      </table></div></div>
+    `;
+    content.querySelector("#saAddPlan").addEventListener("click", () => openPlanModal(null, content, plans));
+    content.querySelectorAll("[data-plan-edit]").forEach((b) => b.addEventListener("click", () => {
+      const p = plans.find((x) => String(x.id) === b.getAttribute("data-plan-edit"));
+      openPlanModal(p, content, plans);
+    }));
+  }
+
+  function openPlanModal(plan, content, plans) {
+    const isNew = !plan;
+    const features = (plan && plan.features && typeof plan.features === "object") ? JSON.stringify(plan.features) : "";
+    const wrap = openModal(isNew ? "New Plan" : "Edit Plan", `
+      <form id="saPlanForm">
+        <div class="dash-form-grid">
+          <div class="dash-field"><label>Code <span class="req">*</span></label><input name="code" value="${esc(plan ? plan.code : "")}" ${isNew ? "" : "readonly"} required></div>
+          <div class="dash-field"><label>Name <span class="req">*</span></label><input name="name" value="${esc(plan ? plan.name : "")}" required></div>
+          <div class="dash-field"><label>Name (Arabic)</label><input name="name_ar" value="${esc(plan ? plan.name_ar || "" : "")}"></div>
+          <div class="dash-field"><label>Price (₦ / month)</label><input name="price_ngn" type="number" min="0" step="0.01" value="${plan ? Number(plan.price_ngn) : 0}"></div>
+          <div class="dash-field"><label>Student limit</label><input name="student_limit" type="number" value="${plan ? Number(plan.student_limit) : -1}"></div>
+          <div class="dash-field"><label>Teacher limit</label><input name="teacher_limit" type="number" value="${plan ? Number(plan.teacher_limit) : -1}"></div>
+          <div class="dash-field"><label>Sort order</label><input name="sort_order" type="number" value="${plan ? Number(plan.sort_order) : 99}"></div>
+          <div class="dash-field" style="grid-column:1/-1;"><label>Features (JSON)</label><textarea name="features" placeholder='{"portal": true, "exports": true}'>${esc(features)}</textarea></div>
+        </div>
+        <div class="dash-modal-foot" style="margin:18px -22px -20px;border-top:1px solid var(--d-line);">
+          <button class="dash-btn dash-btn-ghost" type="button" id="saPlanCancel">Cancel</button>
+          <button class="dash-btn dash-btn-primary" type="submit">${I.check} ${isNew ? "Create Plan" : "Save Plan"}</button>
+        </div>
+      </form>`);
+    wrap.querySelector("#saPlanCancel").addEventListener("click", closeModal);
+    wrap.querySelector("#saPlanForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      let features = {};
+      const rawFeatures = String(fd.get("features") || "").trim();
+      if (rawFeatures) { try { features = JSON.parse(rawFeatures); } catch (err) { toast("Features must be valid JSON (or blank).", "error"); return; } }
+      const body = {
+        code: fd.get("code"), name: fd.get("name"), name_ar: fd.get("name_ar"),
+        price_ngn: Number(fd.get("price_ngn") || 0),
+        student_limit: Number(fd.get("student_limit") === "" ? -1 : fd.get("student_limit")),
+        teacher_limit: Number(fd.get("teacher_limit") === "" ? -1 : fd.get("teacher_limit")),
+        sort_order: Number(fd.get("sort_order") || 0),
+        features,
+      };
+      try {
+        if (isNew) await window.API.post("/platform/plans", body);
+        else await window.API.patch("/platform/plans/" + plan.id, body);
+        toast(isNew ? "Plan created." : "Plan saved.", "success");
+        closeModal();
+        pageSuperPlans(content);
+      } catch (err) { toast(err.message || "Could not save plan.", "error"); }
+    });
+  }
+
+  /* ------------------------- Analytics ---------------------------- */
+  async function pageSuperAnalytics(content) {
+    const data = await window.API.get("/platform/analytics?months=12").catch(() => null);
+    const a = data ? data.analytics : null;
+    if (!a) {
+      content.innerHTML = `<div class="dash-card"><div class="dash-coming-soon"><div class="icon">${I.close}</div><h3>Could not load analytics</h3></div></div>`;
+      return;
+    }
+    const t = a.totals;
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Platform Analytics</h2><p>Platform-wide aggregates — no student-level data.</p></div></div>
+
+      <div class="dash-stats-grid">
+        ${statCard("building", t.madaris, "Institutions", true)}
+        ${statCard("users", t.students, "Students")}
+        ${statCard("teacher", t.teachers, "Teachers")}
+        ${statCard("mail", t.parents, "Parents")}
+        ${statCard("shield", t.madrasaAdmins, "Institution Admins")}
+        ${statCard("money", fmtMoney(t.feesCollected), "Fees Collected")}
+      </div>
+
+      <div class="dash-grid-2" style="margin-bottom:18px;">
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Institution Growth</h3><span class="hint">New institutions / month</span></div>
+          <div class="dash-card-pad">${saBars(a.madrasaTrend, 150)}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Enrolment Growth</h3><span class="hint">New students / month</span></div>
+          <div class="dash-card-pad">${saBars(a.studentTrend, 150)}</div>
+        </div>
+      </div>
+
+      <div class="dash-grid-2" style="margin-bottom:18px;">
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Top Institutions</h3><span class="hint">By enrolment</span></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Institution</th><th>Students</th><th>Fees</th><th>Status</th></tr></thead>
+            <tbody>
+              ${a.topMadaris.length ? a.topMadaris.slice(0, 10).map((m) => `<tr><td>${esc(m.label)}</td><td>${m.students}</td><td>${fmtMoney(m.fees)}</td><td><span class="dash-pill ${statusPill(m.status)}">${esc(m.status)}</span></td></tr>`).join("")
+                : `<tr class="dash-empty-row"><td colspan="4">No institutions yet.</td></tr>`}
+            </tbody>
+          </table></div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Plan Mix</h3></div>
+          <div class="dash-card-pad">
+            ${a.byPlan.length ? a.byPlan.map((p) => `<div style="margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;"><span>${esc(p.label)}</span><strong>${p.madaris} · ${p.students} students</strong></div>
+                <div style="height:8px;border-radius:6px;background:var(--d-surface-2);overflow:hidden;"><div style="height:100%;width:${Math.round((p.madaris / Math.max(1, t.madaris)) * 100)}%;background:var(--d-primary-700);"></div></div>
+              </div>`).join("") : `<div class="dash-coming-soon"><p>No plans.</p></div>`}
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-grid-2">
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Fee Collections</h3><span class="hint">₦ / month</span></div>
+          <div class="dash-card-pad">${saBars(a.feeTrend, 150)}</div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>Top Actions</h3><span class="hint">All time</span></div>
+          <div class="dash-card-pad">
+            ${a.activity && a.activity.topActions.length ? a.activity.topActions.map((x) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--d-line-soft);font-size:.84rem;"><span>${esc(x.action)}</span><strong>${x.value}</strong></div>`).join("") : `<div class="dash-coming-soon"><p>No activity.</p></div>`}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ------------------------- Activity log ---------------------------- */
+  async function pageSuperActivity(content) {
+    const data = await window.API.get("/platform/activity?limit=200").catch(() => ({ activity: [] }));
+    const rows = data.activity || [];
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Activity Log</h2><p>The last ${rows.length} events across the whole platform.</p></div>
+        <button class="dash-btn dash-btn-ghost" id="saActivityRefresh">${I.refresh} Refresh</button></div>
+      <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table">
+        <thead><tr><th>When</th><th>Action</th><th>User</th><th>Institution</th><th>Entity</th><th>IP</th></tr></thead>
+        <tbody>
+          ${rows.length ? rows.map((a) => `<tr>
+              <td>${fmtDate(a.created_at)}</td>
+              <td><strong>${esc(a.action)}</strong></td>
+              <td>${esc(a.username || "—")}</td>
+              <td>${a.madrasa_name ? `<a href="#/app/platform/madaris/${a.madrasa_id}" style="font-weight:700;">${esc(a.madrasa_name)}</a>` : "—"}</td>
+              <td>${esc(a.entity || "—")}${a.entity_id ? ` #${esc(a.entity_id)}` : ""}</td>
+              <td style="font-family:ui-monospace,monospace;font-size:.76rem;">${esc(a.ip || "—")}</td>
+            </tr>`).join("")
+            : `<tr class="dash-empty-row"><td colspan="6">No activity recorded yet.</td></tr>`}
+        </tbody>
+      </table></div></div>
+    `;
+    content.querySelector("#saActivityRefresh").addEventListener("click", () => pageSuperActivity(content));
+  }
+
+  /* ------------------------- Backups & storage ---------------------------- */
+  async function pageSuperBackups(content) {
+    const [bk, diag] = await Promise.all([
+      window.API.get("/platform/backups").catch(() => null),
+      window.API.get("/platform/diagnostics").catch(() => null),
+    ]);
+    const p = diag ? diag.persistence : null;
+    const level = p ? p.level : "unknown";
+    const levelLabel = level === "critical" ? "Critical" : level === "warn" ? "Warning" : level === "ok" ? "Healthy" : "Unknown";
+    const backups = (bk && bk.backups) || [];
+
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Backups & Storage</h2><p>Snapshots of the whole database, plus a plain-language verdict on whether this host keeps its data.</p></div>
+        <button class="dash-btn dash-btn-primary" id="saBackupNow">${I.plus} Create Snapshot Now</button></div>
+
+      ${p ? `<div class="dash-card" style="margin-bottom:16px;border-color:${level === "critical" ? "var(--d-danger)" : level === "warn" ? "var(--d-warn)" : "var(--d-line)"};">
+        <div class="dash-card-head"><h3>Storage Verdict</h3><span class="dash-pill ${level === "ok" ? "ok" : level === "critical" ? "danger" : "warn"}">${levelLabel}</span></div>
+        <div class="dash-card-pad">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;font-size:.84rem;margin-bottom:14px;">
+            <div><small class="dash-field-hint">Database</small><div style="font-weight:750;">${p.externalDatabase ? "External MySQL" : esc(p.databaseFile || "SQLite")}</div></div>
+            <div><small class="dash-field-hint">Data dir</small><div style="font-weight:750;">${esc(p.dataDir && p.dataDir.dir ? p.dataDir.dir : "—")}</div></div>
+            <div><small class="dash-field-hint">Madrasas now</small><div style="font-weight:750;">${p.counts ? p.counts.madaris : "—"}</div></div>
+            <div><small class="dash-field-hint">Backups kept</small><div style="font-weight:750;">${diag && diag.backups ? diag.backups.count : backups.length} · every ${diag && diag.backups ? diag.backups.intervalMinutes : 0} min</div></div>
+          </div>
+          ${(p.warnings && p.warnings.length) ? p.warnings.map((w) => `<div style="padding:10px 14px;border-radius:10px;background:var(--d-surface-2);margin-bottom:8px;font-size:.82rem;"><strong>${esc(w.code)}</strong> — ${esc(w.message)}</div>`).join("") : `<p style="margin:0;font-size:.84rem;color:var(--d-ok);font-weight:650;">${I.check} No storage warnings.</p>`}
+        </div>
+      </div>` : ""}
+
+      <div class="dash-card"><div class="dash-card-head"><h3>Snapshots</h3><span class="hint">Newest first</span></div>
+        <div class="dash-table-wrap"><table class="dash-table">
+          <thead><tr><th>Created</th><th>File</th><th>Size</th><th>Madrasas</th><th></th></tr></thead>
+          <tbody>
+            ${backups.length ? backups.map((b) => `<tr>
+                <td>${fmtDate(b.createdAt)}</td>
+                <td style="font-family:ui-monospace,monospace;font-size:.76rem;">${esc(b.name)}</td>
+                <td>${Math.round((Number(b.bytes) || 0) / 1024)} KB</td>
+                <td>${b.counts && b.counts.madaris != null ? b.counts.madaris : "—"}</td>
+                <td style="text-align:right;white-space:nowrap;">
+                  <a class="dash-btn dash-btn-ghost dash-btn-sm" href="${window.API.url("/platform/backups/" + encodeURIComponent(b.name) + "/download")}">${I.download} Download</a>
+                  <button class="dash-btn dash-btn-sm dash-btn-danger" data-sa-backup-del="${esc(b.name)}">${I.trash}</button>
+                </td>
+              </tr>`).join("")
+              : `<tr class="dash-empty-row"><td colspan="5">No snapshots yet — create one now, or start the server with BACKUP_INTERVAL_MINUTES &gt; 0 for automatic snapshots.</td></tr>`}
+          </tbody>
+        </table></div>
+      </div>
+    `;
+    content.querySelector("#saBackupNow").addEventListener("click", async () => {
+      const btn = content.querySelector("#saBackupNow");
+      btn.disabled = true; btn.textContent = "Snapshotting…";
+      try { await window.API.post("/platform/backups", {}); toast("Snapshot created.", "success"); pageSuperBackups(content); }
+      catch (err) { toast(err.message || "Could not create snapshot.", "error"); btn.disabled = false; btn.textContent = "Create Snapshot Now"; }
+    });
+    content.querySelectorAll("[data-sa-backup-del]").forEach((b) => b.addEventListener("click", async () => {
+      if (!window.confirm("Delete this snapshot? This cannot be undone.")) return;
+      try { await window.API.del("/platform/backups/" + encodeURIComponent(b.getAttribute("data-sa-backup-del"))); toast("Snapshot deleted.", "success"); pageSuperBackups(content); }
+      catch (err) { toast(err.message || "Could not delete snapshot.", "error"); }
+    }));
+  }
+
+  /* ------------------------- Platform settings ---------------------------- */
+  async function pageSuperSettings(content) {
+    const data = await window.API.get("/platform/settings").catch(() => ({ settings: {} }));
+    const s = data.settings || {};
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Platform Settings</h2><p>Global defaults and the public-directory kill switch.</p></div></div>
+      <div class="dash-card"><div class="dash-card-pad">
+        <form id="saSettingsForm">
+          <div class="dash-form-grid">
+            <div class="dash-field"><label>Public site title</label><input name="public_site_title" value="${esc(s.public_site_title || "")}"></div>
+            <div class="dash-field"><label>Public site tagline</label><input name="public_site_tagline" value="${esc(s.public_site_tagline || "")}"></div>
+            <div class="dash-field" style="grid-column:1/-1;"><label>Public site intro</label><textarea name="public_site_intro">${esc(s.public_site_intro || "")}</textarea></div>
+            <div class="dash-field"><label>Contact email</label><input name="public_contact_email" value="${esc(s.public_contact_email || "")}"></div>
+            <div class="dash-field"><label>Contact phone</label><input name="public_contact_phone" value="${esc(s.public_contact_phone || "")}"></div>
+            <div class="dash-field"><label>Public apply URL</label><input name="public_apply_url" value="${esc(s.public_apply_url || "")}"></div>
+          </div>
+          <label class="dash-checkbox-row" style="margin-top:16px;"><input type="checkbox" name="public_directory_enabled" ${s.public_directory_enabled ? "checked" : ""}> Public directory enabled</label>
+          <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px;">${I.check} Save Settings</button>
+        </form>
+      </div></div>
+    `;
+    content.querySelector("#saSettingsForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = {};
+      ["public_site_title", "public_site_tagline", "public_site_intro", "public_contact_email", "public_contact_phone", "public_apply_url"].forEach((k) => { body[k] = fd.get(k); });
+      body.public_directory_enabled = fd.get("public_directory_enabled") === "on";
+      try { await window.API.put("/platform/settings", body); toast("Settings saved.", "success"); }
+      catch (err) { toast(err.message || "Could not save settings.", "error"); }
     });
   }
 

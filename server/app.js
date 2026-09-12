@@ -106,6 +106,11 @@ function createApp() {
   app.get("/s/:slug", schoolLinkHandler);
   app.get("/school/:slug", schoolLinkHandler);
   app.get("/m/:slug", schoolLinkHandler);
+  // Public directory landing pages. Their initial structure is intentionally
+  // frontend-only while search, listings and category-specific registration
+  // are developed in later milestones.
+  app.get("/islamic-schools", schoolLinkHandler);
+  app.get("/western-schools", schoolLinkHandler);
   app.get("/register-madrasa", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */

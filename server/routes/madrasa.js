@@ -14,6 +14,7 @@ const { getActiveMadrasa } = require("../middleware/tenant");
 const { imageUploader } = require("../middleware/upload");
 const grading = require("../services/grading");
 const analytics = require("../services/analytics");
+const institution = require("../services/institution");
 
 // Two routers share the same tenant scope:
 //  router      -> mounted at /api/madrasa (profile, settings)
@@ -54,7 +55,8 @@ router.get("/profile", asyncHandler(async (req, res) => {
   const rows = await db.all("SELECT key_name, value FROM settings WHERE madrasa_id = ?", [m.id]);
   rows.forEach((r) => { settings[r.key_name] = r.value; });
   const plan = await db.get("SELECT * FROM plans WHERE id = ?", [m.plan_id]);
-  ok(res, { madrasa: m, settings, plan });
+  const category = m.category || "islamic";
+  ok(res, { madrasa: m, settings, plan, category, terminology: institution.terminology(category) });
 }));
 
 router.put("/profile", adminOrSupport, asyncHandler(async (req, res) => {
@@ -66,11 +68,22 @@ router.put("/profile", adminOrSupport, asyncHandler(async (req, res) => {
     motto_en: [b.motto_en, 160], motto_ar: [b.motto_ar, 160],
     address: [b.address, 255], city: [b.city, 80], state_name: [b.state_name, 80],
     phone: [b.phone, 60], email: [b.email, 120],
+    // Website/brand fields — kept inside a small, safe field set so every
+    // tenant site still fits the shared BELLO template.
+    tagline: [b.tagline, 200], whatsapp: [b.whatsapp, 60],
+    facebook: [b.facebook, 200], instagram: [b.instagram, 200], maps_link: [b.maps_link, 255],
+    admin_full_name: [b.admin_full_name, 160], admin_position: [b.admin_position, 80],
+    admission_info: [b.admission_info, 4000],
   };
   const sets = [];
   const vals = [];
   for (const [f, [v, max]] of Object.entries(fields)) {
     if (v !== undefined) { sets.push(`${f} = ?`); vals.push(cleanStr(v, max)); }
+  }
+  if (b.brand_color !== undefined) {
+    const c = cleanStr(b.brand_color, 20);
+    if (c && !/^#[0-9a-fA-F]{3,8}$/.test(c)) return err(res, 400, "brand_color must be a hex color like #0b402c.");
+    sets.push("brand_color = ?"); vals.push(c);
   }
   if (!sets.length) return err(res, 400, "Nothing to update.");
   sets.push("updated_at = CURRENT_TIMESTAMP");
@@ -86,6 +99,47 @@ router.post("/profile/logo", adminOrSupport, imageUploader("logos", "logo"), asy
   if (!req.file) return err(res, 400, "No image uploaded.");
   await db.run("UPDATE madaris SET logo_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [`/uploads/logos/${req.file.filename}`, m.id]);
   ok(res, { ok: true, logoPath: `/uploads/logos/${req.file.filename}` });
+}));
+
+router.post("/profile/hero", adminOrSupport, imageUploader("hero", "hero"), asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  if (!req.file) return err(res, 400, "No image uploaded.");
+  await db.run("UPDATE madaris SET hero_image_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [`/uploads/hero/${req.file.filename}`, m.id]);
+  ok(res, { ok: true, heroImagePath: `/uploads/hero/${req.file.filename}` });
+}));
+
+/* ------------------------------ gallery -------------------------------- */
+
+router.get("/gallery", adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const rows = await db.all("SELECT * FROM gallery_images WHERE madrasa_id = ? ORDER BY sort_order, id", [m.id]);
+  ok(res, { images: rows });
+}));
+
+router.post("/gallery", adminOrSupport, imageUploader("gallery", "image"), asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  if (!req.file) return err(res, 400, "No image uploaded.");
+  const caption = cleanStr((req.body || {}).caption, 200);
+  const count = await db.get("SELECT COUNT(*) AS n FROM gallery_images WHERE madrasa_id = ?", [m.id]);
+  if (Number(count.n) >= 40) return err(res, 400, "Gallery limit reached (40 images).");
+  const r = await db.run(
+    "INSERT INTO gallery_images (madrasa_id, image_path, caption, sort_order) VALUES (?,?,?,?)",
+    [m.id, `/uploads/gallery/${req.file.filename}`, caption, Number(count.n)]
+  );
+  logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "gallery.add", entity: "gallery_image", entityId: String(r.lastInsertRowid), ip: req.ip });
+  ok(res, { ok: true, id: r.lastInsertRowid, imagePath: `/uploads/gallery/${req.file.filename}` });
+}));
+
+router.delete("/gallery/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const row = await db.get("SELECT id FROM gallery_images WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+  if (!row) return err(res, 404, "Image not found.");
+  await db.run("DELETE FROM gallery_images WHERE id = ?", [row.id]);
+  ok(res, { ok: true });
 }));
 
 /* ------------------------------ public site ---------------------------- */
@@ -168,6 +222,90 @@ router.get("/analytics", adminOrSupport, asyncHandler(async (req, res) => {
     termId: req.query.termId,
   });
   ok(res, { madrasaId: m.id, analytics: data });
+}));
+
+/**
+ * GET /api/madrasa/dashboard
+ * Everything the admin dashboard landing page needs in one call: the six
+ * headline stat cards, today's attendance breakdown, today's classes, recent
+ * applications and recent announcements — scoped strictly to this tenant.
+ */
+router.get("/dashboard", adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const today = new Date();
+  const isoToday = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][today.getDay()];
+
+  const [totals, attToday, pendingApps, todaysClasses, recentApps, recentAnnouncements] = await Promise.all([
+    db.get(
+      `SELECT
+         (SELECT COUNT(*) FROM students WHERE madrasa_id = ? AND status IN ('active','promoted','suspended')) AS students,
+         (SELECT COUNT(*) FROM users WHERE madrasa_id = ? AND role = 'teacher' AND is_active = 1) AS teachers,
+         (SELECT COUNT(*) FROM classes WHERE madrasa_id = ? AND is_active = 1) AS classes,
+         (SELECT COUNT(*) FROM subjects WHERE madrasa_id = ? AND is_active = 1) AS subjects`,
+      [m.id, m.id, m.id, m.id]
+    ),
+    db.all("SELECT status, COUNT(*) AS n FROM attendance WHERE madrasa_id = ? AND day = ? GROUP BY status", [m.id, isoToday]),
+    db.get("SELECT COUNT(*) AS n FROM admission_requests WHERE madrasa_id = ? AND status = 'pending'", [m.id]),
+    db.all(
+      `SELECT ts.day, ts.period, ts.start_time, ts.end_time, c.name_en AS class_name,
+              su.name_en AS subject_name, u.full_name AS teacher_name
+         FROM timetable_slots ts
+         JOIN classes c ON c.id = ts.class_id
+         LEFT JOIN subjects su ON su.id = ts.subject_id
+         LEFT JOIN users u ON u.id = ts.teacher_id
+        WHERE ts.madrasa_id = ? AND ts.day = ?
+        ORDER BY ts.period`,
+      [m.id, dayName]
+    ),
+    db.all(
+      `SELECT id, reference, status, first_name, last_name, created_at
+         FROM admission_requests WHERE madrasa_id = ? ORDER BY id DESC LIMIT 6`,
+      [m.id]
+    ),
+    db.all(
+      `SELECT id, title, body, created_at FROM announcements
+        WHERE madrasa_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 6`,
+      [m.id]
+    ),
+  ]);
+
+  const attMap = {};
+  attToday.forEach((r) => { attMap[r.status] = Number(r.n); });
+  const attMarked = Object.values(attMap).reduce((a, b) => a + b, 0);
+  const totalStudents = totals ? Number(totals.students) : 0;
+
+  ok(res, {
+    madrasaId: m.id,
+    category: m.category || "islamic",
+    stats: {
+      totalStudents,
+      totalTeachers: totals ? Number(totals.teachers) : 0,
+      totalClasses: totals ? Number(totals.classes) : 0,
+      totalSubjects: totals ? Number(totals.subjects) : 0,
+      pendingApplications: pendingApps ? Number(pendingApps.n) : 0,
+      attendanceToday: {
+        present: attMap.present || 0,
+        absent: attMap.absent || 0,
+        late: attMap.late || 0,
+        excused: attMap.excused || 0,
+        marked: attMarked,
+        unmarked: Math.max(0, totalStudents - attMarked),
+      },
+    },
+    todaysClasses: todaysClasses.map((r) => ({
+      day: r.day, period: r.period, startTime: r.start_time, endTime: r.end_time,
+      className: r.class_name, subjectName: r.subject_name || "—", teacherName: r.teacher_name || "—",
+    })),
+    recentApplications: recentApps.map((r) => ({
+      id: r.id, reference: r.reference, status: r.status,
+      name: `${r.first_name} ${r.last_name}`.trim(), createdAt: r.created_at,
+    })),
+    recentAnnouncements: recentAnnouncements.map((r) => ({
+      id: r.id, title: r.title, body: r.body, createdAt: r.created_at,
+    })),
+  });
 }));
 
 /** Per-madrasa key/value settings (admission prefix, etc.) */

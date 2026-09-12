@@ -14,6 +14,7 @@ const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, logActivity } = require("../util");
 const { requireSuperAdmin } = require("../middleware/auth");
 const analytics = require("../services/analytics");
+const institution = require("../services/institution");
 
 const router = express.Router();
 router.use(requireSuperAdmin);
@@ -255,6 +256,166 @@ router.post("/madaris/:id/admin", asyncHandler(async (req, res) => {
   }
   ok(res, { ok: true, username });
 }));
+
+/* ------------------------------ registrations ---------------------------
+   Public institution registrations land in `madrasa_registrations` as
+   'Pending'. A super admin reviews them here; approving PROMOTES the
+   registration into a real, active `madaris` row plus its first
+   madrasa_admin login (reusing the password the applicant chose at sign-up),
+   so the institution can immediately log in and land in the right
+   dashboard (Islamic or Western) by category/institution_type. Nothing is
+   ever promoted automatically. */
+
+router.get("/registrations", asyncHandler(async (req, res) => {
+  const status = cleanStr(req.query.status, 20);
+  const rows = status
+    ? await db.all("SELECT * FROM madrasa_registrations WHERE status = ? ORDER BY id DESC", [status])
+    : await db.all("SELECT * FROM madrasa_registrations ORDER BY id DESC");
+  ok(res, {
+    registrations: rows.map((r) => ({
+      id: r.id,
+      registrationId: r.registration_id,
+      status: r.status,
+      name: r.name,
+      officialName: r.official_name,
+      category: r.category || institution.normalizeCategory(null, r.institution_type),
+      institutionType: r.institution_type,
+      city: r.city,
+      stateName: r.state_name,
+      adminFullName: r.admin_full_name,
+      adminEmail: r.admin_email,
+      adminPhone: r.admin_phone,
+      submittedAt: r.submitted_at,
+      reviewedAt: r.reviewed_at,
+      reviewNote: r.review_note,
+      promotedMadrasaId: r.promoted_madrasa_id,
+    })),
+  });
+}));
+
+router.get("/registrations/:id", asyncHandler(async (req, res) => {
+  const row = await db.get("SELECT * FROM madrasa_registrations WHERE id = ?", [toNum(req.params.id, 0)]);
+  if (!row) return err(res, 404, "Registration not found.");
+  ok(res, {
+    registration: Object.assign({}, row, {
+      subjects: JSON.parse(row.subjects_json || "[]"),
+      ageGroups: JSON.parse(row.age_groups_json || "[]"),
+      category: row.category || institution.normalizeCategory(null, row.institution_type),
+      admin_password_hash: undefined,
+    }),
+  });
+}));
+
+/**
+ * POST /api/platform/registrations/:id/approve
+ * Body (optional): { slug, plan_id }
+ * Creates the live madrasa + its admin login from the stored application,
+ * marks the registration Approved, and links the two records both ways.
+ */
+router.post("/registrations/:id/approve", asyncHandler(async (req, res) => {
+  const reg = await db.get("SELECT * FROM madrasa_registrations WHERE id = ?", [toNum(req.params.id, 0)]);
+  if (!reg) return err(res, 404, "Registration not found.");
+  if (reg.status !== "Pending") return err(res, 400, `This registration is already ${reg.status}.`);
+
+  const b = req.body || {};
+  let slug = cleanStr(b.slug, 80).toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "");
+  if (!slug) {
+    slug = reg.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || ("institution-" + reg.id);
+  }
+  // Guarantee uniqueness even if the derived slug collides.
+  let candidate = slug;
+  let n = 1;
+  while (await db.get("SELECT id FROM madaris WHERE slug = ?", [candidate])) {
+    candidate = `${slug}-${++n}`;
+  }
+  slug = candidate;
+
+  const planId = toNum(b.plan_id, 0) || 1;
+  const plan = await db.get("SELECT id FROM plans WHERE id = ?", [planId]);
+  if (!plan) return err(res, 400, "Unknown plan.");
+
+  const category = reg.category || institution.normalizeCategory(null, reg.institution_type);
+  let adminUsername = cleanStr(reg.admin_username, 100) || (slug + "-admin");
+  if (await db.get("SELECT id FROM users WHERE username = ?", [adminUsername])) {
+    adminUsername = `${slug}-admin-${reg.id}`;
+  }
+  const adminPasswordHash = reg.admin_password_hash
+    || bcrypt.hashSync(crypto_randomPassword(), 10); // safety net for legacy rows with no stored hash
+
+  let mid = 0;
+  try {
+    const created = await db.transaction(async (tx) => {
+      const r = await tx.run(
+        `INSERT INTO madaris
+          (slug, name_en, address, city, state_name, phone, email, plan_id, status,
+           description_en, founded_year, website, category, institution_type, verified,
+           tagline, whatsapp, facebook, instagram, maps_link, admin_full_name, admin_position,
+           public_listing)
+         VALUES (?,?,?,?,?,?,?,?, 'active', ?,?,?,?,?,1, ?,?,?,?,?,?,?, 1)`,
+        [
+          slug, reg.name, reg.address, reg.city, reg.state_name, reg.phone, reg.email, plan.id,
+          reg.description, reg.year_established, reg.website, category, reg.institution_type,
+          reg.official_name, reg.whatsapp, reg.facebook, reg.instagram, reg.maps_link,
+          reg.admin_full_name, reg.admin_position,
+        ]
+      );
+      const id = r.lastInsertRowid;
+      await tx.run(
+        "INSERT INTO users (madrasa_id, username, password_hash, role, full_name, email, phone) VALUES (?,?,?,?,?,?,?)",
+        [id, adminUsername, adminPasswordHash, "madrasa_admin", reg.admin_full_name || "Administrator", reg.admin_email, reg.admin_phone]
+      );
+      // Seed the three standard terms under a starter session so the new
+      // dashboard's Academic/Attendance/Results screens have somewhere to
+      // record data on day one.
+      const year = new Date().getFullYear();
+      const s = await tx.run(
+        "INSERT INTO academic_sessions (madrasa_id, label, is_current) VALUES (?,?,1)",
+        [id, `${year}/${year + 1}`]
+      );
+      const defaults = [["First Term"], ["Second Term"], ["Third Term"]];
+      for (let i = 0; i < defaults.length; i++) {
+        await tx.run(
+          "INSERT INTO terms (madrasa_id, session_id, position, name_en) VALUES (?,?,?,?)",
+          [id, s.lastInsertRowid, i + 1, defaults[i][0]]
+        );
+      }
+      // Seed subjects from the fixed catalogue for this category so the new
+      // admin's Islamic Subjects / Academic Programs screens are populated.
+      for (const subjectName of institution.subjectCatalogue(category)) {
+        await tx.run("INSERT INTO subjects (madrasa_id, name_en) VALUES (?,?)", [id, subjectName]);
+      }
+      return { id };
+    });
+    mid = created.id;
+  } catch (e) {
+    console.error("Failed to promote registration (rolled back):", e);
+    return err(res, 500, "Could not create the institution. Nothing was saved — please try again.");
+  }
+
+  await db.run(
+    "UPDATE madrasa_registrations SET status = 'Approved', reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, promoted_madrasa_id = ? WHERE id = ?",
+    [req.user.id, mid, reg.id]
+  );
+  logActivity(db, { userId: req.user.id, madrasaId: mid, action: "registration.approve", entity: "madrasa_registration", entityId: String(reg.id), meta: { slug, category }, ip: req.ip });
+  ok(res, { ok: true, madrasaId: mid, slug, username: adminUsername, category });
+}));
+
+router.post("/registrations/:id/reject", asyncHandler(async (req, res) => {
+  const reg = await db.get("SELECT * FROM madrasa_registrations WHERE id = ?", [toNum(req.params.id, 0)]);
+  if (!reg) return err(res, 404, "Registration not found.");
+  if (reg.status !== "Pending") return err(res, 400, `This registration is already ${reg.status}.`);
+  const note = cleanStr((req.body || {}).note, 2000);
+  await db.run(
+    "UPDATE madrasa_registrations SET status = 'Rejected', reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, review_note = ? WHERE id = ?",
+    [req.user.id, note, reg.id]
+  );
+  logActivity(db, { userId: req.user.id, action: "registration.reject", entity: "madrasa_registration", entityId: String(reg.id), meta: { note }, ip: req.ip });
+  ok(res, { ok: true });
+}));
+
+function crypto_randomPassword() {
+  return require("crypto").randomBytes(12).toString("base64url");
+}
 
 /* ------------------------------ plans ---------------------------------- */
 

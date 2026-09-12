@@ -25,12 +25,14 @@
    ========================================================================== */
 const express = require("express");
 const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, validDate, validPhone, validEmail, logActivity } = require("../util");
 const grading = require("../services/grading");
 const tokens = require("../services/tokens");
 const { renderReportCard } = require("./results");
 const { publicLimiter, publicWriteLimiter, verifyLimiter } = require("../middleware/ratelimit");
+const institution = require("../services/institution");
 
 const router = express.Router();
 const REPORT_TTL_SECONDS = 15 * 60;
@@ -389,14 +391,18 @@ function newMadrasaId() {
 }
 
 /**
- * POST /api/public/register-madrasa
- * Multi-Madrasa platform onboarding submission.
+ * POST /api/public/register-madrasa   (also mounted as /register-academy)
+ * Institution onboarding submission — used by BOTH the Islamic School and
+ * the Western Academy registration forms. The request body's `category`
+ * (or, failing that, the institutionType) decides which admin dashboard the
+ * institution is promoted into once a super admin approves it.
  */
-router.post("/register-madrasa", publicWriteLimiter, asyncHandler(async (req, res) => {
+const registerHandler = asyncHandler(async (req, res) => {
   const b = req.body || {};
-  const madrasaData = b.madrasa || {};
+  const madrasaData = b.madrasa || b.academy || {};
   const adminData = b.administrator || {};
   const termsAccepted = b.termsAccepted === true || b.termsAccepted === "true" || b.termsAccepted === 1;
+  const category = institution.normalizeCategory(b.category || madrasaData.category, madrasaData.institutionType);
 
   // Validate Madrasa required fields
   const name = cleanStr(madrasaData.name, 160);
@@ -445,7 +451,7 @@ router.post("/register-madrasa", publicWriteLimiter, asyncHandler(async (req, re
   const logo = String(madrasaData.logo || "");
   const description = cleanStr(madrasaData.description, 3000);
   const yearEstablished = cleanStr(madrasaData.yearEstablished, 10);
-  const institutionType = cleanStr(madrasaData.institutionType, 60) || "Madrasa";
+  const institutionType = cleanStr(madrasaData.institutionType, 60) || (category === "western" ? "Nursery & Primary School" : "Madrasa");
   const mapsLink = cleanStr(madrasaData.mapsLink, 255);
   const whatsapp = cleanStr(madrasaData.whatsapp, 60);
   const madrasaEmail = cleanStr(madrasaData.email, 120);
@@ -458,22 +464,28 @@ router.post("/register-madrasa", publicWriteLimiter, asyncHandler(async (req, re
   const classCount = cleanStr(madrasaData.classCount, 20);
   const ageGroups = Array.isArray(madrasaData.ageGroups) ? madrasaData.ageGroups.map(a => cleanStr(a, 60)).filter(Boolean) : [];
 
-  // Try storing in madrasa_registrations table if it exists
+  // A hash of the chosen password is kept so approval can create the real
+  // login with the SAME credentials the applicant chose — never re-hashed
+  // from plaintext later, and the plaintext itself is never stored.
+  const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
+  const adminUsername = cleanStr(adminData.username, 100).toLowerCase()
+    || (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "admin") + "-admin";
+
   try {
     await db.run(
       `INSERT INTO madrasa_registrations
         (registration_id, madrasa_id, status, name, official_name, logo_data, description,
-         year_established, institution_type, country, state_name, city, address, maps_link,
+         year_established, institution_type, category, country, state_name, city, address, maps_link,
          phone, whatsapp, email, website, facebook, instagram, subjects_json, student_count,
          teacher_count, class_count, age_groups_json, admin_full_name, admin_position,
-         admin_email, admin_phone, ip, submitted_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         admin_email, admin_phone, admin_username, admin_password_hash, ip, submitted_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         registrationId, madrasaId, "Pending", name, officialName, logo ? logo.slice(0, 500000) : "", description,
-        yearEstablished, institutionType, country, state, city, address, mapsLink,
+        yearEstablished, institutionType, category, country, state, city, address, mapsLink,
         phone, whatsapp, madrasaEmail, website, facebook, instagram, JSON.stringify(subjects),
         studentCount, teacherCount, classCount, JSON.stringify(ageGroups), adminFullName,
-        adminPosition, adminEmail, adminPhone, cleanStr(req.ip, 64), now,
+        adminPosition, adminEmail, adminPhone, adminUsername, adminPasswordHash, cleanStr(req.ip, 64), now,
       ]
     );
   } catch (e) {
@@ -484,7 +496,7 @@ router.post("/register-madrasa", publicWriteLimiter, asyncHandler(async (req, re
     action: "registration.madrasa_submitted",
     entity: "madrasa_registration",
     entityId: registrationId,
-    meta: { name, registrationId, adminEmail },
+    meta: { name, registrationId, adminEmail, category },
     ip: req.ip,
   }).catch(() => {});
 
@@ -495,6 +507,7 @@ router.post("/register-madrasa", publicWriteLimiter, asyncHandler(async (req, re
       registrationId,
       madrasaId,
       status: "Pending",
+      category,
       submittedAt: now,
     },
     madrasa: {
@@ -529,7 +542,10 @@ router.post("/register-madrasa", publicWriteLimiter, asyncHandler(async (req, re
       phone: adminPhone,
     },
   });
-}));
+});
+
+router.post("/register-madrasa", publicWriteLimiter, registerHandler);
+router.post("/register-academy", publicWriteLimiter, registerHandler);
 
 /**
  * GET /api/public/registration-status/:id or ?ref=...&phone=...

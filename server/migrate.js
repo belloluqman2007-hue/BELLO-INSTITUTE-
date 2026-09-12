@@ -565,6 +565,60 @@ const MIGRATIONS = [
       await api.run(`CREATE INDEX idx_madrasa_reg_status ON madrasa_registrations (status)`);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "013_institution_categories_and_sites",
+    up: async (api, dialect) => {
+      // Every tenant now carries WHICH kind of institution it is. `category`
+      // is the coarse switch the whole admin experience branches on
+      // ('islamic' | 'western'); `institution_type` is the specific label the
+      // administrator chose at registration (e.g. "Qur'an School", "Nursery
+      // & Primary School"). Existing rows default to the platform's original
+      // audience (Islamic) so nothing already live changes behaviour.
+      await api.run(`ALTER TABLE madaris ADD COLUMN category VARCHAR(20) NOT NULL DEFAULT 'islamic'`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN institution_type VARCHAR(60) NOT NULL DEFAULT 'Madrasa'`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN verified INT NOT NULL DEFAULT 0`);
+
+      // Website / brand customisation — constrained to a small set of fields
+      // so every tenant site still fits the BELLO template.
+      await api.run(`ALTER TABLE madaris ADD COLUMN tagline VARCHAR(200) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN hero_image_path VARCHAR(255) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN brand_color VARCHAR(20) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN whatsapp VARCHAR(60) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN facebook VARCHAR(200) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN instagram VARCHAR(200) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN maps_link VARCHAR(255) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN admin_full_name VARCHAR(160) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN admin_position VARCHAR(80) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madaris ADD COLUMN admission_info TEXT`);
+      await api.run(`CREATE INDEX idx_madaris_category ON madaris (category, status, public_listing)`);
+
+      // Registration approval trail: a registration is promoted into a real
+      // madaris + madrasa_admin login by a super admin action, never
+      // automatically. The link is kept both ways for audit.
+      await api.run(`ALTER TABLE madrasa_registrations ADD COLUMN reviewed_by INT`);
+      await api.run(`ALTER TABLE madrasa_registrations ADD COLUMN reviewed_at TIMESTAMP NULL`);
+      await api.run(`ALTER TABLE madrasa_registrations ADD COLUMN review_note TEXT`);
+      await api.run(`ALTER TABLE madrasa_registrations ADD COLUMN promoted_madrasa_id INT`);
+      await api.run(`ALTER TABLE madrasa_registrations ADD COLUMN admin_username VARCHAR(100) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE madrasa_registrations ADD COLUMN category VARCHAR(20) NOT NULL DEFAULT 'islamic'`);
+      await api.run(`ALTER TABLE madrasa_registrations ADD COLUMN admin_password_hash VARCHAR(255) NOT NULL DEFAULT ''`);
+
+      // Public-site photo gallery, one row per image.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS gallery_images (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          image_path VARCHAR(255) NOT NULL,
+          caption VARCHAR(200) NOT NULL DEFAULT '',
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_gallery ON gallery_images (madrasa_id, sort_order, id)`);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

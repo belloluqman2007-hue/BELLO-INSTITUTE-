@@ -82,7 +82,7 @@ router.put("/profile", adminOrSupport, asyncHandler(async (req, res) => {
   }
   if (b.brand_color !== undefined) {
     const c = cleanStr(b.brand_color, 20);
-    if (c && !/^#[0-9a-fA-F]{3,8}$/.test(c)) return err(res, 400, "brand_color must be a hex color like #0b402c.");
+    if (c && !/^#[0-9a-fA-F]{3,8}$/.test(c)) return err(res, 400, "brand_color must be a hex color like #220b40.");
     sets.push("brand_color = ?"); vals.push(c);
   }
   if (!sets.length) return err(res, 400, "Nothing to update.");

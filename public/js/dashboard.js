@@ -300,7 +300,7 @@
         <div class="dash-login-card">
           <div class="brand-row">
             <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
-            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#6d7b71;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Institution Admin</div></div>
+            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Institution Admin</div></div>
           </div>
           <h1>Sign in to your dashboard</h1>
           <p class="sub">Islamic School &amp; Western Academy administrators use the same sign-in — BELLO routes you to the right dashboard automatically.</p>
@@ -316,7 +316,7 @@
             </div>
             <button class="dash-login-submit" type="submit">Sign In</button>
           </form>
-          <div class="dash-login-foot">Registering a new institution? <a href="/register-madrasa" data-noroute style="font-weight:700;color:#146a45;">Register an Islamic School</a> or <a href="/western-schools" data-noroute style="font-weight:700;color:#146a45;">a Western Academy</a>.</div>
+          <div class="dash-login-foot">Registering a new institution? <a href="/register-madrasa" data-noroute style="font-weight:700;color:#38146a;">Register an Islamic School</a> or <a href="/western-schools" data-noroute style="font-weight:700;color:#38146a;">a Western Academy</a>.</div>
         </div>
       </div>`;
     const form = root.querySelector("#dashLoginForm");
@@ -773,7 +773,7 @@
           <form id="appearanceForm">
             <div class="dash-form-grid">
               <div class="dash-field"><label>Tagline</label><input name="tagline" value="${esc(m.tagline || "")}"></div>
-              <div class="dash-field"><label>Brand Color</label><input name="brand_color" type="color" value="${esc(m.brand_color || (state.category === "western" ? "#0a2342" : "#0a3d2a"))}"></div>
+              <div class="dash-field"><label>Brand Color</label><input name="brand_color" type="color" value="${esc(m.brand_color || (state.category === "western" ? "#0a2342" : "#200a3d"))}"></div>
             </div>
             <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px;">${I.check} Save Appearance</button>
           </form>

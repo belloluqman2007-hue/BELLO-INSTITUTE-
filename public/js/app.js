@@ -89,13 +89,14 @@
           <div class="footer-brand">
             ${brandMarkup()}
             <p>A connected education platform helping families discover the right school and helping independent institutions grow with confidence.</p>
+            <p class="footer-ar" lang="ar" dir="rtl">منصة تعليمية تساعد العائلات على اكتشاف المدرسة المناسبة، وتساعد المؤسسات المستقلة على النمو بثقة.</p>
             <div class="socials"><a href="#footer" aria-label="BELLO on Instagram">${icons.instagram}</a><a href="#footer" aria-label="BELLO on LinkedIn">${icons.linkedin}</a><a href="#footer" aria-label="BELLO on Facebook">${icons.facebook}</a></div>
           </div>
           <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
           <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a></div>
           <div class="footer-col"><h3>Platform</h3><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
         </div>
-        <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow</span></div>
+        <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i> <span lang="ar" dir="rtl">اكتشف · تواصل · ازدهر</span></span></div>
       </footer>`;
   }
 
@@ -110,6 +111,7 @@
     const alt = islamic ? "Students learning together in an Islamic school" : "Students collaborating in a modern academy";
     const label = islamic ? "Faith-led learning" : "Modern academic learning";
     const button = islamic ? "Explore Islamic Schools" : "Explore Western Academies";
+    const titleAr = islamic ? "مدرسة إسلامية" : "أكاديمية غربية";
     return `
       <article class="education-choice education-choice--${kind} reveal">
         <a class="choice-image" href="${href}" data-route="${href}" aria-label="${button}">
@@ -120,6 +122,7 @@
         <div class="choice-content">
           <div class="choice-icon">${islamic ? icons.book : icons.school}</div>
           <h3>${title}</h3>
+          <p class="choice-ar" lang="ar" dir="rtl">${titleAr}</p>
           <p>${description}</p>
           <a class="button choice-button" href="${href}" data-route="${href}">${button} <span>${icons.arrow}</span></a>
         </div>
@@ -129,7 +132,7 @@
   function renderHomepage() {
     document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#0b402c";
+    if (themeMeta) themeMeta.content = "#220b40";
     document.title = "BELLO — Education Platform";
     app.innerHTML = `
       ${headerMarkup("home")}
@@ -140,11 +143,15 @@
             <div class="platform-hero-intro reveal">
               <p class="eyebrow"><span class="eyebrow-dot"></span>One connected education platform</p>
               <h1 id="hero-title">Welcome to <em>BELLO</em></h1>
+              <p class="hero-arabic" lang="ar" dir="rtl">أهلاً بكم في منصة بيلو التعليمية</p>
               <p class="platform-hero-copy">A smarter way to discover, connect, and manage education.</p>
             </div>
             <div class="choice-heading reveal">
               <span class="choice-heading-line"></span>
-              <h2>What type of school are you looking for?</h2>
+              <div class="choice-heading-text">
+                <h2>What type of school are you looking for?</h2>
+                <p class="choice-heading-ar" lang="ar" dir="rtl">ما نوع المدرسة التي تبحث عنها؟</p>
+              </div>
               <span class="choice-heading-line"></span>
             </div>
             <div class="education-choice-grid">
@@ -479,7 +486,15 @@
       registerLabel: "Register an Islamic School",
       registerHref: "/register-madrasa",
       registerRoute: "/register-madrasa",
-      featureCards: [["Find institutions", "Discover schools in the communities that matter to you.", "search"], ["Explore subjects", "See the learning paths and programmes each school offers.", "book"], ["Connect with confidence", "Get to know an institution before taking the next step.", "users"]]
+      featureCards: [["Find institutions", "Discover schools in the communities that matter to you.", "search"], ["Explore subjects", "See the learning paths and programmes each school offers.", "book"], ["Connect with confidence", "Get to know an institution before taking the next step.", "users"]],
+      ar: {
+        eyebrow: "المدارس الإسلامية",
+        title: "تعليمٌ إسلاميٌّ جاهزٌ للاكتشاف",
+        quote: "«طلبُ العلمِ فريضةٌ على كلِّ مسلم»",
+        audience: "بيتٌ لكلِّ مسارٍ من مسارات التعلُّم الإسلامي",
+        types: ["مدرسة", "مدرسة عربية", "مدرسة قرآنية", "مركز تعليم إسلامي"],
+        register: "سجِّل مدرستك الإسلامية على بيلو",
+      },
     },
     western: {
       active: "western",
@@ -501,7 +516,15 @@
       registerLabel: "Register a Western Academy",
       registerHref: "/register-academy",
       registerRoute: "/register-academy",
-      featureCards: [["Find schools", "Discover academic institutions in the places that work for your family.", "search"], ["Explore programmes", "See the subjects, classes and learning opportunities on offer.", "school"], ["Plan with clarity", "Get the information you need before connecting with a school.", "compass"]]
+      featureCards: [["Find schools", "Discover academic institutions in the places that work for your family.", "search"], ["Explore programmes", "See the subjects, classes and learning opportunities on offer.", "school"], ["Plan with clarity", "Get the information you need before connecting with a school.", "compass"]],
+      ar: {
+        eyebrow: "الأكاديميات الغربية",
+        title: "تعليمٌ حديثٌ جاهزٌ للاكتشاف",
+        quote: "",
+        audience: "بيتٌ لكلِّ رحلةٍ تعليمية",
+        types: ["مدرسة ابتدائية", "مدرسة ثانوية", "كلية", "أكاديمية أخرى"],
+        register: "سجِّل أكاديميتك على بيلو",
+      },
     }
   };
 
@@ -512,14 +535,14 @@
 
   function categoryTypeCards(data) {
     return data.types.map((type, index) => `
-      <article class="institution-type-card reveal"><span>${String(index + 1).padStart(2, "0")}</span><div class="institution-type-icon">${icons[data.typeIcon]}</div><h3>${type}</h3><p>Built to be discoverable through BELLO.</p></article>`).join("");
+      <article class="institution-type-card reveal"><span>${String(index + 1).padStart(2, "0")}</span><div class="institution-type-icon">${icons[data.typeIcon]}</div><h3>${type}</h3>${data.ar && data.ar.types[index] ? `<p class="type-ar" lang="ar" dir="rtl">${data.ar.types[index]}</p>` : ""}<p>Built to be discoverable through BELLO.</p></article>`).join("");
   }
 
   function renderCategory(kind) {
     document.body.classList.remove("western-experience", "western-menu-open");
     document.body.classList.toggle("islamic-experience", kind === "islamic");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = kind === "islamic" ? "#075E54" : "#0b402c";
+    if (themeMeta) themeMeta.content = kind === "islamic" ? "#31075e" : "#220b40";
     const data = categoryData[kind];
     if (!data) return renderHomepage();
     document.title = `BELLO — ${data.shortName}`;
@@ -530,10 +553,12 @@
           <div class="hero-orb hero-orb-one"></div><div class="hero-orb hero-orb-two"></div>
           <div class="container category-hero-grid">
             <div class="category-hero-copy reveal">
-              <p class="eyebrow"><span class="eyebrow-dot"></span>${data.eyebrow}</p>
+              <p class="eyebrow"><span class="eyebrow-dot"></span>${data.eyebrow}${data.ar && data.ar.eyebrow ? ` · <span lang="ar" dir="rtl">${data.ar.eyebrow}</span>` : ""}</p>
               <a class="breadcrumb" href="/" data-route="/">BELLO <span>/</span> ${data.shortName}</a>
               <h1 id="category-title">${data.title}</h1>
+              ${data.ar && data.ar.title ? `<p class="category-title-ar" lang="ar" dir="rtl">${data.ar.title}</p>` : ""}
               <p>${data.copy}</p>
+              ${data.ar && data.ar.quote ? `<p class="category-quote-ar" lang="ar" dir="rtl">${data.ar.quote}</p>` : ""}
               <div class="hero-actions"><a class="button button-primary" href="#directory-preview">Explore the directory <span>${icons.arrow}</span></a><a class="button button-secondary" href="/" data-route="/">Choose another path</a></div>
             </div>
             <div class="category-hero-image reveal reveal-delay">
@@ -549,6 +574,7 @@
             <div class="section-heading centered reveal">
               <p class="section-kicker">Public directory, in progress</p>
               <h2 id="purpose-title">${data.audienceTitle}</h2>
+              ${data.ar && data.ar.audience ? `<p class="section-title-ar" lang="ar" dir="rtl">${data.ar.audience}</p>` : ""}
               <p>${data.audienceCopy}</p>
             </div>
             <div class="category-feature-grid">${categoryFeatureCards(data)}</div>
@@ -572,7 +598,7 @@
 
         <section class="category-register-section" id="${kind === "western" ? "western-registration" : "register-islamic-school"}" aria-labelledby="register-title">
           <div class="container category-register-card reveal">
-            <div><p class="section-kicker light-kicker">For school leaders</p><h2 id="register-title">${data.registerTitle}</h2><p>${data.registerCopy}</p></div>
+            <div><p class="section-kicker light-kicker">For school leaders</p><h2 id="register-title">${data.registerTitle}</h2>${data.ar && data.ar.register ? `<p class="register-title-ar" lang="ar" dir="rtl">${data.ar.register}</p>` : ""}<p>${data.registerCopy}</p></div>
             <a class="button button-gold" href="${data.registerHref}"${data.registerRoute.startsWith("/") ? ` data-route="${data.registerRoute}"` : ""}>${data.registerLabel} ${data.registerRoute.startsWith("/") ? `<span>${icons.arrow}</span>` : ""}</a>
           </div>
         </section>
@@ -639,7 +665,7 @@
     document.body.classList.remove("western-experience", "western-menu-open");
     document.body.classList.add("islamic-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#075E54";
+    if (themeMeta) themeMeta.content = "#31075e";
     if (window.BelloRegister && typeof window.BelloRegister.mount === "function") {
       window.BelloRegister.mount();
     }

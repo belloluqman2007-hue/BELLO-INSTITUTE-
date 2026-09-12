@@ -5,7 +5,7 @@
    BELLO public site, which keeps its own palette in app.css untouched.
 
    Two independent visual identities, switched by a single class on <body>:
-     body.dash-islamic  → deep emerald / dark green / gold / cream
+     body.dash-islamic  → deep royal purple / violet / gold / cream
      body.dash-western  → navy / royal blue / sky blue / white / light grey
    Layout (sidebar, header, cards, tables) is shared so both feel like the
    same professional product family; colour, texture and type accents differ
@@ -18,8 +18,8 @@
   --d-radius-lg: 20px;
   --d-sidebar-w: 272px;
   --d-header-h: 68px;
-  --d-shadow: 0 10px 30px rgba(10, 20, 15, .08);
-  --d-shadow-lg: 0 24px 60px rgba(10, 20, 15, .14);
+  --d-shadow: 0 10px 30px rgba(14, 10, 20, .08);
+  --d-shadow-lg: 0 24px 60px rgba(14, 10, 20, .14);
   min-height: 100vh;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -29,25 +29,25 @@ body.dash-islamic .dash-root {
   --d-bg: #faf7ef;
   --d-surface: #ffffff;
   --d-surface-2: #fbf3df;
-  --d-primary-950: #06281c;
-  --d-primary-900: #0a3d2a;
-  --d-primary-800: #0f5236;
-  --d-primary-700: #146a45;
-  --d-primary-600: #1c7e52;
+  --d-primary-950: #150628;
+  --d-primary-900: #200a3d;
+  --d-primary-800: #2c0f52;
+  --d-primary-700: #38146a;
+  --d-primary-600: #451c7d;
   --d-accent: #c8952c;
   --d-accent-light: #f0d999;
   --d-accent-dark: #93690f;
-  --d-text: #1c2b22;
-  --d-muted: #6d7b71;
+  --d-text: #221c2b;
+  --d-muted: #726d7b;
   --d-line: #ecdfc0;
   --d-line-soft: #efe6d0;
   --d-danger: #b5423a;
   --d-warn: #b5792a;
   --d-ok: #1c7e52;
   --d-info: #2d6f8f;
-  --d-sidebar-bg: linear-gradient(180deg, var(--d-primary-950), var(--d-primary-900) 55%, #0b3324 100%);
-  --d-sidebar-text: #cfe8db;
-  --d-sidebar-text-dim: #8fb8a1;
+  --d-sidebar-bg: linear-gradient(180deg, var(--d-primary-950), var(--d-primary-900) 55%, #1c0b33 100%);
+  --d-sidebar-text: #d9cfe8;
+  --d-sidebar-text-dim: #9f8fb8;
   --d-sidebar-active-bg: rgba(200, 149, 44, .16);
   --d-sidebar-active-line: var(--d-accent);
   --d-header-bg: rgba(255, 253, 246, .92);
@@ -167,7 +167,7 @@ body.dash-western .dash-root {
 .dash-content-inner { max-width: 1320px; }
 
 /* Overlay for mobile sidebar */
-.dash-overlay { display: none; position: fixed; inset: 0; background: rgba(6,12,9,.45); z-index: 39; }
+.dash-overlay { display: none; position: fixed; inset: 0; background: rgba(8, 6, 12, .45); z-index: 39; }
 
 /* ---------------------------- generic UI kit ------------------------------ */
 .dash-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 20px; }
@@ -182,8 +182,8 @@ body.dash-western .dash-root {
 }
 .dash-btn svg { width: 15px; height: 15px; }
 .dash-btn:active { transform: translateY(1px); }
-.dash-btn-primary { background: linear-gradient(135deg, var(--d-primary-700), var(--d-primary-900)); color: #fff; box-shadow: 0 8px 20px rgba(10,20,15,.18); }
-.dash-btn-primary:hover { box-shadow: 0 10px 24px rgba(10,20,15,.26); }
+.dash-btn-primary { background: linear-gradient(135deg, var(--d-primary-700), var(--d-primary-900)); color: #fff; box-shadow: 0 8px 20px rgba(14, 10, 20, .18); }
+.dash-btn-primary:hover { box-shadow: 0 10px 24px rgba(14, 10, 20, .26); }
 .dash-btn-accent { background: linear-gradient(135deg, var(--d-accent), var(--d-accent-dark)); color: #241a02; box-shadow: 0 8px 20px rgba(0,0,0,.14); }
 body.dash-western .dash-btn-accent { color: #04263f; }
 .dash-btn-ghost { background: var(--d-surface); color: var(--d-text); border: 1px solid var(--d-line); }
@@ -294,7 +294,7 @@ body.dash-western .dash-stat-icon.accent { color: #04263f; }
 .dash-toast.success { background: var(--d-ok); }
 
 /* Modal */
-.dash-modal-backdrop { position: fixed; inset: 0; background: rgba(8,14,10,.5); display: flex; align-items: center; justify-content: center; z-index: 400; padding: 20px; }
+.dash-modal-backdrop { position: fixed; inset: 0; background: rgba(10, 8, 14, .5); display: flex; align-items: center; justify-content: center; z-index: 400; padding: 20px; }
 .dash-modal { background: var(--d-surface); border-radius: var(--d-radius-lg); width: min(600px, 100%); max-height: 88vh; overflow-y: auto; box-shadow: var(--d-shadow-lg); }
 .dash-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--d-line); }
 .dash-modal-head h3 { margin: 0; font-size: 1.02rem; font-weight: 800; }
@@ -348,16 +348,16 @@ body.dash-western .dash-website-card { background: linear-gradient(135deg, var(-
 }
 
 /* Login page (shared, theme-neutral until a category is known) */
-.dash-login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #0a3d2a, #071b34); padding: 24px; }
+.dash-login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #200a3d, #071b34); padding: 24px; }
 .dash-login-card { background: #fff; border-radius: 22px; width: min(420px, 100%); padding: 34px 30px; box-shadow: 0 30px 70px rgba(0,0,0,.35); }
 .dash-login-card .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
 .dash-login-card .brand-row img { width: 44px; height: 44px; border-radius: 12px; }
-.dash-login-card h1 { margin: 0 0 4px; font-size: 1.3rem; font-weight: 850; color: #16281f; }
-.dash-login-card p.sub { margin: 0 0 22px; color: #6d7b71; font-size: .88rem; }
+.dash-login-card h1 { margin: 0 0 4px; font-size: 1.3rem; font-weight: 850; color: #1d1628; }
+.dash-login-card p.sub { margin: 0 0 22px; color: #726d7b; font-size: .88rem; }
 .dash-login-field { margin-bottom: 14px; }
-.dash-login-field label { display: block; margin-bottom: 6px; font-size: .8rem; font-weight: 700; color: #223228; }
-.dash-login-field input { width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid #dfe6df; font-size: .92rem; }
+.dash-login-field label { display: block; margin-bottom: 6px; font-size: .8rem; font-weight: 700; color: #282232; }
+.dash-login-field input { width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid #e1dfe6; font-size: .92rem; }
 .dash-login-error { background: #fdecea; color: #b5423a; padding: 10px 14px; border-radius: 10px; font-size: .84rem; margin-bottom: 14px; }
-.dash-login-submit { width: 100%; padding: 12px; border-radius: 12px; border: none; background: linear-gradient(135deg, #146a45, #06281c); color: #fff; font-weight: 750; font-size: .92rem; cursor: pointer; margin-top: 6px; }
+.dash-login-submit { width: 100%; padding: 12px; border-radius: 12px; border: none; background: linear-gradient(135deg, #38146a, #150628); color: #fff; font-weight: 750; font-size: .92rem; cursor: pointer; margin-top: 6px; }
 .dash-login-submit:disabled { opacity: .6; cursor: not-allowed; }
-.dash-login-foot { margin-top: 18px; text-align: center; font-size: .8rem; color: #6d7b71; }
+.dash-login-foot { margin-top: 18px; text-align: center; font-size: .8rem; color: #726d7b; }

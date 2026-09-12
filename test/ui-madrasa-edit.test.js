@@ -1,23 +1,19 @@
 "use strict";
 /* ============================================================================
-   UI REGRESSION — Platform → Madaris → Edit (super admin)
+   UI REGRESSION — the shipped public SPA (public/js/app.js) in a DOM (jsdom)
    ----------------------------------------------------------------------------
-   Reported bug: opening a madrasa the admin had registered — the page every
-   "Edit" link points at (#/platform/madaris/:id) — showed a toast reading
-   "Cannot read properties of undefined (reading 'id')" and rendered nothing.
-
-   Cause: the super-admin route wrapper SA() re-invoked the handler with NO
-   arguments, so `params` was undefined inside the route handler that reads
-   params.id. This test drives the REAL public/js/app.js in a DOM (jsdom)
-   against the real server, so a wrapper that drops router arguments fails
-   here again immediately.
+   The super-admin "Platform → Madaris → Edit" screens this file used to drive
+   were removed when the public site was reset to the bilingual marketing
+   experience (see public/js/public.js). Those routes must now fall back to
+   the homepage instead of throwing, and the real SPA must keep rendering its
+   bilingual (English + العربية) pages with the royal-purple identity.
 
    Requires the jsdom devDependency; the suite skips cleanly without it.
    ========================================================================== */
 const { test, before, after } = require("node:test");
 const assert = require("node:assert");
 
-const { initEnv, setup, SA_PASSWORD, PASSWORD } = require("./helpers");
+const { initEnv, setup, SA_PASSWORD } = require("./helpers");
 initEnv();
 
 let JSDOM = null;
@@ -25,7 +21,7 @@ let VirtualConsole = null;
 try {
   ({ JSDOM, VirtualConsole } = require("jsdom"));
 } catch (e) {
-  /* jsdom not installed (production install) — this file skips. */
+  /* jsdom devDependency not installed (production install) — this file skips. */
 }
 
 const skip = !JSDOM ? "jsdom devDependency not installed" : false;
@@ -54,7 +50,7 @@ async function openApp(base) {
     const res = await fetch(url, { ...init, headers, redirect: "manual" });
     for (const c of res.headers.getSetCookie ? res.headers.getSetCookie() : []) {
       const jar = {};
-      for (const p of cookie.split(";")) { const i = p.indexOf("="); if (i > 0) jar[p.slice(0, i).trim()] = p.slice(i + 1); }
+      for (const p of cookie.split(";")) { const i = p.indexOf("="); if (i > 0) jar[p.slice(0, i).trim()] = jar[p.slice(0, i).trim()] || p.slice(i + 1); }
       const pair = c.split(";")[0];
       const i = pair.indexOf("=");
       jar[pair.slice(0, i).trim()] = pair.slice(i + 1);
@@ -81,17 +77,16 @@ async function openApp(base) {
   assert.ok(window.App && window.API, "the SPA booted");
   await sleep(300);
 
-  const click = (el) => {
-    assert.ok(el, "element to click exists");
-    el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-  };
-
   return {
     window,
     pageErrors,
-    click,
     doc: window.document,
     $: (sel) => window.document.querySelector(sel),
+    $$: (sel) => Array.from(window.document.querySelectorAll(sel)),
+    themeColor: () => {
+      const meta = window.document.querySelector('meta[name="theme-color"]');
+      return meta ? meta.content : null;
+    },
     async login(username, password) {
       const r = await window.API.login(username, password);
       await window.App.refreshMe();
@@ -117,55 +112,56 @@ before(async () => {
   assert.equal(sa.window.App.me.role, "super_admin");
 });
 
-test("platform madrasa page renders the registered madrasa (no undefined params)", { skip }, async () => {
+test("the homepage renders bilingual copy (English + العربية) with no client errors", { skip }, async () => {
+  await sa.go("");
+
+  const heading = sa.$("#hero-title");
+  assert.ok(heading, "the hero rendered instead of staying blank");
+  assert.match(heading.textContent, /BELLO/, "the hero welcomes visitors to BELLO");
+
+  const heroArabic = sa.$(".hero-arabic");
+  assert.ok(heroArabic, "the Arabic welcome line is present");
+  assert.equal(heroArabic.getAttribute("lang"), "ar");
+  assert.equal(heroArabic.getAttribute("dir"), "rtl");
+  assert.match(heroArabic.textContent, /منصة/, "the welcome line is real Arabic copy");
+
+  const choiceArabic = sa.$$(".choice-ar");
+  assert.equal(choiceArabic.length, 2, "both school-choice cards carry an Arabic subtitle");
+  assert.match(choiceArabic[0].textContent, /إسلامية/, "the Islamic card is labelled in Arabic");
+
+  assert.ok(sa.$(".footer-ar"), "the footer carries the Arabic mission line");
+  assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
+});
+
+test("the Islamic Schools page renders its Arabic identity and the royal-purple theme", { skip }, async () => {
+  await sa.go("islamic-schools");
+
+  const title = sa.$("#category-title");
+  assert.ok(title, "the category page rendered");
+  assert.equal(title.textContent.trim(), "Islamic education, ready to discover.");
+
+  const titleAr = sa.$(".category-title-ar");
+  assert.ok(titleAr, "the page heading is mirrored in Arabic");
+  assert.match(titleAr.textContent, /إسلامي/, "the Arabic title is real Arabic copy");
+
+  assert.ok(sa.$(".category-quote-ar"), "the Arabic knowledge quote is displayed");
+  assert.equal(sa.$$(".type-ar").length, 4, "every institution-type card is labelled in Arabic");
+  assert.equal(sa.themeColor(), "#31075e", "the Islamic experience uses the deep royal-purple brand colour");
+  assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
+});
+
+test("removed platform routes fall back to the homepage instead of throwing", { skip }, async () => {
+  // The old super-admin "Platform → Madaris" screens are gone from the public
+  // SPA; their URLs must render the homepage, never a blank page or a toast.
   await sa.go("platform/madaris/" + ctx.madrasaA);
 
-  const heading = sa.$("#view h1");
-  assert.ok(heading, "the page rendered a heading instead of staying blank");
-  assert.equal(heading.textContent.trim(), "Test Madrasa A");
-  assert.ok(sa.$("#editBtn"), "the Edit button is present");
-  assert.ok(sa.$("#adminBtn"), "the admin-account button is present");
+  assert.ok(sa.$("#hero-title"), "the homepage rendered for the removed route");
   assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
 });
 
-test("Edit opens the form pre-filled and saving updates the madrasa", { skip }, async () => {
-  sa.click(sa.$("#editBtn"));
-  await sleep(1200); // the form loads the plan list on demand
-
-  const slug = sa.$("#fSlug");
-  const nameEn = sa.$("#fNameEn");
-  assert.ok(slug && nameEn, "the edit modal opened");
-  assert.equal(slug.value, "testa", "the form is pre-filled from the madrasa being edited");
-  assert.equal(nameEn.value, "Test Madrasa A");
-  assert.ok(sa.$("#fPlan").options.length > 0, "the plan dropdown is populated");
-
-  nameEn.value = "Test Madrasa A (renamed)";
-  sa.$("#fCity").value = "Ijebu-Ode";
-  sa.click(sa.$("#fSave"));
-  await sleep(1200);
-
-  const row = await ctx.db.get("SELECT name_en, city FROM madaris WHERE id = ?", [ctx.madrasaA]);
-  assert.equal(row.name_en, "Test Madrasa A (renamed)", "the edit was saved");
-  assert.equal(row.city, "Ijebu-Ode");
-  assert.ok(!sa.$(".modal-backdrop"), "the modal closed after saving");
+test("the Western Academies page keeps its own navy identity", { skip }, async () => {
+  await sa.go("western-schools");
+  assert.ok(sa.$("#western-top"), "the western experience rendered");
+  assert.notEqual(sa.themeColor(), "#31075e", "the western experience does not use the Islamic purple");
   assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
-});
-
-test("the madrasa list links to each madrasa's edit page", { skip }, async () => {
-  await sa.go("platform/madaris");
-  const link = sa.$(`#madRows a[href="#/platform/madaris/${ctx.madrasaB}"]`);
-  assert.ok(link, "the list links to the madrasa detail page");
-  await sa.go("platform/madaris/" + ctx.madrasaB);
-  assert.equal(sa.$("#view h1").textContent.trim(), "Test Madrasa B");
-  assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
-});
-
-test("a madrasa admin is still refused the platform page", { skip }, async () => {
-  const other = await openApp(ctx.base);
-  try {
-    await other.login("admin-a", PASSWORD);
-    await other.go("platform/madaris/" + ctx.madrasaA);
-    assert.match(other.$("#view").textContent, /403/, "the super-admin guard still blocks other roles");
-    assert.deepEqual(other.pageErrors, []);
-  } finally { other.close(); }
 });

@@ -112,6 +112,9 @@ function createApp() {
   app.get("/islamic-schools", schoolLinkHandler);
   app.get("/western-schools", schoolLinkHandler);
   app.get("/register-madrasa", schoolLinkHandler);
+  // Western Academies get their OWN registration page (navy/sky identity and
+  // academy-specific fields) instead of reusing the Madrasa onboarding form.
+  app.get("/register-academy", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */
   // The logged-out public site (directory, madrasa profile, online admission,

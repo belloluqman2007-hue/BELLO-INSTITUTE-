@@ -904,6 +904,87 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
   stroke-width: 3;
 }
 
+/* Administrator page — "which madrasa is this account for" context card */
+.admin-context-card {
+  padding: 18px 20px;
+  border-left: 4px solid var(--gold);
+}
+
+.admin-context-head {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.admin-context-logo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #faf8fd;
+  color: var(--forest-700);
+}
+
+.admin-context-logo img { width: 100%; height: 100%; object-fit: cover; }
+.admin-context-logo svg { width: 24px; height: 24px; }
+
+.admin-context-copy {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.admin-context-copy small {
+  display: block;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.admin-context-copy strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1.06rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.admin-context-copy span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: .8rem;
+}
+
+.admin-context-copy span svg { width: 14px; height: 14px; color: var(--gold-600); }
+
+/* Notice shown when a later page is opened before its prerequisites */
+.reg-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: min(100%, 720px);
+  margin: 22px 0 0;
+  padding: 13px 17px;
+  border: 1px solid var(--gold-light);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .9);
+  color: #785a10;
+}
+
+.reg-notice svg { width: 19px; height: 19px; flex-shrink: 0; margin-top: 2px; color: var(--gold-600); }
+.reg-notice p { margin: 0; font-size: .84rem; line-height: 1.55; }
+
 /* Administrator Callout */
 .admin-callout {
   display: flex;
@@ -2613,6 +2694,22 @@ body.islamic-experience .modal-icon { background: #e8e2f0; color: var(--forest-8
 .wa-level-pill.is-selected { border-color: var(--wa-navy-800); background: var(--wa-navy-800); color: #fff; }
 .wa-pill-check { display: grid; place-items: center; font-size: .9rem; font-weight: 850; line-height: 1; }
 .wa-pill-check svg { width: 12px; height: 12px; stroke-width: 3; }
+
+/* Administrator page — "which academy is this account for" context card */
+.wa-admin-context { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; padding: 18px 20px; border-left: 4px solid var(--wa-sky-500); }
+.wa-admin-context-logo { display: grid; flex: 0 0 auto; place-items: center; width: 52px; height: 52px; overflow: hidden; border: 1px solid var(--wa-line); border-radius: 13px; background: #f5faff; color: var(--wa-navy-800); }
+.wa-admin-context-logo img { width: 100%; height: 100%; object-fit: cover; }
+.wa-admin-context-logo svg { width: 24px; height: 24px; }
+.wa-admin-context-copy { flex: 1 1 220px; min-width: 0; }
+.wa-admin-context-copy small { display: block; color: #6a83a0; font-size: .72rem; font-weight: 760; letter-spacing: .07em; text-transform: uppercase; }
+.wa-admin-context-copy strong { display: block; margin-top: 3px; overflow: hidden; color: var(--wa-navy-900); font-size: 1.06rem; line-height: 1.35; text-overflow: ellipsis; }
+.wa-admin-context-copy span { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; color: #4f6b86; font-size: .8rem; }
+.wa-admin-context-copy span svg { width: 14px; height: 14px; color: var(--wa-sky-500); }
+
+/* Notice shown when a later page is opened before its prerequisites */
+.wa-reg-notice { display: flex; align-items: flex-start; gap: 11px; width: min(100%, 720px); margin: 22px 0 0; padding: 13px 17px; border: 1px solid #cfe6f8; border-radius: 12px; background: rgba(255,255,255,.92); color: var(--wa-navy-800); }
+.wa-reg-notice svg { flex-shrink: 0; width: 19px; height: 19px; margin-top: 2px; color: var(--wa-sky-500); }
+.wa-reg-notice p { margin: 0; font-size: .84rem; line-height: 1.55; }
 
 /* Administrator callout + password meter */
 .wa-callout { display: flex; gap: 12px; margin-bottom: 21px; padding: 14px 17px; border: 1px solid #cfe6f8; border-radius: 12px; background: #f2f9ff; color: var(--wa-navy-800); }

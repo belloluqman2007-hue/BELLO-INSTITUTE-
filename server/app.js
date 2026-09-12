@@ -115,6 +115,15 @@ function createApp() {
   // Western Academies get their OWN registration page (navy/sky identity and
   // academy-specific fields) instead of reusing the Madrasa onboarding form.
   app.get("/register-academy", schoolLinkHandler);
+  // Each onboarding stage is a real, reloadable page of its own — the SPA
+  // shell reads the stage from the path:
+  //   /register-madrasa/administrator   /register-academy/administrator
+  //   /register-madrasa/review          /register-academy/review
+  //   /register-madrasa/submitted       /register-academy/submitted
+  // Serving them explicitly keeps refreshing or sharing the Administrator page
+  // working regardless of the SPA fallback below.
+  app.get("/register-madrasa/:stage", schoolLinkHandler);
+  app.get("/register-academy/:stage", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */
   // The logged-out public site (directory, madrasa profile, online admission,

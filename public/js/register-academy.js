@@ -694,7 +694,7 @@ window.BelloAcademyRegister = (function () {
               const clickable = step > n;
               return `
                 <div class="wa-stepper-item ${cls}">
-                  <button type="button" class="wa-stepper-bubble" ${clickable ? `onclick="window.BelloAcademyRegister.goToStep(${n})"` : "disabled"} aria-current="${step === n ? "step" : "false"}">
+                  <button type="button" class="wa-stepper-bubble" ${clickable ? `data-wa-action="go-step" data-step="${n}"` : "disabled"} aria-current="${step === n ? "step" : "false"}">
                     ${step > n || (n === 4 && step === 4) ? icons.check : n}
                   </button>
                   <span class="wa-stepper-label">${label}</span>
@@ -757,7 +757,7 @@ window.BelloAcademyRegister = (function () {
           <h4>Need assistance?</h4>
           <p>Our onboarding team can help your academy complete registration.</p>
           <a href="mailto:support@belloinstitute.org" class="wa-side-link">${icons.mail} support@belloinstitute.org</a>
-          <button type="button" class="wa-side-link as-button" onclick="window.BelloAcademyRegister.openStatusModal()">${icons.search} Check existing application status</button>
+          <button type="button" class="wa-side-link as-button" data-wa-action="open-status">${icons.search} Check existing application status</button>
         </div>
       </aside>`;
   }
@@ -792,7 +792,7 @@ window.BelloAcademyRegister = (function () {
                   <div class="wa-logo-meta"><strong>${escapeHtml(m.logoName || "academy-logo.png")}</strong><small>${m.logoSize ? (m.logoSize / 1024).toFixed(1) + " KB" : "Uploaded image"}</small></div>
                   <div class="wa-logo-actions">
                     <label class="wa-btn wa-btn-ghost wa-btn-small" for="a_logo_upload">Change Logo</label>
-                    <button type="button" class="wa-btn wa-btn-danger wa-btn-small" onclick="window.BelloAcademyRegister.removeLogo()">${icons.trash} Remove</button>
+                    <button type="button" class="wa-btn wa-btn-danger wa-btn-small" data-wa-action="remove-logo">${icons.trash} Remove</button>
                   </div>
                   <input type="file" id="a_logo_upload" accept="image/png, image/jpeg, image/jpg" class="wa-sr-only">
                 </div>
@@ -972,7 +972,7 @@ window.BelloAcademyRegister = (function () {
 
         <div class="wa-actions-bar">
           <a href="/western-schools" data-route="/western-schools" class="wa-btn wa-btn-ghost"><span>${icons.arrowLeft}</span> Cancel</a>
-          <button type="button" class="wa-btn wa-btn-primary" onclick="window.BelloAcademyRegister.goToStep(2)">Continue to Administrator Account <span>${icons.arrow}</span></button>
+          <button type="button" class="wa-btn wa-btn-primary" data-wa-action="go-step" data-step="2">Continue to Administrator Account <span>${icons.arrow}</span></button>
         </div>
       </div>`;
   }
@@ -996,7 +996,7 @@ window.BelloAcademyRegister = (function () {
             <strong>${escapeHtml(m.name || "Your academy")}</strong>
             ${place ? `<span>${icons.pin} ${escapeHtml(place)}</span>` : ""}
           </div>
-          <button type="button" class="wa-btn wa-btn-outline wa-btn-small" onclick="window.BelloAcademyRegister.goToStep(1)">${icons.edit} Edit academy details</button>
+          <button type="button" class="wa-btn wa-btn-outline wa-btn-small" data-wa-action="go-step" data-step="1">${icons.edit} Edit academy details</button>
         </section>
 
         <section class="wa-reg-card">
@@ -1037,7 +1037,7 @@ window.BelloAcademyRegister = (function () {
               <label for="a_admin_pass">Password <span class="wa-req">*</span></label>
               <div class="wa-input has-action">
                 <input type="${state.showPassword ? "text" : "password"}" id="a_admin_pass" value="${escapeHtml(a.password)}" placeholder="Create a strong password" autocomplete="new-password" required>
-                <button type="button" class="wa-input-action" onclick="window.BelloAcademyRegister.togglePasswordVisibility('password')" aria-label="Toggle password visibility">${state.showPassword ? icons.eyeOff : icons.eye}</button>
+                <button type="button" class="wa-input-action" data-wa-action="toggle-password" data-field="password" aria-label="Toggle password visibility">${state.showPassword ? icons.eyeOff : icons.eye}</button>
               </div>
               ${err.adminPassword ? `<p class="wa-field-error">${err.adminPassword}</p>` : ""}
 
@@ -1059,7 +1059,7 @@ window.BelloAcademyRegister = (function () {
               <label for="a_admin_confirm">Confirm Password <span class="wa-req">*</span></label>
               <div class="wa-input has-action">
                 <input type="${state.showConfirmPassword ? "text" : "password"}" id="a_admin_confirm" value="${escapeHtml(a.confirmPassword)}" placeholder="Re-enter your password" autocomplete="new-password" required>
-                <button type="button" class="wa-input-action" onclick="window.BelloAcademyRegister.togglePasswordVisibility('confirm')" aria-label="Toggle password visibility">${state.showConfirmPassword ? icons.eyeOff : icons.eye}</button>
+                <button type="button" class="wa-input-action" data-wa-action="toggle-password" data-field="confirm" aria-label="Toggle password visibility">${state.showConfirmPassword ? icons.eyeOff : icons.eye}</button>
               </div>
               ${err.adminConfirmPassword ? `<p class="wa-field-error">${err.adminConfirmPassword}</p>` : ""}
               ${a.confirmPassword && a.password === a.confirmPassword ? `<p class="wa-field-success">${icons.check} Passwords match</p>` : ""}
@@ -1069,8 +1069,8 @@ window.BelloAcademyRegister = (function () {
               <label class="wa-checkbox" for="a_terms">
                 <input type="checkbox" id="a_terms" ${state.formData.termsAccepted ? "checked" : ""}>
                 <span>I agree to BELLO's
-                  <button type="button" class="wa-text-button" onclick="window.BelloAcademyRegister.openTermsModal()">Terms of Service</button> and
-                  <button type="button" class="wa-text-button" onclick="window.BelloAcademyRegister.openTermsModal()">Privacy Policy</button>.
+                  <button type="button" class="wa-text-button" data-wa-action="open-terms">Terms of Service</button> and
+                  <button type="button" class="wa-text-button" data-wa-action="open-terms">Privacy Policy</button>.
                 </span>
               </label>
               ${err.terms ? `<p class="wa-field-error">${err.terms}</p>` : ""}
@@ -1079,8 +1079,8 @@ window.BelloAcademyRegister = (function () {
         </section>
 
         <div class="wa-actions-bar">
-          <button type="button" class="wa-btn wa-btn-ghost" onclick="window.BelloAcademyRegister.goToStep(1)"><span>${icons.arrowLeft}</span> Back to Academy Information</button>
-          <button type="button" class="wa-btn wa-btn-primary" onclick="window.BelloAcademyRegister.goToStep(3)">Continue to Review <span>${icons.arrow}</span></button>
+          <button type="button" class="wa-btn wa-btn-ghost" data-wa-action="go-step" data-step="1"><span>${icons.arrowLeft}</span> Back to Academy Information</button>
+          <button type="button" class="wa-btn wa-btn-primary" data-wa-action="go-step" data-step="3">Continue to Review <span>${icons.arrow}</span></button>
         </div>
       </div>`;
   }
@@ -1103,7 +1103,7 @@ window.BelloAcademyRegister = (function () {
             <article class="wa-review-card">
               <div class="wa-review-top">
                 <div><span class="wa-rev-icon">${icons.building}</span><h3>Academy</h3></div>
-                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" onclick="window.BelloAcademyRegister.goToStep(1)">${icons.edit} Edit</button>
+                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" data-wa-action="go-step" data-step="1">${icons.edit} Edit</button>
               </div>
               <div class="wa-review-body">
                 ${m.logo ? `<div class="wa-review-logo"><img src="${m.logo}" alt="Academy logo preview"></div>` : ""}
@@ -1121,7 +1121,7 @@ window.BelloAcademyRegister = (function () {
             <article class="wa-review-card">
               <div class="wa-review-top">
                 <div><span class="wa-rev-icon">${icons.pin}</span><h3>Location</h3></div>
-                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" onclick="window.BelloAcademyRegister.goToStep(1)">${icons.edit} Edit</button>
+                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" data-wa-action="go-step" data-step="1">${icons.edit} Edit</button>
               </div>
               <div class="wa-review-body">
                 <div class="wa-review-grid">
@@ -1137,7 +1137,7 @@ window.BelloAcademyRegister = (function () {
             <article class="wa-review-card">
               <div class="wa-review-top">
                 <div><span class="wa-rev-icon">${icons.phone}</span><h3>Contact</h3></div>
-                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" onclick="window.BelloAcademyRegister.goToStep(1)">${icons.edit} Edit</button>
+                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" data-wa-action="go-step" data-step="1">${icons.edit} Edit</button>
               </div>
               <div class="wa-review-body">
                 <div class="wa-review-grid">
@@ -1152,7 +1152,7 @@ window.BelloAcademyRegister = (function () {
             <article class="wa-review-card">
               <div class="wa-review-top">
                 <div><span class="wa-rev-icon">${icons.graduation}</span><h3>Programs &amp; Levels</h3></div>
-                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" onclick="window.BelloAcademyRegister.goToStep(1)">${icons.edit} Edit</button>
+                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" data-wa-action="go-step" data-step="1">${icons.edit} Edit</button>
               </div>
               <div class="wa-review-body">
                 <div class="wa-review-part"><small>Academic Programs</small><div class="wa-review-chips">${m.subjects.map((s) => `<span>${s === "Other" && m.otherSubjectText ? escapeHtml(m.otherSubjectText) : escapeHtml(s)}</span>`).join("") || "<span>—</span>"}</div></div>
@@ -1168,7 +1168,7 @@ window.BelloAcademyRegister = (function () {
             <article class="wa-review-card">
               <div class="wa-review-top">
                 <div><span class="wa-rev-icon">${icons.users}</span><h3>Administrator</h3></div>
-                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" onclick="window.BelloAcademyRegister.goToStep(2)">${icons.edit} Edit</button>
+                <button type="button" class="wa-btn wa-btn-outline wa-btn-small" data-wa-action="go-step" data-step="2">${icons.edit} Edit</button>
               </div>
               <div class="wa-review-body">
                 <div class="wa-review-grid">
@@ -1183,8 +1183,8 @@ window.BelloAcademyRegister = (function () {
         </section>
 
         <div class="wa-actions-bar">
-          <button type="button" class="wa-btn wa-btn-ghost" onclick="window.BelloAcademyRegister.goToStep(2)"><span>${icons.arrowLeft}</span> Back to Administrator</button>
-          <button type="button" class="wa-btn wa-btn-submit ${state.submitting ? "is-loading" : ""}" onclick="window.BelloAcademyRegister.submitRegistration()" ${state.submitting ? "disabled" : ""}>
+          <button type="button" class="wa-btn wa-btn-ghost" data-wa-action="go-step" data-step="2"><span>${icons.arrowLeft}</span> Back to Administrator</button>
+          <button type="button" class="wa-btn wa-btn-submit ${state.submitting ? "is-loading" : ""}" data-wa-action="submit-registration" ${state.submitting ? "disabled" : ""}>
             ${state.submitting ? `<span class="wa-spinner"></span> Submitting Registration...` : `Submit Academy Registration <span>${icons.sparkles}</span>`}
           </button>
         </div>
@@ -1213,7 +1213,7 @@ window.BelloAcademyRegister = (function () {
               <small>Application Reference</small>
               <div class="wa-ref-box">
                 <span id="a_receipt_ref">${escapeHtml(rc.registrationId || "REG-PENDING")}</span>
-                <button type="button" onclick="window.BelloAcademyRegister.copyRefCode('${escapeHtml(rc.registrationId || "")}')" title="Copy reference ID">${icons.copy}</button>
+                <button type="button" data-wa-action="copy-reference" data-reference="${escapeHtml(rc.registrationId || "")}" title="Copy reference ID">${icons.copy}</button>
               </div>
             </div>
             <div class="wa-receipt-date"><small>Submitted On</small><strong>${formattedDate}</strong></div>
@@ -1238,7 +1238,7 @@ window.BelloAcademyRegister = (function () {
 
         <div class="wa-success-actions">
           <a class="wa-btn wa-btn-primary" href="/western-schools" data-route="/western-schools">Back to Western Academies <span>${icons.arrow}</span></a>
-          <button type="button" class="wa-btn wa-btn-ghost" onclick="window.BelloAcademyRegister.openStatusModal('${escapeHtml(rc.registrationId || "")}')">${icons.search} View Registration Status</button>
+          <button type="button" class="wa-btn wa-btn-ghost" data-wa-action="open-status" data-reference="${escapeHtml(rc.registrationId || "")}">${icons.search} View Registration Status</button>
         </div>
       </div>`;
   }
@@ -1250,14 +1250,14 @@ window.BelloAcademyRegister = (function () {
     const isLoading = state.statusModal.loading;
 
     return `
-      <div class="wa-modal-backdrop" onclick="window.BelloAcademyRegister.closeStatusModal(event)">
-        <div class="wa-modal" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-label="Academy registration status">
+      <div class="wa-modal-backdrop" data-wa-action="close-status-backdrop">
+        <div class="wa-modal" role="dialog" aria-modal="true" aria-label="Academy registration status">
           <div class="wa-modal-head">
             <h3><span>${icons.search}</span> Academy Registration Status</h3>
-            <button type="button" class="wa-modal-close" onclick="window.BelloAcademyRegister.closeStatusModal()" aria-label="Close status dialog">${icons.close}</button>
+            <button type="button" class="wa-modal-close" data-wa-action="close-status" aria-label="Close status dialog">${icons.close}</button>
           </div>
           <div class="wa-modal-body">
-            <form class="wa-grid" onsubmit="window.BelloAcademyRegister.handleStatusSearchSubmit(event)">
+            <form class="wa-grid" data-wa-form="status-search">
               <div class="wa-field col-6">
                 <label for="a_st_ref">Registration Reference ID <span class="wa-req">*</span></label>
                 <div class="wa-input"><input type="text" id="a_st_ref" value="${escapeHtml(state.statusModal.referenceQuery)}" placeholder="e.g. REG-2026-AB12CD" required></div>
@@ -1287,7 +1287,7 @@ window.BelloAcademyRegister = (function () {
                 </ol>
               </div>` : ""}
           </div>
-          <div class="wa-modal-foot"><button type="button" class="wa-btn wa-btn-ghost" onclick="window.BelloAcademyRegister.closeStatusModal()">Close</button></div>
+          <div class="wa-modal-foot"><button type="button" class="wa-btn wa-btn-ghost" data-wa-action="close-status">Close</button></div>
         </div>
       </div>`;
   }
@@ -1295,11 +1295,11 @@ window.BelloAcademyRegister = (function () {
   function renderTermsModal() {
     if (!state.termsModalOpen) return "";
     return `
-      <div class="wa-modal-backdrop" onclick="window.BelloAcademyRegister.closeTermsModal(event)">
-        <div class="wa-modal" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-label="Terms of service">
+      <div class="wa-modal-backdrop" data-wa-action="close-terms-backdrop">
+        <div class="wa-modal" role="dialog" aria-modal="true" aria-label="Terms of service">
           <div class="wa-modal-head">
             <h3>BELLO Terms of Service &amp; Privacy Policy</h3>
-            <button type="button" class="wa-modal-close" onclick="window.BelloAcademyRegister.closeTermsModal()" aria-label="Close dialog">${icons.close}</button>
+            <button type="button" class="wa-modal-close" data-wa-action="close-terms" aria-label="Close dialog">${icons.close}</button>
           </div>
           <div class="wa-modal-body wa-terms-copy">
             <h4>1. Academy Partnership</h4>
@@ -1309,7 +1309,7 @@ window.BelloAcademyRegister = (function () {
             <h4>3. Academic Standards</h4>
             <p>Registered academies commit to providing a safe, inclusive and high-quality learning environment for every student.</p>
           </div>
-          <div class="wa-modal-foot"><button type="button" class="wa-btn wa-btn-primary" onclick="window.BelloAcademyRegister.acceptTermsAndClose()">I Understand &amp; Agree</button></div>
+          <div class="wa-modal-foot"><button type="button" class="wa-btn wa-btn-primary" data-wa-action="accept-terms">I Understand &amp; Agree</button></div>
         </div>
       </div>`;
   }
@@ -1354,6 +1354,50 @@ window.BelloAcademyRegister = (function () {
   function bindEvents() {
     const m = state.formData.academy;
     const a = state.formData.administrator;
+
+    /* Keep every control compatible with the server's strict Content Security
+       Policy. Inline event attributes are blocked by `script-src-attr 'none'`,
+       so actions are described in data attributes and bound here, from this
+       allowed same-origin script. */
+    document.querySelectorAll("[data-wa-action]").forEach((control) => {
+      control.addEventListener("click", (event) => {
+        const action = control.dataset.waAction;
+
+        if (action === "go-step") {
+          event.preventDefault();
+          goToStep(Number(control.dataset.step));
+        } else if (action === "remove-logo") {
+          removeLogo();
+        } else if (action === "toggle-password") {
+          togglePasswordVisibility(control.dataset.field);
+        } else if (action === "submit-registration") {
+          submitRegistration();
+        } else if (action === "copy-reference") {
+          copyRefCode(control.dataset.reference || "");
+        } else if (action === "open-status") {
+          openStatusModal(control.dataset.reference || undefined);
+        } else if (action === "close-status") {
+          closeStatusModal();
+        } else if (action === "close-status-backdrop") {
+          closeStatusModal(event);
+        } else if (action === "open-terms") {
+          // Policy buttons are nested in the terms label. Opening a policy
+          // must not silently check or uncheck consent.
+          event.preventDefault();
+          event.stopPropagation();
+          openTermsModal();
+        } else if (action === "close-terms") {
+          closeTermsModal();
+        } else if (action === "close-terms-backdrop") {
+          closeTermsModal(event);
+        } else if (action === "accept-terms") {
+          acceptTermsAndClose();
+        }
+      });
+    });
+
+    const statusSearchForm = document.querySelector('[data-wa-form="status-search"]');
+    if (statusSearchForm) statusSearchForm.addEventListener("submit", handleStatusSearchSubmit);
 
     const year = document.getElementById("academy-reg-year");
     if (year) year.textContent = new Date().getFullYear();

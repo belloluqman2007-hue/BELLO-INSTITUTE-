@@ -68,12 +68,16 @@ async function openPage(base, path, seedDraft) {
     $: (sel) => window.document.querySelector(sel),
     $$: (sel) => Array.from(window.document.querySelectorAll(sel)),
     path: () => window.location.pathname,
-    /** Clicks the button carrying the given label text. */
-    click(label) {
+    /** Finds a button by its visible label. */
+    button(label) {
       const btn = Array.from(window.document.querySelectorAll("button"))
         .find((b) => new RegExp(label, "i").test(b.textContent || ""));
       assert.ok(btn, `the "${label}" button is on the page`);
-      btn.click();
+      return btn;
+    },
+    /** Clicks the button carrying the given label text. */
+    click(label) {
+      this.button(label).click();
       return sleep(300);
     },
     close() { try { window.close(); } catch (e) { /* ignore */ } },
@@ -120,11 +124,32 @@ const INSTITUTION = {
   phone: "+2348012345678",
 };
 
-/** Fills the institution page the way a visitor would, via the module state. */
+/** Fills the institution page through the same DOM events a visitor produces. */
 function fillInstitution(page, section) {
   const mod = page.window[section.module];
   assert.ok(mod, `the ${section.label} registration module loaded`);
-  Object.assign(mod.getState().formData[section.form], INSTITUTION, section.extra);
+
+  const prefix = section.form === "madrasa" ? "f" : "a";
+  const controls = {
+    [`${prefix}_name`]: INSTITUTION.name,
+    [`${prefix}_country`]: INSTITUTION.country,
+    [`${prefix}_state`]: INSTITUTION.state,
+    [`${prefix}_city`]: INSTITUTION.city,
+    [`${prefix}_address`]: INSTITUTION.address,
+    [`${prefix}_phone`]: INSTITUTION.phone,
+  };
+  for (const [id, value] of Object.entries(controls)) {
+    const control = page.doc.getElementById(id);
+    assert.ok(control, `${id} is present on the ${section.label} form`);
+    control.value = value;
+    const eventName = control.tagName === "SELECT" ? "change" : "input";
+    control.dispatchEvent(new page.window.Event(eventName, { bubbles: true }));
+  }
+
+  // Structured selections are already represented by their checked controls;
+  // this lets each section add any test-only prerequisite without bypassing
+  // the visitor-driven text inputs above.
+  Object.assign(mod.getState().formData[section.form], section.extra);
   return mod;
 }
 
@@ -138,11 +163,24 @@ for (const section of SECTIONS) {
     try {
       assert.equal(page.path(), section.base, "the flow starts on the institution information page");
 
+      /* Production sends `script-src-attr 'none'`, which means an `onclick`
+         attribute is deliberately blocked by the browser. The regression that
+         prompted this check looked fine in jsdom (which does not enforce CSP)
+         but the button did nothing in a real browser. The control must now be
+         declarative and receive its listener from the external module script. */
+      const continueButton = page.button("Continue to Administrator Account");
+      assert.equal(continueButton.getAttribute("onclick"), null,
+        "the Continue button does not depend on a CSP-blocked inline handler");
+      assert.ok(continueButton.dataset.regAction || continueButton.dataset.waAction,
+        "the external registration module has an action to bind");
+      assert.equal(page.$$("[onclick], [onsubmit]").length, 0,
+        "the institution page contains no CSP-blocked event attributes");
+
       fillInstitution(page, section);
       await page.click("Continue to Administrator Account");
 
       assert.equal(page.path(), section.base + "/administrator",
-        "the button navigated to the Administrator Account page's own URL");
+        "the externally-bound button navigated to the Administrator Account page's own URL");
       assert.match(page.doc.title, /Administrator Account/,
         "the document title names the page, so bookmarks and history are readable");
       assert.ok(page.$("#administrator-account"), "the administrator page rendered");
@@ -151,6 +189,8 @@ for (const section of SECTIONS) {
       assert.ok(page.$("#" + section.adminField), "the administrator form fields are present");
       assert.equal(page.$(section.contextSelector).textContent.trim(), INSTITUTION.name,
         "the page states which institution the administrator account is being created for");
+      assert.equal(page.$$("[onclick], [onsubmit]").length, 0,
+        "the administrator page also contains no CSP-blocked event attributes");
 
       assert.deepEqual(page.pageErrors, [], "no client-side error was raised: " + page.pageErrors.join(" | "));
     } finally {
@@ -258,6 +298,8 @@ for (const section of SECTIONS) {
       const res = await fetch(ctx.base + section.base + "/" + stage);
       assert.equal(res.status, 200, `${section.base}/${stage} is served on a hard refresh`);
       assert.match(res.headers.get("content-type") || "", /html/, "the SPA shell is returned");
+      assert.match(res.headers.get("content-security-policy") || "", /script-src-attr 'none'/,
+        "production security correctly blocks inline event handlers");
     }
   });
 }

@@ -708,21 +708,21 @@ window.BelloRegister = (function () {
             </div>
             
             <div class="stepper-item ${step === 1 ? 'is-active' : ''} ${step > 1 ? 'is-complete' : ''}" data-step="1">
-              <button type="button" class="stepper-bubble" ${step > 1 ? 'onclick="window.BelloRegister.goToStep(1)"' : ''} aria-current="${step === 1 ? 'step' : 'false'}">
+              <button type="button" class="stepper-bubble" ${step > 1 ? 'data-reg-action="go-step" data-step="1"' : ''} aria-current="${step === 1 ? 'step' : 'false'}">
                 <span class="step-num">${step > 1 ? icons.check : '1'}</span>
               </button>
               <span class="stepper-label">1. Madrasa Information</span>
             </div>
 
             <div class="stepper-item ${step === 2 ? 'is-active' : ''} ${step > 2 ? 'is-complete' : ''}" data-step="2">
-              <button type="button" class="stepper-bubble" ${step > 2 ? 'onclick="window.BelloRegister.goToStep(2)"' : ''} aria-current="${step === 2 ? 'step' : 'false'}">
+              <button type="button" class="stepper-bubble" ${step > 2 ? 'data-reg-action="go-step" data-step="2"' : ''} aria-current="${step === 2 ? 'step' : 'false'}">
                 <span class="step-num">${step > 2 ? icons.check : '2'}</span>
               </button>
               <span class="stepper-label">2. Administrator</span>
             </div>
 
             <div class="stepper-item ${step === 3 ? 'is-active' : ''} ${step > 3 ? 'is-complete' : ''}" data-step="3">
-              <button type="button" class="stepper-bubble" ${step > 3 ? 'onclick="window.BelloRegister.goToStep(3)"' : ''} aria-current="${step === 3 ? 'step' : 'false'}">
+              <button type="button" class="stepper-bubble" ${step > 3 ? 'data-reg-action="go-step" data-step="3"' : ''} aria-current="${step === 3 ? 'step' : 'false'}">
                 <span class="step-num">${step > 3 ? icons.check : '3'}</span>
               </button>
               <span class="stepper-label">3. Review</span>
@@ -836,7 +836,7 @@ window.BelloRegister = (function () {
               <span class="sup-icon">${icons.mail}</span>
               <span>support@belloinstitute.org</span>
             </a>
-            <button type="button" class="text-link status-lookup-btn" onclick="window.BelloRegister.openStatusModal()">
+            <button type="button" class="text-link status-lookup-btn" data-reg-action="open-status">
               <span>${icons.search}</span> Check existing application status
             </button>
           </div>
@@ -894,7 +894,7 @@ window.BelloRegister = (function () {
                     <label class="button button-small button-secondary change-logo-btn" for="f_logo_upload">
                       Change Logo
                     </label>
-                    <button type="button" class="button button-small button-danger-light" onclick="window.BelloRegister.removeLogo()">
+                    <button type="button" class="button button-small button-danger-light" data-reg-action="remove-logo">
                       ${icons.trash} Remove
                     </button>
                   </div>
@@ -1163,7 +1163,7 @@ window.BelloRegister = (function () {
           <a href="/" data-route="/" class="button button-secondary">
             <span>${icons.arrowLeft}</span> Cancel
           </a>
-          <button type="button" class="button button-primary" onclick="window.BelloRegister.goToStep(2)">
+          <button type="button" class="button button-primary" data-reg-action="go-step" data-step="2">
             Continue to Administrator Account <span>${icons.arrow}</span>
           </button>
         </div>
@@ -1193,7 +1193,7 @@ window.BelloRegister = (function () {
               <strong>${escapeHtml(m.name || "Your madrasa")}</strong>
               ${place ? `<span>${icons.pin} ${escapeHtml(place)}</span>` : ""}
             </div>
-            <button type="button" class="button button-small button-outline-gold" onclick="window.BelloRegister.goToStep(1)">
+            <button type="button" class="button button-small button-outline-gold" data-reg-action="go-step" data-step="1">
               ${icons.edit} Edit madrasa details
             </button>
           </div>
@@ -1261,7 +1261,7 @@ window.BelloRegister = (function () {
               <label for="f_admin_pass">Password <span class="req">*</span></label>
               <div class="input-wrap has-action">
                 <input type="${state.showPassword ? 'text' : 'password'}" id="f_admin_pass" name="adminPassword" value="${escapeHtml(a.password)}" placeholder="Create a strong password" required autocomplete="new-password">
-                <button type="button" class="field-action-btn" onclick="window.BelloRegister.togglePasswordVisibility('password')" aria-label="Toggle password visibility">
+                <button type="button" class="field-action-btn" data-reg-action="toggle-password" data-field="password" aria-label="Toggle password visibility">
                   ${state.showPassword ? icons.eyeOff : icons.eye}
                 </button>
               </div>
@@ -1292,7 +1292,7 @@ window.BelloRegister = (function () {
               <label for="f_admin_confirm">Confirm Password <span class="req">*</span></label>
               <div class="input-wrap has-action">
                 <input type="${state.showConfirmPassword ? 'text' : 'password'}" id="f_admin_confirm" name="adminConfirmPassword" value="${escapeHtml(a.confirmPassword)}" placeholder="Re-enter your password" required autocomplete="new-password">
-                <button type="button" class="field-action-btn" onclick="window.BelloRegister.togglePasswordVisibility('confirm')" aria-label="Toggle password visibility">
+                <button type="button" class="field-action-btn" data-reg-action="toggle-password" data-field="confirm" aria-label="Toggle password visibility">
                   ${state.showConfirmPassword ? icons.eyeOff : icons.eye}
                 </button>
               </div>
@@ -1309,9 +1309,9 @@ window.BelloRegister = (function () {
                 <span class="checkmark"></span>
                 <span class="checkbox-label">
                   I agree to BELLO's 
-                  <button type="button" class="text-button" onclick="window.BelloRegister.openTermsModal('terms')">Terms of Service</button> 
-                  and 
-                  <button type="button" class="text-button" onclick="window.BelloRegister.openTermsModal('privacy')">Privacy Policy</button>.
+                  <button type="button" class="text-button" data-reg-action="open-terms" data-policy="terms">Terms of Service</button>
+                  and
+                  <button type="button" class="text-button" data-reg-action="open-terms" data-policy="privacy">Privacy Policy</button>.
                 </span>
               </label>
               ${err.terms ? `<p class="field-error-text">${err.terms}</p>` : ''}
@@ -1321,10 +1321,10 @@ window.BelloRegister = (function () {
 
         <!-- Step 2 Navigation Actions -->
         <div class="form-actions-bar">
-          <button type="button" class="button button-secondary" onclick="window.BelloRegister.goToStep(1)">
+          <button type="button" class="button button-secondary" data-reg-action="go-step" data-step="1">
             <span>${icons.arrowLeft}</span> Back to Madrasa Information
           </button>
-          <button type="button" class="button button-primary" onclick="window.BelloRegister.goToStep(3)">
+          <button type="button" class="button button-primary" data-reg-action="go-step" data-step="3">
             Continue to Review <span>${icons.arrow}</span>
           </button>
         </div>
@@ -1354,7 +1354,7 @@ window.BelloRegister = (function () {
                   <span class="rev-icon">${icons.building}</span>
                   <h3>Madrasa</h3>
                 </div>
-                <button type="button" class="button button-small button-outline-gold" onclick="window.BelloRegister.goToStep(1)">
+                <button type="button" class="button button-small button-outline-gold" data-reg-action="go-step" data-step="1">
                   ${icons.edit} Edit Information
                 </button>
               </div>
@@ -1396,7 +1396,7 @@ window.BelloRegister = (function () {
                   <span class="rev-icon">${icons.pin}</span>
                   <h3>Location</h3>
                 </div>
-                <button type="button" class="button button-small button-outline-gold" onclick="window.BelloRegister.goToStep(1)">
+                <button type="button" class="button button-small button-outline-gold" data-reg-action="go-step" data-step="1">
                   ${icons.edit} Edit Location
                 </button>
               </div>
@@ -1437,7 +1437,7 @@ window.BelloRegister = (function () {
                   <span class="rev-icon">${icons.phone}</span>
                   <h3>Contact</h3>
                 </div>
-                <button type="button" class="button button-small button-outline-gold" onclick="window.BelloRegister.goToStep(1)">
+                <button type="button" class="button button-small button-outline-gold" data-reg-action="go-step" data-step="1">
                   ${icons.edit} Edit Contact
                 </button>
               </div>
@@ -1470,7 +1470,7 @@ window.BelloRegister = (function () {
                   <span class="rev-icon">${icons.book}</span>
                   <h3>Subjects &amp; Capacity</h3>
                 </div>
-                <button type="button" class="button button-small button-outline-gold" onclick="window.BelloRegister.goToStep(1)">
+                <button type="button" class="button button-small button-outline-gold" data-reg-action="go-step" data-step="1">
                   ${icons.edit} Edit Subjects
                 </button>
               </div>
@@ -1511,7 +1511,7 @@ window.BelloRegister = (function () {
                   <span class="rev-icon">${icons.users}</span>
                   <h3>Administrator</h3>
                 </div>
-                <button type="button" class="button button-small button-outline-gold" onclick="window.BelloRegister.goToStep(2)">
+                <button type="button" class="button button-small button-outline-gold" data-reg-action="go-step" data-step="2">
                   ${icons.edit} Edit Administrator
                 </button>
               </div>
@@ -1541,10 +1541,10 @@ window.BelloRegister = (function () {
 
         <!-- Step 3 Navigation Actions -->
         <div class="form-actions-bar">
-          <button type="button" class="button button-secondary" onclick="window.BelloRegister.goToStep(2)">
+          <button type="button" class="button button-secondary" data-reg-action="go-step" data-step="2">
             <span>${icons.arrowLeft}</span> Back to Administrator
           </button>
-          <button type="button" class="button button-gold submit-final-btn ${state.submitting ? 'is-loading' : ''}" onclick="window.BelloRegister.submitRegistration()" ${state.submitting ? 'disabled' : ''}>
+          <button type="button" class="button button-gold submit-final-btn ${state.submitting ? 'is-loading' : ''}" data-reg-action="submit-registration" ${state.submitting ? 'disabled' : ''}>
             ${state.submitting ? `
               <span class="spinner"></span> Submitting Registration...
             ` : `
@@ -1595,7 +1595,7 @@ window.BelloRegister = (function () {
               <small>Application Reference</small>
               <div class="ref-code-box">
                 <span class="ref-number" id="receipt_ref">${rc.registrationId || 'REG-2026-PENDING'}</span>
-                <button type="button" class="copy-ref-btn" onclick="window.BelloRegister.copyRefCode('${rc.registrationId}')" title="Copy Reference ID">
+                <button type="button" class="copy-ref-btn" data-reg-action="copy-reference" data-reference="${escapeHtml(rc.registrationId || '')}" title="Copy Reference ID">
                   ${icons.copy}
                 </button>
               </div>
@@ -1640,7 +1640,7 @@ window.BelloRegister = (function () {
           <a href="/" data-route="/" class="button button-primary">
             Go to Homepage <span>${icons.arrow}</span>
           </a>
-          <button type="button" class="button button-secondary" onclick="window.BelloRegister.openStatusModal('${rc.registrationId}')">
+          <button type="button" class="button button-secondary" data-reg-action="open-status" data-reference="${escapeHtml(rc.registrationId || '')}">
             ${icons.search} View Registration Status
           </button>
         </div>
@@ -1655,21 +1655,21 @@ window.BelloRegister = (function () {
     const isLoading = state.statusModal.loading;
 
     return `
-      <div class="modal-backdrop" onclick="window.BelloRegister.closeStatusModal(event)">
-        <div class="modal-dialog reg-status-modal" onclick="event.stopPropagation()">
+      <div class="modal-backdrop" data-reg-action="close-status-backdrop">
+        <div class="modal-dialog reg-status-modal">
           <div class="modal-header">
             <div class="modal-title-group">
               <span class="modal-icon">${icons.search}</span>
               <h3>Madrasa Registration Status</h3>
             </div>
-            <button type="button" class="modal-close-btn" onclick="window.BelloRegister.closeStatusModal()" aria-label="Close status dialog">
+            <button type="button" class="modal-close-btn" data-reg-action="close-status" aria-label="Close status dialog">
               ${icons.close}
             </button>
           </div>
 
           <div class="modal-body">
             <!-- Search Form -->
-            <form class="status-search-form" onsubmit="window.BelloRegister.handleStatusSearchSubmit(event)">
+            <form class="status-search-form" data-reg-form="status-search">
               <div class="form-grid">
                 <div class="form-field col-6">
                   <label for="st_ref">Registration Reference ID <span class="req">*</span></label>
@@ -1745,7 +1745,7 @@ window.BelloRegister = (function () {
           </div>
 
           <div class="modal-footer">
-            <button type="button" class="button button-secondary" onclick="window.BelloRegister.closeStatusModal()">
+            <button type="button" class="button button-secondary" data-reg-action="close-status">
               Close
             </button>
           </div>
@@ -1758,11 +1758,11 @@ window.BelloRegister = (function () {
     if (!state.termsModalOpen) return '';
 
     return `
-      <div class="modal-backdrop" onclick="window.BelloRegister.closeTermsModal(event)">
-        <div class="modal-dialog terms-modal" onclick="event.stopPropagation()">
+      <div class="modal-backdrop" data-reg-action="close-terms-backdrop">
+        <div class="modal-dialog terms-modal">
           <div class="modal-header">
             <h3>BELLO Terms of Service &amp; Privacy Policy</h3>
-            <button type="button" class="modal-close-btn" onclick="window.BelloRegister.closeTermsModal()" aria-label="Close dialog">
+            <button type="button" class="modal-close-btn" data-reg-action="close-terms" aria-label="Close dialog">
               ${icons.close}
             </button>
           </div>
@@ -1777,7 +1777,7 @@ window.BelloRegister = (function () {
             <p>All registered institutions commit to fostering inclusive, authentic, and high-quality Islamic learning environments aligned with core Islamic ethics.</p>
           </div>
           <div class="modal-footer">
-            <button type="button" class="button button-primary" onclick="window.BelloRegister.acceptTermsAndClose()">
+            <button type="button" class="button button-primary" data-reg-action="accept-terms">
               I Understand &amp; Agree
             </button>
           </div>
@@ -1820,6 +1820,54 @@ window.BelloRegister = (function () {
     // Input syncing
     const m = state.formData.madrasa;
     const a = state.formData.administrator;
+
+    /*
+     * Registration controls must be bound from this external script rather
+     * than with inline `onclick` attributes. The server deliberately sends
+     * `script-src-attr 'none'` in its Content Security Policy, so browsers
+     * correctly refuse inline handlers. That made the Continue button appear
+     * to do nothing even though it worked in DOM tests that do not enforce
+     * CSP. Data attributes keep the markup declarative and CSP-safe.
+     */
+    document.querySelectorAll("[data-reg-action]").forEach((control) => {
+      control.addEventListener("click", (event) => {
+        const action = control.dataset.regAction;
+
+        if (action === "go-step") {
+          event.preventDefault();
+          goToStep(Number(control.dataset.step));
+        } else if (action === "remove-logo") {
+          removeLogo();
+        } else if (action === "toggle-password") {
+          togglePasswordVisibility(control.dataset.field);
+        } else if (action === "submit-registration") {
+          submitRegistration();
+        } else if (action === "copy-reference") {
+          copyRefCode(control.dataset.reference || "");
+        } else if (action === "open-status") {
+          openStatusModal(control.dataset.reference || undefined);
+        } else if (action === "close-status") {
+          closeStatusModal();
+        } else if (action === "close-status-backdrop") {
+          closeStatusModal(event);
+        } else if (action === "open-terms") {
+          // These buttons sit inside the terms checkbox label; do not let the
+          // label click toggle consent while merely reading a policy.
+          event.preventDefault();
+          event.stopPropagation();
+          openTermsModal(control.dataset.policy || "terms");
+        } else if (action === "close-terms") {
+          closeTermsModal();
+        } else if (action === "close-terms-backdrop") {
+          closeTermsModal(event);
+        } else if (action === "accept-terms") {
+          acceptTermsAndClose();
+        }
+      });
+    });
+
+    const statusSearchForm = document.querySelector('[data-reg-form="status-search"]');
+    if (statusSearchForm) statusSearchForm.addEventListener("submit", handleStatusSearchSubmit);
 
     const bindInput = (id, setter) => {
       const el = document.getElementById(id);

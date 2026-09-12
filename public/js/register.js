@@ -478,13 +478,12 @@ window.BelloRegister = (function () {
         <div class="nav-shell">
           <a class="brand" href="/" data-route="/" aria-label="BELLO home">
             <span class="brand-logo"><img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO logo"></span>
-            <span class="brand-words"><strong>BELLO</strong><small>Multi Madrasa Platform</small></span>
+            <span class="brand-words"><strong>BELLO</strong><small>Education Platform</small></span>
           </a>
-          <nav class="desktop-nav" aria-label="Registration navigation">
+          <nav class="desktop-nav platform-nav" aria-label="Registration navigation">
             <a href="/" data-route="/">Home</a>
-            <a href="/#madrasas" data-route="/#madrasas">Find a Madrasa</a>
-            <a href="/#subjects" data-route="/#subjects">Courses</a>
-            <a href="/#about" data-route="/#about">About</a>
+            <a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a>
+            <a href="/western-schools" data-route="/western-schools">Western Academies</a>
           </nav>
           <div class="nav-actions">
             <a class="button button-small button-secondary" href="/" data-route="/">
@@ -497,9 +496,8 @@ window.BelloRegister = (function () {
         </div>
         <nav class="mobile-nav" id="mobile-reg-menu" aria-label="Mobile navigation" aria-hidden="true">
           <a href="/" data-route="/">Home</a>
-          <a href="/#madrasas" data-route="/#madrasas">Find a Madrasa</a>
-          <a href="/#subjects" data-route="/#subjects">Courses</a>
-          <a href="/#about" data-route="/#about">About</a>
+          <a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a>
+          <a href="/western-schools" data-route="/western-schools">Western Academies</a>
           <a class="button button-secondary" href="/" data-route="/">Back to Home</a>
         </nav>
       </header>

@@ -275,7 +275,7 @@
           </nav>
           <div class="western-nav-actions">
             <a class="western-login" href="/#/login">Login</a>
-            <a class="western-register-button" href="#academy-registration">Register Your Academy <span>${icons.arrow}</span></a>
+            <a class="western-register-button" href="/register-madrasa" data-route="/register-madrasa">Register Your Academy <span>${icons.arrow}</span></a>
           </div>
           <button class="western-menu-toggle" type="button" aria-expanded="false" aria-controls="western-mobile-menu" aria-label="Open menu">
             <span class="western-open-icon">${icons.menu}</span><span class="western-close-icon">${icons.close}</span>
@@ -284,7 +284,7 @@
         <nav class="western-mobile-nav" id="western-mobile-menu" aria-label="Western Academy mobile navigation" aria-hidden="true">
           <a href="#western-top">Home</a><a href="#academies">Schools</a><a href="#academic-areas">Programs</a><a href="#academic-areas">Subjects</a><a href="#about">About</a><a href="#western-contact">Contact</a>
           <a class="western-mobile-login" href="/#/login">Login</a>
-          <a class="western-register-button" href="#academy-registration">Register Your Academy <span>${icons.arrow}</span></a>
+          <a class="western-register-button" href="/register-madrasa" data-route="/register-madrasa">Register Your Academy <span>${icons.arrow}</span></a>
         </nav>
       </header>`;
   }
@@ -299,7 +299,7 @@
             <div class="western-footer-socials"><a href="#western-contact" aria-label="BELLO Western Academy on LinkedIn">${icons.linkedin}</a><a href="#western-contact" aria-label="BELLO Western Academy on Instagram">${icons.instagram}</a><a href="#western-contact" aria-label="BELLO Western Academy on Facebook">${icons.facebook}</a></div>
           </div>
           <div class="western-footer-column"><h3>Explore</h3><a href="#academies">Schools</a><a href="#academic-areas">Programs</a><a href="#academic-areas">Subjects</a><a href="#about">About</a></div>
-          <div class="western-footer-column"><h3>For academies</h3><a href="#academy-registration">Register Your Academy</a><a href="#about">Your school website</a><a href="/#/login">Login</a><a href="#western-contact">Contact</a></div>
+          <div class="western-footer-column"><h3>For academies</h3><a href="/register-madrasa" data-route="/register-madrasa">Register Your Academy</a><a href="#about">Your school website</a><a href="/#/login">Login</a><a href="#western-contact">Contact</a></div>
           <div class="western-footer-column"><h3>Platform</h3><a href="#western-contact">Contact</a><a href="#western-contact">Privacy Policy</a><a href="#western-contact">Terms</a><a href="/" data-route="/">BELLO Education Platform</a></div>
         </div>
         <div class="western-container western-footer-bottom"><span>© <span id="western-year"></span> BELLO Western Academy. All rights reserved.</span><span>Powered by BELLO Education Platform</span></div>
@@ -343,7 +343,7 @@
               <p class="western-eyebrow"><span></span>BELLO Education Platform <i></i> Western Academy</p>
               <h1 id="western-hero-title">Discover the Right Academy <em>for Your Future</em></h1>
               <p class="western-hero-text">Explore quality academic institutions, discover educational programs, and connect with schools that help students build a successful future.</p>
-              <div class="western-hero-actions"><a class="western-button western-button--sky" href="#academies">Explore Schools <span>${icons.arrow}</span></a><a class="western-button western-button--ghost" href="#academy-registration">Register Your Academy</a></div>
+              <div class="western-hero-actions"><a class="western-button western-button--sky" href="#academies">Explore Schools <span>${icons.arrow}</span></a><a class="western-button western-button--ghost" href="/register-madrasa" data-route="/register-madrasa">Register Your Academy</a></div>
               <div class="western-hero-trust"><span>${icons.shieldCheck}</span><p>A modern academic space for families, students and independent schools.</p></div>
             </div>
             <div class="western-hero-visual reveal reveal-delay">
@@ -411,7 +411,7 @@
         </section>
 
         <section class="western-registration-section" id="academy-registration" aria-labelledby="academy-registration-title">
-          <div class="western-container"><div class="western-registration-card reveal"><div><p class="western-kicker">For academies</p><h2 id="academy-registration-title">Bring Your Academy Online</h2><p>BELLO gives schools the tools they need to build their online presence, manage their institution, and connect with students and parents.</p></div><a class="western-button western-button--navy" href="/#/login">Register Your Academy <span>${icons.arrow}</span></a></div></div>
+          <div class="western-container"><div class="western-registration-card reveal"><div><p class="western-kicker">For academies</p><h2 id="academy-registration-title">Bring Your Academy Online</h2><p>BELLO gives schools the tools they need to build their online presence, manage their institution, and connect with students and parents.</p></div><a class="western-button western-button--navy" href="/register-madrasa" data-route="/register-madrasa">Register Your Academy <span>${icons.arrow}</span></a></div></div>
         </section>
       </main>
       ${westernFooterMarkup()}`;

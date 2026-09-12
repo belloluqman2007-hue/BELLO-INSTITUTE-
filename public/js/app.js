@@ -64,6 +64,7 @@
             <a href="/#how-bello" data-route="/#how-bello">How BELLO Works</a>
           </nav>
           <div class="nav-actions">
+            <a class="login-link" href="/#/login">Login</a>
             <a class="login-link" href="/#institution-future" data-route="/#institution-future">For institutions</a>
             <a class="button button-small" href="/islamic-schools" data-route="/islamic-schools">Explore schools <span>${icons.arrow}</span></a>
           </div>
@@ -77,6 +78,7 @@
           ${navLink("Western Academies", "/western-schools", active === "western")}
           <a href="/#how-bello" data-route="/#how-bello">How BELLO Works</a>
           <a href="/#institution-future" data-route="/#institution-future">For institutions</a>
+          <a href="/#/login">Login</a>
           <a class="button" href="/islamic-schools" data-route="/islamic-schools">Explore schools <span>${icons.arrow}</span></a>
         </nav>
       </header>`;
@@ -93,7 +95,7 @@
             <div class="socials"><a href="#footer" aria-label="BELLO on Instagram">${icons.instagram}</a><a href="#footer" aria-label="BELLO on LinkedIn">${icons.linkedin}</a><a href="#footer" aria-label="BELLO on Facebook">${icons.facebook}</a></div>
           </div>
           <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
-          <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a></div>
+          <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/#/login">Login</a></div>
           <div class="footer-col"><h3>Platform</h3><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
         </div>
         <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i> <span lang="ar" dir="rtl">اكتشف · تواصل · ازدهر</span></span></div>

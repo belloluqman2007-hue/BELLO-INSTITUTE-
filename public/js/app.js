@@ -711,9 +711,11 @@
 
     if (hash.startsWith("#/app") || hash === "#/login" || hash.startsWith("#/login")) {
       renderDashboard();
-    } else if (path === "/register-academy" || hash === "#/register-academy" || hash === "#register-academy") {
+    // Every onboarding stage is its own page (…/administrator, …/review,
+    // …/submitted), so the whole subtree routes into the matching module.
+    } else if (path === "/register-academy" || path.startsWith("/register-academy/") || hash === "#/register-academy" || hash === "#register-academy") {
       renderAcademyRegistration();
-    } else if (path === "/register-madrasa" || hash === "#/register-madrasa" || hash === "#register-madrasa") {
+    } else if (path === "/register-madrasa" || path.startsWith("/register-madrasa/") || hash === "#/register-madrasa" || hash === "#register-madrasa") {
       renderRegistration();
     } else if (path === "/islamic-schools") {
       renderCategory("islamic");

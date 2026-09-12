@@ -125,11 +125,106 @@ window.BelloAcademyRegister = (function () {
     rocket: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.2c2.7-.7 4.5-.2 5.3.5.7.7 1.2 2.5.5 5.3-.7 2.7-2.4 5.5-5.1 8.2l-3.1-3.1c-1.3-1.3-2.3-2.8-3.1-4.4 2.7-2.7 5.5-4.4 8.2-5.1Z"/><path d="m9 10.7-4.2.4-1.8 1.8 4.2 1.4M13.3 15l-.4 4.2-1.8 1.8-1.4-4.2"/><path d="m9.5 14.5-4 4"/></svg>`
   };
 
+  /* ==========================================================================
+     Like the Islamic flow, every stage of academy onboarding is its OWN
+     addressable page. "Continue to Administrator Account" opens
+     /register-academy/administrator — bookmarkable, reloadable, and reachable
+     with the browser's Back/Forward buttons.
+     ========================================================================== */
+  const BASE_PATH = "/register-academy";
+  const STEP_PATHS = {
+    1: BASE_PATH,
+    2: BASE_PATH + "/administrator",
+    3: BASE_PATH + "/review",
+    4: BASE_PATH + "/submitted"
+  };
+  const STEP_TITLES = {
+    1: "Register Your Academy — BELLO Western Academy",
+    2: "Administrator Account — Register Your Academy | BELLO",
+    3: "Review Your Registration — BELLO Western Academy",
+    4: "Registration Submitted — BELLO Western Academy"
+  };
+  const DRAFT_KEY = "bello.academy-registration.draft";
+
+  function normalisePath(pathname) {
+    return String(pathname || "").replace(/\/+$/, "").toLowerCase() || "/";
+  }
+
+  function stepFromPath(pathname) {
+    const p = normalisePath(pathname);
+    for (const n of [2, 3, 4]) {
+      if (p === normalisePath(STEP_PATHS[n])) return n;
+    }
+    return 1;
+  }
+
+  function syncUrl(step, replace) {
+    const target = STEP_PATHS[step] || BASE_PATH;
+    if (typeof document !== "undefined") document.title = STEP_TITLES[step] || STEP_TITLES[1];
+    if (typeof history === "undefined" || !history.pushState) return;
+    const current = normalisePath(window.location.pathname);
+    if (replace || current === normalisePath(target)) {
+      history.replaceState({ belloAcademyRegisterStep: step }, "", target);
+    } else {
+      history.pushState({ belloAcademyRegisterStep: step }, "", target);
+    }
+  }
+
+  function saveDraft() {
+    try {
+      if (typeof sessionStorage === "undefined") return;
+      const m = state.formData.academy;
+      const a = state.formData.administrator;
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        // Logos are data URLs (potentially megabytes) and passwords are
+        // secrets — neither is ever written to storage.
+        academy: Object.assign({}, m, { logo: "", logoName: "", logoSize: 0 }),
+        administrator: Object.assign({}, a, { password: "", confirmPassword: "" }),
+        termsAccepted: state.formData.termsAccepted
+      }));
+    } catch (e) { /* private mode / storage full — the flow still works */ }
+  }
+
+  function restoreDraft() {
+    try {
+      if (typeof sessionStorage === "undefined") return false;
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return false;
+      const draft = JSON.parse(raw);
+      if (!draft || typeof draft !== "object") return false;
+      if (draft.academy) {
+        Object.assign(state.formData.academy, draft.academy, {
+          logo: state.formData.academy.logo,
+          logoName: state.formData.academy.logoName,
+          logoSize: state.formData.academy.logoSize
+        });
+      }
+      if (draft.administrator) {
+        Object.assign(state.formData.administrator, draft.administrator, {
+          password: state.formData.administrator.password,
+          confirmPassword: state.formData.administrator.confirmPassword
+        });
+      }
+      state.formData.termsAccepted = !!draft.termsAccepted;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clearDraft() {
+    try {
+      if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(DRAFT_KEY);
+    } catch (e) { /* ignore */ }
+  }
+
   function getInitialState() {
     return {
       currentStep: 1, // 1: Academy, 2: Administrator, 3: Review, 4: Submitted
       submitting: false,
       errors: {},
+      // Shown when a later page is opened without its prerequisites.
+      notice: "",
       showPassword: false,
       showConfirmPassword: false,
       formData: {
@@ -286,26 +381,73 @@ window.BelloAcademyRegister = (function () {
     render();
   }
 
-  function goToStep(targetStep) {
+  /* Navigating between stages navigates to that stage's own page. The guard
+     keeps the Administrator page from opening before the academy information
+     it belongs to is complete. */
+  function goToStep(targetStep, options) {
+    const opts = options || {};
     if (targetStep > state.currentStep) {
-      const errs = validateStep(state.currentStep);
-      if (Object.keys(errs).length > 0) {
-        state.errors = errs;
-        render();
-        scrollToFirstError();
-        return;
+      // Validate every intermediate step so a direct link to /review cannot
+      // skip the administrator page.
+      for (let s = state.currentStep; s < targetStep; s++) {
+        const errs = validateStep(s);
+        if (Object.keys(errs).length > 0) {
+          state.errors = errs;
+          state.currentStep = s;
+          state.notice = s === 1
+            ? "Please complete your academy information before creating the administrator account."
+            : "Please complete the administrator account before continuing.";
+          syncUrl(s, true);
+          render();
+          scrollToFirstError();
+          return false;
+        }
       }
     }
     state.errors = {};
+    state.notice = "";
     state.currentStep = targetStep;
+    saveDraft();
+    if (!opts.skipUrl) syncUrl(targetStep, !!opts.replaceUrl);
     render();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!opts.noScroll) window.scrollTo({ top: 0, behavior: "smooth" });
+    return true;
+  }
+
+  /** Renders whichever step the current URL points at (Back/Forward + reload). */
+  function syncFromUrl() {
+    const wanted = stepFromPath(window.location.pathname);
+    if (wanted === 4 && !state.submissionReceipt) {
+      state.currentStep = 1;
+      state.notice = "That registration receipt is no longer available. You can check an existing application with its reference ID.";
+      syncUrl(1, true);
+      render();
+      return;
+    }
+    if (wanted === state.currentStep) {
+      syncUrl(wanted, true);
+      render();
+      return;
+    }
+    if (wanted > state.currentStep) {
+      goToStep(wanted, { replaceUrl: true, noScroll: true });
+      return;
+    }
+    state.currentStep = wanted;
+    state.errors = {};
+    state.notice = "";
+    syncUrl(wanted, true);
+    render();
   }
 
   function scrollToFirstError() {
     setTimeout(() => {
       const firstErr = document.querySelector(".wa-field-error, .wa-field.has-error");
-      if (firstErr) firstErr.scrollIntoView({ behavior: "smooth", block: "center" });
+      // scrollIntoView is missing in some embedded/test browsers — guarding it
+      // keeps a validation message from turning into a page-breaking error.
+      if (firstErr && typeof firstErr.scrollIntoView === "function") {
+        firstErr.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }, 50);
   }
 
@@ -408,6 +550,8 @@ window.BelloAcademyRegister = (function () {
         resData.registration.submittedAt
       );
       state.currentStep = 4;
+      clearDraft();
+      syncUrl(4);
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
@@ -416,6 +560,8 @@ window.BelloAcademyRegister = (function () {
       state.submitting = false;
       state.submissionReceipt = receiptFrom(regId, payload.academy.id, "Pending", new Date().toISOString());
       state.currentStep = 4;
+      clearDraft();
+      syncUrl(4);
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -493,9 +639,30 @@ window.BelloAcademyRegister = (function () {
       </header>`;
   }
 
+  /* Each stage is its own page, so the hero announces the page you are on. */
+  const HERO_COPY = {
+    1: {
+      title: "Register Your <em>Academy</em>",
+      subtitle: "Bring your school into the BELLO Western Academy directory. Create your academy profile, publish your programs, and manage students, teachers and classes from one place."
+    },
+    2: {
+      title: "Administrator <em>Account</em>",
+      subtitle: "Create the account that will manage your academy on BELLO — classes, admissions, teachers, results and your public academy website."
+    },
+    3: {
+      title: "Review Your <em>Registration</em>",
+      subtitle: "Check every detail below. You can edit any section before submitting your academy for approval."
+    },
+    4: {
+      title: "Registration <em>Submitted</em>",
+      subtitle: "Your academy registration has been received and is now awaiting review by the BELLO team."
+    }
+  };
+
   function renderHero() {
     const step = state.currentStep;
     const progress = step === 1 ? 25 : step === 2 ? 50 : step === 3 ? 75 : 100;
+    const hero = HERO_COPY[step] || HERO_COPY[1];
     const steps = [
       ["1. Academy Information", "Academy Information"],
       ["2. Administrator", "Administrator Account"],
@@ -508,9 +675,16 @@ window.BelloAcademyRegister = (function () {
         <div class="western-container">
           <div class="wa-reg-hero-copy">
             <p class="western-eyebrow"><span></span>BELLO Education Platform <i></i> Academy Onboarding</p>
-            <h1>Register Your <em>Academy</em></h1>
-            <p class="wa-reg-hero-text">Bring your school into the BELLO Western Academy directory. Create your academy profile, publish your programs, and manage students, teachers and classes from one place.</p>
+            <h1 id="academy-reg-title">${hero.title}</h1>
+            <p class="wa-reg-hero-text">${escapeHtml(hero.subtitle)}</p>
           </div>
+
+          ${state.notice ? `
+            <div class="wa-reg-notice" role="status">
+              <span>${icons.info}</span>
+              <p>${escapeHtml(state.notice)}</p>
+            </div>
+          ` : ""}
 
           <div class="wa-stepper" aria-label="Registration steps">
             <div class="wa-stepper-track" style="--wa-progress: ${progress}%;"><span></span></div>
@@ -803,13 +977,28 @@ window.BelloAcademyRegister = (function () {
       </div>`;
   }
 
+  /* The Administrator Account page (/register-academy/administrator).
+     Opened by the "Continue to Administrator Account" button on the academy
+     information page, and restates which academy the account is for. */
   function renderStep2() {
+    const m = state.formData.academy;
     const a = state.formData.administrator;
     const err = state.errors;
     const strength = getPasswordStrength(a.password);
+    const place = [m.city, m.state].filter(Boolean).join(", ");
 
     return `
-      <div class="wa-reg-step">
+      <div class="wa-reg-step" id="administrator-account">
+        <section class="wa-reg-card wa-admin-context">
+          <span class="wa-admin-context-logo">${m.logo ? `<img src="${m.logo}" alt="${escapeHtml(m.name)} logo">` : icons.building}</span>
+          <div class="wa-admin-context-copy">
+            <small>Creating the administrator account for</small>
+            <strong>${escapeHtml(m.name || "Your academy")}</strong>
+            ${place ? `<span>${icons.pin} ${escapeHtml(place)}</span>` : ""}
+          </div>
+          <button type="button" class="wa-btn wa-btn-outline wa-btn-small" onclick="window.BelloAcademyRegister.goToStep(1)">${icons.edit} Edit academy details</button>
+        </section>
+
         <section class="wa-reg-card">
           <span class="wa-section-badge">Section 6</span>
           <div class="wa-section-title"><h2>Create Administrator Account</h2><p>This account will manage your academy on BELLO.</p></div>
@@ -1404,8 +1593,18 @@ window.BelloAcademyRegister = (function () {
       .replace(/'/g, "&#039;");
   }
 
+  /* Back/Forward is driven by the SPA router (public/js/app.js), which calls
+     mount() again for the new URL — so this module does not add a competing
+     popstate listener of its own. */
   return {
-    mount() { render(); },
+    mount() {
+      // A deep link or a reload rebuilds the academy details from the saved
+      // draft, but only while the form is still untouched so an in-progress
+      // edit is never overwritten by a stale draft.
+      const pristine = state.currentStep === 1 && !state.formData.academy.name.trim();
+      if (pristine && stepFromPath(window.location.pathname) > 1) restoreDraft();
+      syncFromUrl();
+    },
     goToStep,
     submitRegistration,
     removeLogo,
@@ -1418,6 +1617,9 @@ window.BelloAcademyRegister = (function () {
     closeTermsModal,
     acceptTermsAndClose,
     getState: () => state,
-    reset() { state = getInitialState(); render(); }
+    /* Exposed so the router/tests can ask which page a URL maps to. */
+    stepFromPath,
+    stepPaths: () => Object.assign({}, STEP_PATHS),
+    reset() { state = getInitialState(); clearDraft(); syncUrl(1, true); render(); }
   };
 })();

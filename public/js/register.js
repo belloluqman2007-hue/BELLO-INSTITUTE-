@@ -101,12 +101,113 @@ window.BelloRegister = (function () {
     link: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`
   };
 
+  /* ==========================================================================
+     Every stage of the onboarding flow is its OWN addressable page.
+     Pressing "Continue to Administrator Account" therefore opens
+     /register-madrasa/administrator — a real URL that can be bookmarked,
+     shared, reloaded and reached with the browser's Back/Forward buttons —
+     instead of silently swapping markup behind the registration URL.
+     ========================================================================== */
+  const BASE_PATH = "/register-madrasa";
+  const STEP_PATHS = {
+    1: BASE_PATH,
+    2: BASE_PATH + "/administrator",
+    3: BASE_PATH + "/review",
+    4: BASE_PATH + "/submitted"
+  };
+  const STEP_TITLES = {
+    1: "Register Your Madrasa — BELLO",
+    2: "Administrator Account — Register Your Madrasa | BELLO",
+    3: "Review Your Registration — BELLO",
+    4: "Registration Submitted — BELLO"
+  };
+  /* Draft of the madrasa information, so the administrator page survives a
+     reload or a shared link. Passwords are NEVER written to storage. */
+  const DRAFT_KEY = "bello.madrasa-registration.draft";
+
+  function normalisePath(pathname) {
+    return String(pathname || "").replace(/\/+$/, "").toLowerCase() || "/";
+  }
+
+  /** Which step the current URL is asking for (1 when it is not a step URL). */
+  function stepFromPath(pathname) {
+    const p = normalisePath(pathname);
+    for (const n of [2, 3, 4]) {
+      if (p === normalisePath(STEP_PATHS[n])) return n;
+    }
+    return 1;
+  }
+
+  /** Puts the step's own URL + document title in the address bar. */
+  function syncUrl(step, replace) {
+    const target = STEP_PATHS[step] || BASE_PATH;
+    if (typeof document !== "undefined") document.title = STEP_TITLES[step] || STEP_TITLES[1];
+    if (typeof history === "undefined" || !history.pushState) return;
+    const current = normalisePath(window.location.pathname);
+    if (replace || current === normalisePath(target)) {
+      history.replaceState({ belloRegisterStep: step }, "", target);
+    } else {
+      history.pushState({ belloRegisterStep: step }, "", target);
+    }
+  }
+
+  function saveDraft() {
+    try {
+      if (typeof sessionStorage === "undefined") return;
+      const m = state.formData.madrasa;
+      const a = state.formData.administrator;
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        // The logo is a data URL that can be megabytes wide — it is kept in
+        // memory only, never in storage.
+        madrasa: Object.assign({}, m, { logo: "", logoName: "", logoSize: 0 }),
+        administrator: Object.assign({}, a, { password: "", confirmPassword: "" }),
+        termsAccepted: state.formData.termsAccepted
+      }));
+    } catch (e) { /* private mode / storage full — the flow still works */ }
+  }
+
+  function restoreDraft() {
+    try {
+      if (typeof sessionStorage === "undefined") return false;
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return false;
+      const draft = JSON.parse(raw);
+      if (!draft || typeof draft !== "object") return false;
+      if (draft.madrasa) {
+        Object.assign(state.formData.madrasa, draft.madrasa, {
+          logo: state.formData.madrasa.logo,
+          logoName: state.formData.madrasa.logoName,
+          logoSize: state.formData.madrasa.logoSize
+        });
+      }
+      if (draft.administrator) {
+        Object.assign(state.formData.administrator, draft.administrator, {
+          password: state.formData.administrator.password,
+          confirmPassword: state.formData.administrator.confirmPassword
+        });
+      }
+      state.formData.termsAccepted = !!draft.termsAccepted;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clearDraft() {
+    try {
+      if (typeof sessionStorage !== "undefined") sessionStorage.removeItem(DRAFT_KEY);
+    } catch (e) { /* ignore */ }
+  }
+
   /* Default Form State with full structured schema */
   function getInitialState() {
     return {
       currentStep: 1, // 1: Madrasa Info, 2: Administrator, 3: Review, 4: Submitted
       submitting: false,
       errors: {},
+      // Message shown when a later page is opened directly without its
+      // prerequisites (e.g. the administrator link before the madrasa details).
+      notice: "",
       showPassword: false,
       showConfirmPassword: false,
       formData: {
@@ -289,27 +390,73 @@ window.BelloRegister = (function () {
     render();
   }
 
-  /* Step Navigation & Submission */
-  function goToStep(targetStep) {
+  /* Step Navigation & Submission
+     Moving between stages navigates to that stage's own page. The guard below
+     is what keeps the Administrator page honest: it only opens once the
+     madrasa information it belongs to is complete. */
+  function goToStep(targetStep, options) {
+    const opts = options || {};
     if (targetStep > state.currentStep) {
-      const errs = validateStep(state.currentStep);
-      if (Object.keys(errs).length > 0) {
-        state.errors = errs;
-        render();
-        scrollToFirstError();
-        return;
+      // Validate every earlier step, not just the current one, so a direct
+      // link to /register-madrasa/review cannot skip the administrator page.
+      for (let s = state.currentStep; s < targetStep; s++) {
+        const errs = validateStep(s);
+        if (Object.keys(errs).length > 0) {
+          state.errors = errs;
+          state.currentStep = s;
+          state.notice = s === 1
+            ? "Please complete your madrasa information before creating the administrator account."
+            : "Please complete the administrator account before continuing.";
+          syncUrl(s, true);
+          render();
+          scrollToFirstError();
+          return false;
+        }
       }
     }
     state.errors = {};
+    state.notice = "";
     state.currentStep = targetStep;
+    saveDraft();
+    if (!opts.skipUrl) syncUrl(targetStep, !!opts.replaceUrl);
     render();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!opts.noScroll) window.scrollTo({ top: 0, behavior: "smooth" });
+    return true;
+  }
+
+  /** Renders whichever step the current URL points at (Back/Forward + reload). */
+  function syncFromUrl() {
+    const wanted = stepFromPath(window.location.pathname);
+    // The success page is a receipt — it only exists right after submitting.
+    if (wanted === 4 && !state.submissionReceipt) {
+      state.currentStep = 1;
+      state.notice = "That registration receipt is no longer available. You can check an existing application with its reference ID.";
+      syncUrl(1, true);
+      render();
+      return;
+    }
+    if (wanted === state.currentStep) {
+      syncUrl(wanted, true);
+      render();
+      return;
+    }
+    if (wanted > state.currentStep) {
+      goToStep(wanted, { replaceUrl: true, noScroll: true });
+      return;
+    }
+    state.currentStep = wanted;
+    state.errors = {};
+    state.notice = "";
+    syncUrl(wanted, true);
+    render();
   }
 
   function scrollToFirstError() {
     setTimeout(() => {
       const firstErr = document.querySelector(".field-error-text, .form-field.has-error");
-      if (firstErr) {
+      // scrollIntoView is missing in some embedded/test browsers — guarding it
+      // keeps a validation message from turning into a page-breaking error.
+      if (firstErr && typeof firstErr.scrollIntoView === "function") {
         firstErr.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }, 50);
@@ -405,6 +552,8 @@ window.BelloRegister = (function () {
         state: payload.madrasa.state
       };
       state.currentStep = 4;
+      clearDraft();
+      syncUrl(4);
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -427,6 +576,8 @@ window.BelloRegister = (function () {
         state: payload.madrasa.state
       };
       state.currentStep = 4;
+      clearDraft();
+      syncUrl(4);
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -504,21 +655,51 @@ window.BelloRegister = (function () {
     `;
   }
 
+  /* Each stage is its own page, so the hero announces the page you are on. */
+  const HERO_COPY = {
+    1: {
+      title: "Register Your Madrasa",
+      arabic: "سجِّل مدرستك الإسلامية على منصة بيلو التعليمية",
+      subtitle: "Bring your madrasa into the BELLO digital learning community. Create your institution profile and manage your madrasa from one platform."
+    },
+    2: {
+      title: "Administrator Account",
+      arabic: "إنشاء حساب مدير المدرسة",
+      subtitle: "Create the account that will manage your madrasa on BELLO — classes, admissions, teachers, results and your public madrasa page."
+    },
+    3: {
+      title: "Review Your Registration",
+      arabic: "راجع بيانات التسجيل قبل الإرسال",
+      subtitle: "Check every detail below. You can edit any section before submitting your madrasa for approval."
+    },
+    4: {
+      title: "Registration Submitted",
+      arabic: "تم إرسال طلب التسجيل بنجاح",
+      subtitle: "Your madrasa registration has been received and is now awaiting review by the BELLO team."
+    }
+  };
+
   function renderPageHeader() {
     const step = state.currentStep;
     const progressPercent = step === 1 ? 25 : step === 2 ? 50 : step === 3 ? 75 : 100;
+    const hero = HERO_COPY[step] || HERO_COPY[1];
 
     return `
       <section class="reg-hero section-pattern">
         <div class="container">
           <div class="reg-hero-content">
             <div class="eyebrow"><span class="eyebrow-dot"></span> Institution Onboarding · <span lang="ar" dir="rtl">تسجيل المدارس</span></div>
-            <h1>Register Your Madrasa</h1>
-            <p class="reg-hero-ar" lang="ar" dir="rtl">سجِّل مدرستك الإسلامية على منصة بيلو التعليمية</p>
-            <p class="reg-subtitle">
-              Bring your madrasa into the BELLO digital learning community. Create your institution profile and manage your madrasa from one platform.
-            </p>
+            <h1 id="reg-page-title">${escapeHtml(hero.title)}</h1>
+            <p class="reg-hero-ar" lang="ar" dir="rtl">${hero.arabic}</p>
+            <p class="reg-subtitle">${escapeHtml(hero.subtitle)}</p>
           </div>
+
+          ${state.notice ? `
+            <div class="reg-notice" role="status">
+              <span>${icons.info}</span>
+              <p>${escapeHtml(state.notice)}</p>
+            </div>
+          ` : ""}
 
           <!-- Progress Indicator -->
           <div class="reg-stepper" aria-label="Registration Steps">
@@ -990,13 +1171,34 @@ window.BelloRegister = (function () {
     `;
   }
 
+  /* The Administrator Account page (/register-madrasa/administrator).
+     Opened by the "Continue to Administrator Account" button on the madrasa
+     information page. It restates which madrasa the account is being created
+     for, so a visitor arriving by link or reload always has the context. */
   function renderStep2() {
+    const m = state.formData.madrasa;
     const a = state.formData.administrator;
     const err = state.errors;
     const strength = getPasswordStrength(a.password);
+    const place = [m.city, m.state].filter(Boolean).join(", ");
 
     return `
-      <div class="reg-form-step reveal is-visible">
+      <div class="reg-form-step reveal is-visible" id="administrator-account">
+        <!-- Which madrasa this administrator account belongs to -->
+        <div class="reg-form-section admin-context-card">
+          <div class="admin-context-head">
+            <span class="admin-context-logo">${m.logo ? `<img src="${m.logo}" alt="${escapeHtml(m.name)} logo">` : icons.building}</span>
+            <div class="admin-context-copy">
+              <small>Creating the administrator account for</small>
+              <strong>${escapeHtml(m.name || "Your madrasa")}</strong>
+              ${place ? `<span>${icons.pin} ${escapeHtml(place)}</span>` : ""}
+            </div>
+            <button type="button" class="button button-small button-outline-gold" onclick="window.BelloRegister.goToStep(1)">
+              ${icons.edit} Edit madrasa details
+            </button>
+          </div>
+        </div>
+
         <!-- Section 6: Create Administrator Account -->
         <div class="reg-form-section">
           <div class="section-badge">Section 6</div>
@@ -1869,9 +2071,19 @@ window.BelloRegister = (function () {
       .replace(/'/g, "&#039;");
   }
 
+  /* Back/Forward is driven by the SPA router (public/js/app.js), which calls
+     mount() again for the new URL — so this module does not add a competing
+     popstate listener of its own. */
   return {
     mount() {
-      render();
+      // A deep link or a reload lands here with an empty module: rebuild the
+      // madrasa details from the saved draft so the guard on the
+      // administrator page sees the information that was already entered.
+      // Only ever done while the form is still untouched, so an in-progress
+      // edit is never overwritten by a stale draft.
+      const pristine = state.currentStep === 1 && !state.formData.madrasa.name.trim();
+      if (pristine && stepFromPath(window.location.pathname) > 1) restoreDraft();
+      syncFromUrl();
     },
     goToStep,
     submitRegistration,
@@ -1885,8 +2097,13 @@ window.BelloRegister = (function () {
     closeTermsModal,
     acceptTermsAndClose,
     getState: () => state,
+    /* Exposed so the router/tests can ask which page a URL maps to. */
+    stepFromPath,
+    stepPaths: () => Object.assign({}, STEP_PATHS),
     reset() {
       state = getInitialState();
+      clearDraft();
+      syncUrl(1, true);
       render();
     }
   };

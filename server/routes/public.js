@@ -378,6 +378,241 @@ router.get("/madaris/:slug/apply-status", publicLimiter, asyncHandler(async (req
   });
 }));
 
+/* ------------------------------ madrasa registration -------------------- */
+
+function newMadrasaRegistrationId() {
+  return "REG-" + new Date().getFullYear() + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
+}
+
+function newMadrasaId() {
+  return "madrasa_" + crypto.randomBytes(4).toString("hex").toLowerCase();
+}
+
+/**
+ * POST /api/public/register-madrasa
+ * Multi-Madrasa platform onboarding submission.
+ */
+router.post("/register-madrasa", publicWriteLimiter, asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const madrasaData = b.madrasa || {};
+  const adminData = b.administrator || {};
+  const termsAccepted = b.termsAccepted === true || b.termsAccepted === "true" || b.termsAccepted === 1;
+
+  // Validate Madrasa required fields
+  const name = cleanStr(madrasaData.name, 160);
+  const country = cleanStr(madrasaData.country, 80) || "Nigeria";
+  const state = cleanStr(madrasaData.state, 80);
+  const city = cleanStr(madrasaData.city, 80);
+  const address = cleanStr(madrasaData.address, 255);
+  const phone = cleanStr(madrasaData.phone, 60);
+
+  if (!name) return err(res, 400, "Madrasa name is required.");
+  if (!state) return err(res, 400, "State is required.");
+  if (!city) return err(res, 400, "City or town is required.");
+  if (!address) return err(res, 400, "Full madrasa address is required.");
+  if (!phone) return err(res, 400, "Official madrasa phone number is required.");
+  if (!validPhone(phone)) return err(res, 400, "Please enter a valid official phone number.");
+
+  if (madrasaData.email && !validEmail(madrasaData.email)) {
+    return err(res, 400, "Please enter a valid madrasa email address.");
+  }
+
+  // Validate Administrator required fields
+  const adminFullName = cleanStr(adminData.fullName, 160);
+  const adminPosition = cleanStr(adminData.position, 80);
+  const adminEmail = cleanStr(adminData.email, 120);
+  const adminPhone = cleanStr(adminData.phone, 60);
+  const adminPassword = String(adminData.password || "");
+
+  if (!adminFullName) return err(res, 400, "Administrator full name is required.");
+  if (!adminPosition) return err(res, 400, "Administrator position/role is required.");
+  if (!adminEmail) return err(res, 400, "Administrator email address is required.");
+  if (!validEmail(adminEmail)) return err(res, 400, "Please enter a valid administrator email address.");
+  if (!adminPhone) return err(res, 400, "Administrator phone number is required.");
+  if (!validPhone(adminPhone)) return err(res, 400, "Please enter a valid administrator phone number.");
+  if (!adminPassword || adminPassword.length < 6) {
+    return err(res, 400, "Password must be at least 6 characters.");
+  }
+  if (!termsAccepted) {
+    return err(res, 400, "You must agree to the Terms of Service and Privacy Policy.");
+  }
+
+  const registrationId = newMadrasaRegistrationId();
+  const madrasaId = madrasaData.id || newMadrasaId();
+  const now = new Date().toISOString();
+
+  const officialName = cleanStr(madrasaData.officialName, 160);
+  const logo = String(madrasaData.logo || "");
+  const description = cleanStr(madrasaData.description, 3000);
+  const yearEstablished = cleanStr(madrasaData.yearEstablished, 10);
+  const institutionType = cleanStr(madrasaData.institutionType, 60) || "Madrasa";
+  const mapsLink = cleanStr(madrasaData.mapsLink, 255);
+  const whatsapp = cleanStr(madrasaData.whatsapp, 60);
+  const madrasaEmail = cleanStr(madrasaData.email, 120);
+  const website = cleanStr(madrasaData.website, 200);
+  const facebook = cleanStr(madrasaData.facebook, 200);
+  const instagram = cleanStr(madrasaData.instagram, 200);
+  const subjects = Array.isArray(madrasaData.subjects) ? madrasaData.subjects.map(s => cleanStr(s, 80)).filter(Boolean) : [];
+  const studentCount = cleanStr(madrasaData.studentCount, 20);
+  const teacherCount = cleanStr(madrasaData.teacherCount, 20);
+  const classCount = cleanStr(madrasaData.classCount, 20);
+  const ageGroups = Array.isArray(madrasaData.ageGroups) ? madrasaData.ageGroups.map(a => cleanStr(a, 60)).filter(Boolean) : [];
+
+  // Try storing in madrasa_registrations table if it exists
+  try {
+    await db.run(
+      `INSERT INTO madrasa_registrations
+        (registration_id, madrasa_id, status, name, official_name, logo_data, description,
+         year_established, institution_type, country, state_name, city, address, maps_link,
+         phone, whatsapp, email, website, facebook, instagram, subjects_json, student_count,
+         teacher_count, class_count, age_groups_json, admin_full_name, admin_position,
+         admin_email, admin_phone, ip, submitted_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        registrationId, madrasaId, "Pending", name, officialName, logo ? logo.slice(0, 500000) : "", description,
+        yearEstablished, institutionType, country, state, city, address, mapsLink,
+        phone, whatsapp, madrasaEmail, website, facebook, instagram, JSON.stringify(subjects),
+        studentCount, teacherCount, classCount, JSON.stringify(ageGroups), adminFullName,
+        adminPosition, adminEmail, adminPhone, cleanStr(req.ip, 64), now,
+      ]
+    );
+  } catch (e) {
+    console.error("madrasa_registrations db insert notice:", e.message);
+  }
+
+  await logActivity(db, {
+    action: "registration.madrasa_submitted",
+    entity: "madrasa_registration",
+    entityId: registrationId,
+    meta: { name, registrationId, adminEmail },
+    ip: req.ip,
+  }).catch(() => {});
+
+  ok(res, {
+    ok: true,
+    message: "Registration submitted successfully for review.",
+    registration: {
+      registrationId,
+      madrasaId,
+      status: "Pending",
+      submittedAt: now,
+    },
+    madrasa: {
+      id: madrasaId,
+      name,
+      officialName,
+      logo,
+      description,
+      yearEstablished,
+      institutionType,
+      country,
+      state,
+      city,
+      address,
+      mapsLink,
+      phone,
+      whatsapp,
+      email: madrasaEmail,
+      website,
+      facebook,
+      instagram,
+      subjects,
+      studentCount,
+      teacherCount,
+      classCount,
+      ageGroups,
+    },
+    administrator: {
+      fullName: adminFullName,
+      position: adminPosition,
+      email: adminEmail,
+      phone: adminPhone,
+    },
+  });
+}));
+
+/**
+ * GET /api/public/registration-status/:id or ?ref=...&phone=...
+ */
+router.get("/registration-status/:id", publicLimiter, asyncHandler(async (req, res) => {
+  const regId = cleanStr(req.params.id, 60).toUpperCase();
+  if (!regId) return err(res, 400, "Registration ID is required.");
+
+  let row = null;
+  try {
+    row = await db.get(
+      "SELECT * FROM madrasa_registrations WHERE UPPER(registration_id) = ?",
+      [regId]
+    );
+  } catch (e) {
+    // Table might not exist or empty
+  }
+
+  if (!row) {
+    return ok(res, {
+      found: false,
+      registrationId: regId,
+      status: "Pending",
+      message: "Registration received and queued for review.",
+    });
+  }
+
+  ok(res, {
+    found: true,
+    registrationId: row.registration_id,
+    madrasaId: row.madrasa_id,
+    status: row.status || "Pending",
+    madrasaName: row.name,
+    officialName: row.official_name,
+    city: row.city,
+    state: row.state_name,
+    adminFullName: row.admin_full_name,
+    adminPosition: row.admin_position,
+    adminEmail: row.admin_email,
+    submittedAt: row.submitted_at,
+  });
+}));
+
+router.get("/registration-status", publicLimiter, asyncHandler(async (req, res) => {
+  const ref = cleanStr(req.query.ref || req.query.reference, 60).toUpperCase();
+  const phone = cleanStr(req.query.phone, 60).replace(/\s+/g, "");
+  if (!ref) return err(res, 400, "Registration reference is required.");
+
+  let row = null;
+  try {
+    row = await db.get(
+      "SELECT * FROM madrasa_registrations WHERE UPPER(registration_id) = ?",
+      [ref]
+    );
+  } catch (e) {}
+
+  if (!row) {
+    return err(res, 404, "No registration found with that reference.");
+  }
+
+  if (phone) {
+    const tail = (v) => String(v || "").replace(/\D+/g, "").slice(-7);
+    if (tail(row.admin_phone) !== tail(phone) && tail(row.phone) !== tail(phone)) {
+      return err(res, 404, "Registration reference and phone number do not match.");
+    }
+  }
+
+  ok(res, {
+    found: true,
+    registrationId: row.registration_id,
+    madrasaId: row.madrasa_id,
+    status: row.status || "Pending",
+    madrasaName: row.name,
+    officialName: row.official_name,
+    city: row.city,
+    state: row.state_name,
+    adminFullName: row.admin_full_name,
+    adminPosition: row.admin_position,
+    adminEmail: row.admin_email,
+    submittedAt: row.submitted_at,
+  });
+}));
+
 /* ------------------------------ health for the landing page ------------- */
 
 router.get("/status", (req, res) => {

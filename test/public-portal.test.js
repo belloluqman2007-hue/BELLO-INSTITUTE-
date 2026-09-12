@@ -354,3 +354,75 @@ test("public routes never create a session", async () => {
   const sessions = await ctx.db.get("SELECT COUNT(*) AS n FROM app_sessions");
   assert.equal(Number(sessions.n), sessionsBefore, "public traffic never inflates the session table");
 });
+
+/* ----------------------- madrasa registration --------------------------- */
+
+test("madrasa registration validates required fields and returns structured receipt", async () => {
+  const a = anon();
+
+  // Missing madrasa name
+  const missingName = await a.req("POST", "/api/public/register-madrasa", {
+    madrasa: { state: "Lagos", city: "Ikeja", address: "123 Street", phone: "+2348012345678" },
+    administrator: { fullName: "Ahmad Ibrahim", position: "Proprietor", email: "ahmad@example.com", phone: "+2348012345678", password: "Password123!" },
+    termsAccepted: true,
+  });
+  assert.equal(missingName.status, 400);
+
+  // Missing terms acceptance
+  const missingTerms = await a.req("POST", "/api/public/register-madrasa", {
+    madrasa: { name: "Al-Hikmah Academy", state: "Lagos", city: "Ikeja", address: "123 Street", phone: "+2348012345678" },
+    administrator: { fullName: "Ahmad Ibrahim", position: "Proprietor", email: "ahmad@example.com", phone: "+2348012345678", password: "Password123!" },
+    termsAccepted: false,
+  });
+  assert.equal(missingTerms.status, 400);
+
+  // Valid registration
+  const valid = await a.req("POST", "/api/public/register-madrasa", {
+    madrasa: {
+      name: "Al-Hikmah Islamic Academy",
+      officialName: "Al-Hikmah Educational Foundation",
+      description: "Dedicated to Qur'an and Arabic learning.",
+      yearEstablished: "2010",
+      institutionType: "Madrasa",
+      country: "Nigeria",
+      state: "Ogun",
+      city: "Ijebu-Ode",
+      address: "15 Folagbade Street, Ijebu-Ode",
+      mapsLink: "https://maps.google.com/?q=Ijebu-Ode",
+      phone: "+2348023456789",
+      whatsapp: "+2348023456789",
+      email: "info@alhikmah.edu.ng",
+      website: "https://alhikmah.edu.ng",
+      subjects: ["Qur'an", "Tajweed", "Hadith", "Arabic Language"],
+      studentCount: "180",
+      teacherCount: "14",
+      classCount: "8",
+      ageGroups: ["Children", "Teenagers", "Adults"],
+    },
+    administrator: {
+      fullName: "Ustadh Ahmad Ibrahim",
+      position: "Proprietor",
+      email: "ahmad.ibrahim@alhikmah.edu.ng",
+      phone: "+2348023456789",
+      password: "StrongSecretPassword123!",
+    },
+    termsAccepted: true,
+  });
+
+  assert.equal(valid.status, 200);
+  assert.equal(valid.data.ok, true);
+  assert.ok(valid.data.registration.registrationId.startsWith("REG-2026-"));
+  assert.equal(valid.data.registration.status, "Pending");
+  assert.equal(valid.data.madrasa.name, "Al-Hikmah Islamic Academy");
+  assert.equal(valid.data.administrator.fullName, "Ustadh Ahmad Ibrahim");
+  assert.equal(valid.data.administrator.password, undefined, "password is never echoed");
+
+  // Check registration status lookup
+  const regId = valid.data.registration.registrationId;
+  const statusRes = await a.req("GET", `/api/public/registration-status/${regId}`);
+  assert.equal(statusRes.status, 200);
+  assert.equal(statusRes.data.found, true);
+  assert.equal(statusRes.data.registrationId, regId);
+  assert.equal(statusRes.data.status, "Pending");
+  assert.equal(statusRes.data.madrasaName, "Al-Hikmah Islamic Academy");
+});

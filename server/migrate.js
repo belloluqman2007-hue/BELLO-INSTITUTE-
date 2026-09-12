@@ -521,6 +521,50 @@ const MIGRATIONS = [
       await api.run(`CREATE INDEX idx_homework ON homework (madrasa_id, class_id, id)`);
     },
   },
+  /* ------------------------------------------------------------------ */
+  {
+    id: "012_madrasa_registrations",
+    up: async (api, dialect) => {
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS madrasa_registrations (
+          id ${D.autoInc(dialect)},
+          registration_id VARCHAR(60) NOT NULL UNIQUE,
+          madrasa_id VARCHAR(60) NOT NULL,
+          status VARCHAR(30) NOT NULL DEFAULT 'Pending',
+          name VARCHAR(160) NOT NULL,
+          official_name VARCHAR(160) NOT NULL DEFAULT '',
+          logo_data TEXT,
+          description TEXT,
+          year_established VARCHAR(10) NOT NULL DEFAULT '',
+          institution_type VARCHAR(60) NOT NULL DEFAULT 'Madrasa',
+          country VARCHAR(80) NOT NULL DEFAULT 'Nigeria',
+          state_name VARCHAR(80) NOT NULL DEFAULT '',
+          city VARCHAR(80) NOT NULL DEFAULT '',
+          address VARCHAR(255) NOT NULL DEFAULT '',
+          maps_link VARCHAR(255) NOT NULL DEFAULT '',
+          phone VARCHAR(60) NOT NULL DEFAULT '',
+          whatsapp VARCHAR(60) NOT NULL DEFAULT '',
+          email VARCHAR(120) NOT NULL DEFAULT '',
+          website VARCHAR(200) NOT NULL DEFAULT '',
+          facebook VARCHAR(200) NOT NULL DEFAULT '',
+          instagram VARCHAR(200) NOT NULL DEFAULT '',
+          subjects_json TEXT,
+          student_count VARCHAR(20) NOT NULL DEFAULT '',
+          teacher_count VARCHAR(20) NOT NULL DEFAULT '',
+          class_count VARCHAR(20) NOT NULL DEFAULT '',
+          age_groups_json TEXT,
+          admin_full_name VARCHAR(160) NOT NULL DEFAULT '',
+          admin_position VARCHAR(80) NOT NULL DEFAULT '',
+          admin_email VARCHAR(120) NOT NULL DEFAULT '',
+          admin_phone VARCHAR(60) NOT NULL DEFAULT '',
+          ip VARCHAR(64) NOT NULL DEFAULT '',
+          submitted_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_madrasa_reg_id ON madrasa_registrations (registration_id)`);
+      await api.run(`CREATE INDEX idx_madrasa_reg_status ON madrasa_registrations (status)`);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

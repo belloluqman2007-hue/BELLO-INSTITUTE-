@@ -106,6 +106,7 @@ function createApp() {
   app.get("/s/:slug", schoolLinkHandler);
   app.get("/school/:slug", schoolLinkHandler);
   app.get("/m/:slug", schoolLinkHandler);
+  app.get("/register-madrasa", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */
   // The logged-out public site (directory, madrasa profile, online admission,

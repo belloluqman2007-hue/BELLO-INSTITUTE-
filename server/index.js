@@ -17,6 +17,13 @@ const persistence = require("./services/persistence");
     // tell a restart from a wiped volume, and warns out loud when storage will
     // not survive the next deploy. See services/persistence.js.
     const marker = persistence.touchMarker({ appVersion: "1.0.0" });
+    // Print the mount verdict on every boot, not only inside the authenticated
+    // diagnostics screen. This makes a missed Render disk or an ephemeral
+    // uploads/backups directory visible before the first institution is added.
+    const storage = await persistence.report(null);
+    const dataMount = storage.dataDir && storage.dataDir.mountPoint ? storage.dataDir.mountPoint : "unknown";
+    console.log("Storage: " + storage.level + " — data=" + config.DATA_DIR + " (mount " + dataMount + ")");
+    for (const warning of storage.warnings) console.warn("⚠ [" + warning.code + "] " + warning.message);
     // Which database file this process opened, and why that one. Saying it out
     // loud on every boot is what turns "the madrasa disappeared" into a
     // one-glance diagnosis: two *.sqlite files in one directory means only one

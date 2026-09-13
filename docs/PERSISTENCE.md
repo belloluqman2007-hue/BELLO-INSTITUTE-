@@ -98,16 +98,26 @@ when deciding "am I on the mounted volume or on the throwaway disk?".
 
 ### 2.2 It tells you, loudly, at boot
 
-`server/config.js#validate()` prints warnings (never exits — killing a live site
-is worse than a log line) and the log is echoed in
-`GET /api/platform/backups/diagnostics`, which drives a banner on every
-super-admin screen:
+`server/config.js#validate()` refuses an unsafe **Render production SQLite**
+boot before migrations or seeds can create a fresh database on a container disk.
+That is intentionally stricter than a warning: a Render service that starts
+successfully must not be one redeploy away from deleting every institution.
+Other storage problems (uploads, backups, an uninspectable mount) are warnings
+in the boot log and in `GET /api/platform/backups/diagnostics`, which drives a
+banner on every super-admin screen:
 
 ```
-WARNING: SQLite database "/opt/render/project/src/data/madrasa_platform.sqlite"
-is NOT under the persistent volume (/var/data). … every madrasa, user and result
-you create is DELETED on the next deploy or restart.
+FATAL: invalid configuration:
+  - SQLite database "/var/data/madrasa_platform.sqlite" is on non-persistent
+    storage (mount "/", type "overlay"). Refusing to start production because
+    a Render redeploy would erase every madrasa.
 ```
+
+For an existing live service, attach the Render disk and point `DATA_DIR`,
+`UPLOAD_DIR`, `BACKUP_DIR`, and `PERSISTENT_VOLUME_DIR` at `/var/data`; or use
+`DATABASE_DRIVER=mysql` with a non-empty `DATABASE_URL`. Do not suppress this
+failure with `DATA_PERSISTENT_ACK=1` unless the operator has independently
+verified durable storage.
 
 Verdict codes (safe to alert on):
 
@@ -236,11 +246,18 @@ services:
       mountPath: /var/data
       sizeGB: 1
     envVars:
+      - { key: DATABASE_DRIVER,      value: mysql }
+      - { key: DATABASE_URL,         sync: false } # set in Render; never commit it
       - { key: DATA_DIR,             value: /var/data }
       - { key: UPLOAD_DIR,           value: /var/data/uploads }
       - { key: BACKUP_DIR,           value: /var/data/backups }
       - { key: PERSISTENT_VOLUME_DIR, value: /var/data }
 ```
+
+`render.yaml` must be managed as a Render Blueprint for this declaration to
+reach the live service. A manually created service keeps its own settings, so
+verify its disk and the six variables above in the Render Dashboard after
+syncing or before the next deploy.
 
 Facts worth knowing before you click *Create*:
 

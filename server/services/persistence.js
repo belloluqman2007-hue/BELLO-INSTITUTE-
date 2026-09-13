@@ -256,8 +256,11 @@ async function report(db) {
 
   // Only judge the host when it claims to be production: a developer's own
   // disk is perfectly durable even though it is just the root filesystem.
-  if (!externalDb && config.IS_PRODUCTION && !acknowledged) {
-    if (data.onPersistentVolume === false) {
+  if (config.IS_PRODUCTION && !acknowledged) {
+    // The SQLite database itself is catastrophic on an ephemeral filesystem.
+    // (config.validate() now refuses this exact production configuration before
+    // migrations create an empty file, but keep this diagnostic for visibility.)
+    if (!externalDb && data.onPersistentVolume === false) {
       level = "critical";
       warnings.push({
         code: "EPHEMERAL_DATA_DIR",
@@ -267,10 +270,13 @@ async function report(db) {
           "service redeploys or restarts. Mount a persistent disk at " + config.DATA_DIR +
           " (render.yaml: `disk:`) or use DATABASE_URL with MySQL. See docs/PERSISTENCE.md.",
       });
-    } else if (data.onPersistentVolume === null) {
+    } else if (!externalDb && data.onPersistentVolume === null) {
       if (level === "ok") level = "warn";
       warnings.push({ code: "UNKNOWN_MOUNT", message: "Could not inspect the filesystem — confirm " + config.DATA_DIR + " survives a restart." });
     }
+    // MySQL protects database rows, but it does not protect uploaded logos,
+    // photos or the snapshots used for disaster recovery. Report those two
+    // separately even with DATABASE_URL configured.
     if (uploads.onPersistentVolume === false) {
       if (level === "ok") level = "warn";
       warnings.push({ code: "EPHEMERAL_UPLOADS", message: "Uploads (" + config.UPLOAD_DIR + ") are on an ephemeral filesystem — logos and student photos vanish on redeploy. Keep UPLOAD_DIR inside the persistent volume." });

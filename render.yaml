@@ -10,9 +10,13 @@ services:
   - type: web
     name: multi-madrasa-platform
     runtime: node
-    # Node 22 for the built-in sqlite driver (dev parity) + modern Express 5.
-    nodeVersion: "22"
+    # The Node runtime is pinned with NODE_VERSION below and .node-version.
+    # `nodeVersion` is not a valid Render Blueprint field; keeping version
+    # selection in supported settings is what lets Render apply the disk and
+    # environment declarations in this file.
     plan: starter
+    # A service with a persistent disk must remain a single instance.
+    numInstances: 1
     # EU region = lowest latency to Nigeria; change freely.
     region: frankfurt
     # Do not auto-deploy main; deploy deliberately from this branch.
@@ -37,6 +41,11 @@ services:
     # The database itself is the external MySQL (below); the disk holds
     # uploads, backups and the storage state marker.
     envVars:
+      # Render's supported way to select Node. Keep this aligned with
+      # .node-version and package.json; Node 22 provides node:sqlite for the
+      # supported local/demo SQLite mode.
+      - key: NODE_VERSION
+        value: "22.22.3"
       - key: NODE_ENV
         value: production
       - key: DATABASE_DRIVER

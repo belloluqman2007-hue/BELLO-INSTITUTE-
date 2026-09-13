@@ -17,11 +17,13 @@ contains **no live secrets** — secrets are generated or set in the dashboard.
    string.
 2. In Render, create a **new** Web Service from this repo (do *not* open or
    modify the old service). Enable **Blueprints** so `render.yaml` is read —
-   that also creates the 1 GB persistent disk (`bello-data` at `/var/data`)
-   declared in the file. A disk can only be attached while the service is being
-   created (or later through the API), so **do not skip this step**: without a
-   volume, every madrasa you add is deleted at the next deploy.
-   See [`PERSISTENCE.md`](PERSISTENCE.md).
+   that creates the 1 GB persistent disk (`bello-data` at `/var/data`) and all
+   environment variables declared in the file. The Blueprint uses only Render
+   supported fields and pins Node through `NODE_VERSION` / `.node-version`;
+   a malformed Blueprint is not an acceptable substitute for the disk being
+   present. **Do not skip this step**: without a volume, every SQLite-backed
+   madrasa you add is deleted at the next deploy. See
+   [`PERSISTENCE.md`](PERSISTENCE.md).
 3. When prompted, provide the values marked `sync: false` in `render.yaml`:
    - `DATABASE_URL` — the NEW connection string
    - `SUPER_ADMIN_PASSWORD` — a strong, new password
@@ -41,8 +43,9 @@ contains **no live secrets** — secrets are generated or set in the dashboard.
 
 | Key | Source | Notes |
 | --- | ------ | ----- |
+| `NODE_VERSION` | fixed `22.22.3` | supported Render setting; also pinned in `.node-version` |
 | `NODE_ENV` | fixed `production` | enables production validation |
-| `DATABASE_DRIVER` | fixed `mysql` | use the new MySQL DB |
+| `DATABASE_DRIVER` | fixed `mysql` | use the new MySQL DB; never let production silently fall back to SQLite |
 | `DATABASE_URL` | you set (`sync: false`) | NEW DB only |
 | `SESSION_SECRET` | Render-generated | 32+ chars, required in prod |
 | `SUPER_ADMIN_USERNAME` | fixed `admin` | change after first login |
@@ -56,6 +59,32 @@ contains **no live secrets** — secrets are generated or set in the dashboard.
 | `PUBLIC_RATE_LIMIT` / `PUBLIC_APPLY_LIMIT` / `PUBLIC_VERIFY_LIMIT` | `600` / `8` / `12` | limits for the logged-out public site |
 | `DATA_PERSISTENT_ACK` | unset | set to `1` only when the disk is yours and survives reboots |
 | `AUTO_RESTORE_ON_EMPTY_DB` | unset (on) | a boot that finds an EMPTY database restores the newest snapshot; `0` disables |
+
+### Repairing or verifying an existing Render service
+
+A committed `render.yaml` changes a service only when that service is managed
+and synced as a Render **Blueprint**. If the live service was originally
+created by hand, check its Dashboard configuration before deploying this
+release — do not assume the file has already attached a disk to it:
+
+1. **Disk:** the service must show a persistent disk mounted at `/var/data`
+   (named `bello-data` in this Blueprint, at least 1 GB).
+2. **Database environment:** `DATABASE_DRIVER` must be `mysql` and
+   `DATABASE_URL` must be set to the intended database. Render masks the URL;
+   confirm it is present, never paste it into source or logs.
+3. **Filesystem environment:** `DATA_DIR=/var/data`,
+   `UPLOAD_DIR=/var/data/uploads`, `BACKUP_DIR=/var/data/backups`, and
+   `PERSISTENT_VOLUME_DIR=/var/data` must all be set exactly as shown.
+4. Redeploy and read the first boot lines. The target is `driver: mysql` and a
+   `Storage: ok` line with `data=/var/data`. There must be no
+   `EPHEMERAL_DATA_DIR`, `EPHEMERAL_UPLOADS`, or `EPHEMERAL_BACKUPS` warning.
+
+For safety, this release **refuses to boot on Render in production** when
+SQLite resolves to a filesystem that is not actually a persistent mount. That
+fails the deploy before migrations or seeds can create an empty database,
+rather than allowing a service that will lose its institutions on the next
+restart. Do not set `DATA_PERSISTENT_ACK=1` just to hide this failure; attach
+the disk or configure MySQL with `DATABASE_URL` instead.
 
 ### Resetting the super-admin password
 

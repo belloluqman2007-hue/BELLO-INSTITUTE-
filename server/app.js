@@ -124,6 +124,14 @@ function createApp() {
   // working regardless of the SPA fallback below.
   app.get("/register-madrasa/:stage", schoolLinkHandler);
   app.get("/register-academy/:stage", schoolLinkHandler);
+  // The admin section's own addresses. /login is the administrator sign-in
+  // page (it ALWAYS asks for credentials — a live session never bypasses
+  // it); /admin is the section itself and falls back to sign-in when the
+  // visitor is not authenticated. Real paths (not a hash route) so the
+  // page reloads cleanly with fresh state.
+  app.get("/login", schoolLinkHandler);
+  app.get("/admin", schoolLinkHandler);
+  app.get("/admin/login", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */
   // The logged-out public site (directory, madrasa profile, online admission,

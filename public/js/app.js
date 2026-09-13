@@ -64,7 +64,7 @@
             <a href="/#how-bello" data-route="/#how-bello">How BELLO Works</a>
           </nav>
           <div class="nav-actions">
-            <a class="login-link" href="/#/login">Login</a>
+            <a class="login-link" href="/login">Login</a>
             <a class="login-link" href="/#institution-future" data-route="/#institution-future">For institutions</a>
             <a class="button button-small" href="/islamic-schools" data-route="/islamic-schools">Explore schools <span>${icons.arrow}</span></a>
           </div>
@@ -78,7 +78,7 @@
           ${navLink("Western Academies", "/western-schools", active === "western")}
           <a href="/#how-bello" data-route="/#how-bello">How BELLO Works</a>
           <a href="/#institution-future" data-route="/#institution-future">For institutions</a>
-          <a href="/#/login">Login</a>
+          <a href="/login">Login</a>
           <a class="button" href="/islamic-schools" data-route="/islamic-schools">Explore schools <span>${icons.arrow}</span></a>
         </nav>
       </header>`;
@@ -95,7 +95,7 @@
             <div class="socials"><a href="#footer" aria-label="BELLO on Instagram">${icons.instagram}</a><a href="#footer" aria-label="BELLO on LinkedIn">${icons.linkedin}</a><a href="#footer" aria-label="BELLO on Facebook">${icons.facebook}</a></div>
           </div>
           <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
-          <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/#/login">Login</a></div>
+          <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/login">Login</a></div>
           <div class="footer-col"><h3>Platform</h3><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
         </div>
         <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i> <span lang="ar" dir="rtl">اكتشف · تواصل · ازدهر</span></span></div>
@@ -283,7 +283,7 @@
             <a href="#western-contact">Contact</a>
           </nav>
           <div class="western-nav-actions">
-            <a class="western-login" href="/#/login">Login</a>
+            <a class="western-login" href="/login">Login</a>
             <a class="western-register-button" href="/register-academy" data-route="/register-academy">Register Your Academy <span>${icons.arrow}</span></a>
           </div>
           <button class="western-menu-toggle" type="button" aria-expanded="false" aria-controls="western-mobile-menu" aria-label="Open menu">
@@ -292,7 +292,7 @@
         </div>
         <nav class="western-mobile-nav" id="western-mobile-menu" aria-label="Western Academy mobile navigation" aria-hidden="true">
           <a href="#western-top">Home</a><a href="#academies">Schools</a><a href="#academic-areas">Programs</a><a href="#academic-areas">Subjects</a><a href="#about">About</a><a href="#western-contact">Contact</a>
-          <a class="western-mobile-login" href="/#/login">Login</a>
+          <a class="western-mobile-login" href="/login">Login</a>
           <a class="western-register-button" href="/register-academy" data-route="/register-academy">Register Your Academy <span>${icons.arrow}</span></a>
         </nav>
       </header>`;
@@ -308,7 +308,7 @@
             <div class="western-footer-socials"><a href="#western-contact" aria-label="BELLO Western Academy on LinkedIn">${icons.linkedin}</a><a href="#western-contact" aria-label="BELLO Western Academy on Instagram">${icons.instagram}</a><a href="#western-contact" aria-label="BELLO Western Academy on Facebook">${icons.facebook}</a></div>
           </div>
           <div class="western-footer-column"><h3>Explore</h3><a href="#academies">Schools</a><a href="#academic-areas">Programs</a><a href="#academic-areas">Subjects</a><a href="#about">About</a></div>
-          <div class="western-footer-column"><h3>For academies</h3><a href="/register-academy" data-route="/register-academy">Register Your Academy</a><a href="#about">Your school website</a><a href="/#/login">Login</a><a href="#western-contact">Contact</a></div>
+          <div class="western-footer-column"><h3>For academies</h3><a href="/register-academy" data-route="/register-academy">Register Your Academy</a><a href="#about">Your school website</a><a href="/login">Login</a><a href="#western-contact">Contact</a></div>
           <div class="western-footer-column"><h3>Platform</h3><a href="#western-contact">Contact</a><a href="#western-contact">Privacy Policy</a><a href="#western-contact">Terms</a><a href="/" data-route="/">BELLO Education Platform</a></div>
         </div>
         <div class="western-container western-footer-bottom"><span>© <span id="western-year"></span> BELLO Western Academy. All rights reserved.</span><span>Powered by BELLO Education Platform</span></div>
@@ -701,6 +701,7 @@
     if (document.getElementById("dash-app")) return;
     document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
     if (scrollHandler) { window.removeEventListener("scroll", scrollHandler); scrollHandler = null; }
+    document.title = "Admin — BELLO";
     document.getElementById("app").innerHTML = '<div id="dash-app"></div>';
     if (window.BelloDashboard && typeof window.BelloDashboard.boot === "function") {
       window.BelloDashboard.boot();
@@ -711,7 +712,11 @@
     const path = window.location.pathname.replace(/\/+$/, "") || "/";
     const hash = window.location.hash;
 
-    if (hash.startsWith("#/app") || hash === "#/login" || hash.startsWith("#/login")) {
+    if (hash.startsWith("#/app") || hash === "#/login" || hash.startsWith("#/login") ||
+        // The admin section has real addresses of its own — /login is the
+        // sign-in page (it always asks for a password), /admin the section
+        // itself, which falls back to the sign-in page when unauthenticated.
+        path === "/login" || path === "/admin" || path === "/admin/login") {
       renderDashboard();
     // Every onboarding stage is its own page (…/administrator, …/review,
     // …/submitted), so the whole subtree routes into the matching module.

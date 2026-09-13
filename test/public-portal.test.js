@@ -36,7 +36,7 @@ test("public endpoints need no session", async () => {
   const one = await a.req("GET", "/api/public/madaris/testa");
   assert.equal(one.status, 200);
   assert.equal(one.data.madrasa.nameEn, "Test Madrasa A");
-  assert.equal(one.data.loginUrl, "/#/login", "the profile links into the portal, it does not embed it");
+  assert.equal(one.data.loginUrl, "/login", "the profile links into the portal, it does not embed it");
   const body = JSON.stringify(one.data);
   for (const forbidden of ["password_hash", "api_key", "aiConfig", "plan_id", "fee", "admission_no"]) {
     assert.ok(!body.includes('"' + forbidden + '"'), "public profile must not expose " + forbidden);

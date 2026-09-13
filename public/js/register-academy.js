@@ -624,7 +624,7 @@ window.BelloAcademyRegister = (function () {
             <a href="/western-schools#western-contact" data-route="/western-schools#western-contact">Contact</a>
           </nav>
           <div class="western-nav-actions">
-            <a class="western-login" href="/#/login">Login</a>
+            <a class="western-login" href="/login">Login</a>
             <a class="western-register-button wa-reg-back" href="/western-schools" data-route="/western-schools"><span>${icons.arrowLeft}</span> Back to Academies</a>
           </div>
           <button class="western-menu-toggle" type="button" aria-expanded="false" aria-controls="academy-reg-menu" aria-label="Open menu">
@@ -635,7 +635,7 @@ window.BelloAcademyRegister = (function () {
           <a href="/western-schools" data-route="/western-schools">Schools</a>
           <a href="/western-schools#academic-areas" data-route="/western-schools#academic-areas">Programs</a>
           <a href="/western-schools#western-contact" data-route="/western-schools#western-contact">Contact</a>
-          <a class="western-mobile-login" href="/#/login">Login</a>
+          <a class="western-mobile-login" href="/login">Login</a>
           <a class="western-register-button" href="/western-schools" data-route="/western-schools">Back to Academies</a>
         </nav>
       </header>`;

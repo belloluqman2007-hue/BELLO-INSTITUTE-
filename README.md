@@ -17,8 +17,9 @@ proper RTL rendering, mobile-first.
 
 ## Quick start (development)
 
-Requirements: **Node.js ≥ 22** (uses the built-in `node:sqlite` for the dev
-database — no external DB server needed).
+Requirements: **Node.js >=22.22.3 and <23** (the Render runtime is pinned to
+22.22.3; uses the built-in `node:sqlite` for the dev database — no external DB
+server needed).
 
 ```bash
 npm install

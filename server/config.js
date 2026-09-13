@@ -12,6 +12,10 @@ require("dotenv").config();
 
 const NODE_ENV = String(process.env.NODE_ENV || "development").trim().toLowerCase();
 const IS_PRODUCTION = NODE_ENV === "production";
+// Render sets RENDER=true for every runtime. We use this documented signal for
+// the strict disk guard below; other hosts retain the diagnostic warning unless
+// their deployment policy elects to enforce an equivalent check.
+const IS_RENDER = ["1", "true", "yes"].includes(String(process.env.RENDER || "").trim().toLowerCase());
 const PORT = Number(process.env.PORT || 3000);
 
 /* ---------------------------------------------------------------------------
@@ -283,9 +287,59 @@ function isUnder(child, parent) {
   return c === p || c.startsWith(p + path.sep);
 }
 
+/**
+ * Production must never silently create a SQLite database on Render's
+ * container filesystem. Checking only the configured path is insufficient:
+ * `/var/data` can be an ordinary directory on the container root when an
+ * operator skipped the Render disk. Ask the storage probe which mount actually
+ * backs the SQLite file's directory before migrations or seeds can write any
+ * records.
+ *
+ * The optional probe makes the decision easy to exercise in unit tests. A
+ * null/unknown answer is left as a warning so non-Linux hosts are not rejected
+ * merely because they cannot expose mount information.
+ */
+function sqlitePersistenceError(probe) {
+  // Render's container filesystem is always disposable. On other production
+  // hosts the existing diagnostics stay visible, but we cannot safely infer a
+  // host's persistence policy from one mount-table shape alone.
+  if (!IS_RENDER || DATABASE_DRIVER !== "sqlite" || DATA_PERSISTENT_ACK) return null;
+  if (!isUnder(DB_CONFIG.file, PERSISTENT_VOLUME_DIR)) {
+    return "SQLite database \"" + DB_CONFIG.file + "\" is outside PERSISTENT_VOLUME_DIR (" +
+      PERSISTENT_VOLUME_DIR + "). Attach a persistent disk and set DATA_DIR/DATABASE_FILE to its mount, " +
+      "or set DATABASE_DRIVER=mysql with DATABASE_URL.";
+  }
+
+  let storage = probe;
+  if (!storage) {
+    try {
+      // Lazy import avoids a config <-> persistence module cycle while this
+      // file is first being evaluated. validate() runs after config exports.
+      storage = require("./services/persistence").describeStorage(path.dirname(DB_CONFIG.file));
+    } catch (e) {
+      return null;
+    }
+  }
+  if (storage && storage.onPersistentVolume === false) {
+    const mount = storage.mountPoint || "/";
+    const type = storage.fsType || "unknown";
+    return "SQLite database \"" + DB_CONFIG.file + "\" is on non-persistent storage (mount \"" +
+      mount + "\", type \"" + type + "\"). Refusing to start production because a Render redeploy would " +
+      "erase every madrasa. Attach the Render disk at " + PERSISTENT_VOLUME_DIR +
+      " and keep DATA_DIR there, or configure DATABASE_DRIVER=mysql and DATABASE_URL.";
+  }
+  return null;
+}
+
 function validate() {
   const errors = [];
   if (IS_PRODUCTION) {
+    // Fail before migrations, seed data or a state marker can create a new
+    // empty SQLite file on an ephemeral Render container. This turns the old
+    // "institutions disappeared after deploy" symptom into an actionable
+    // deployment failure instead of permanent data loss.
+    const sqliteStorageError = sqlitePersistenceError();
+    if (sqliteStorageError) errors.push(sqliteStorageError);
     for (const w of persistenceWarnings()) console.warn("WARNING: " + w);
     if (SESSION_SECRET.length < 32) errors.push("SESSION_SECRET must be at least 32 characters in production.");
     if (DATABASE_DRIVER === "mysql" && !DATABASE_URL && !(DB_CONFIG.host && DB_CONFIG.user && DB_CONFIG.password && DB_CONFIG.name)) {
@@ -309,6 +363,7 @@ function validate() {
 module.exports = {
   NODE_ENV,
   IS_PRODUCTION,
+  IS_RENDER,
   PORT,
   DATABASE_DRIVER,
   DATABASE_URL,
@@ -338,6 +393,7 @@ module.exports = {
   SQLITE_DB,
   resolveSqliteDatabaseFile,
   isUnder,
+  sqlitePersistenceError,
   persistenceWarnings,
   newestSnapshotFile,
   validate,

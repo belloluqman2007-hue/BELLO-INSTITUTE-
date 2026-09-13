@@ -362,12 +362,15 @@ const MIGRATIONS = [
         )${D.engine(dialect)}
       `);
 
-      // MySQL-backed session store (works for both drivers)
+      // Database-backed session store (works for both drivers).
+      // `expires` holds a JavaScript epoch in MILLISECONDS, which overflows
+      // MySQL's 4-byte INT — it MUST be BIGINT there (see migration
+      // 014_session_expiry_bigint). SQLite's INTEGER is already 8 bytes.
       await api.run(`
         CREATE TABLE IF NOT EXISTS app_sessions (
           sid VARCHAR(128) NOT NULL PRIMARY KEY,
-          expires INTEGER,
-          data TEXT
+          expires ${dialect === "mysql" ? "BIGINT" : "INTEGER"},
+          data ${dialect === "mysql" ? "MEDIUMTEXT" : "TEXT"}
         )${D.engine(dialect)}
       `);
     },
@@ -625,6 +628,36 @@ const MIGRATIONS = [
         )${D.engine(dialect)}
       `);
       await api.run(`CREATE INDEX idx_gallery ON gallery_images (madrasa_id, sort_order, id)`);
+    },
+  },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "014_session_expiry_bigint",
+    up: async (api, dialect) => {
+      // "Session save error." on every sign-in, MySQL only.
+      //
+      // app_sessions.expires stores a JavaScript epoch value in MILLISECONDS
+      // (Date.now() ≈ 1.79e12). It was declared INTEGER, which MySQL reads as
+      // a 4-byte signed INT whose maximum is 2,147,483,647 — roughly 2.1e9.
+      // Every INSERT therefore died with ER_WARN_DATA_OUT_OF_RANGE
+      // ("Out of range value for column 'expires'"), express-session's
+      // save() callback received the error, and POST /api/auth/login answered
+      // 500 { error: "Session save error." } even though the username and
+      // password were perfectly correct. SQLite never hit this because its
+      // INTEGER is 8 bytes, which is why local development looked fine.
+      //
+      // BIGINT holds millisecond epochs until the year 292 million.
+      if (dialect === "mysql") {
+        await api.run(`ALTER TABLE app_sessions MODIFY COLUMN expires BIGINT NULL`);
+        // Session payloads carry the CSRF token and flash state; TEXT (64 KB)
+        // is enough today but MEDIUMTEXT removes the whole class of silent
+        // truncation failures that also surface as "Session save error.".
+        await api.run(`ALTER TABLE app_sessions MODIFY COLUMN data MEDIUMTEXT NULL`);
+      }
+      // Any row already written with a clamped/garbage expiry is unusable;
+      // dropping them only forces a fresh sign-in.
+      await api.run(`DELETE FROM app_sessions WHERE expires IS NULL OR expires <= 0`);
     },
   },
 ];

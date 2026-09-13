@@ -557,29 +557,19 @@ window.BelloRegister = (function () {
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      console.warn("API submission error, applying fallback structured registration receipt:", err);
-      // Fallback structured generation
-      const regId = "REG-" + new Date().getFullYear() + "-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      // NEVER invent a reference number here. The old fallback minted a fake
+      // "REG-…" id and showed the success screen even though the server had
+      // saved nothing, so the madrasa believed it had registered while the
+      // super admin's Registrations list stayed empty. Keep the applicant on
+      // the review step, keep their draft, and tell them the truth.
+      console.error("Madrasa registration failed:", err);
       state.submitting = false;
-      state.submissionReceipt = {
-        registrationId: regId,
-        madrasaId: payload.madrasa.id,
-        status: "Pending",
-        submittedAt: new Date().toISOString(),
-        madrasaName: payload.madrasa.name,
-        officialName: payload.madrasa.officialName,
-        adminFullName: payload.administrator.fullName,
-        adminPosition: payload.administrator.position,
-        adminEmail: payload.administrator.email,
-        adminPhone: payload.administrator.phone,
-        city: payload.madrasa.city,
-        state: payload.madrasa.state
-      };
-      state.currentStep = 4;
-      clearDraft();
-      syncUrl(4);
+      state.errors.submit = err && err.message
+        ? err.message
+        : "We could not reach the server. Your details are saved on this page — please check your connection and submit again.";
+      state.currentStep = 3;
       render();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollToFirstError();
     }
   }
 
@@ -1335,6 +1325,7 @@ window.BelloRegister = (function () {
   function renderStep3() {
     const m = state.formData.madrasa;
     const a = state.formData.administrator;
+    const err = state.errors;
 
     return `
       <div class="reg-form-step reveal is-visible">
@@ -1538,6 +1529,13 @@ window.BelloRegister = (function () {
             </div>
           </div>
         </div>
+
+        ${err.submit ? `
+          <div class="submit-error-banner has-error" role="alert" aria-live="assertive">
+            <strong>Registration not submitted</strong>
+            <span>${escapeHtml(err.submit)}</span>
+          </div>
+        ` : ''}
 
         <!-- Step 3 Navigation Actions -->
         <div class="form-actions-bar">

@@ -618,6 +618,33 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
   gap: 4px;
 }
 
+/* Submission failure banner on the review step. Shown INSTEAD of the success
+   screen when the server could not store the registration, so an applicant is
+   never given a reference number for an application that does not exist. */
+.submit-error-banner,
+.wa-submit-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 18px 0 0;
+  padding: 14px 18px;
+  border: 1px solid #f0b4b0;
+  border-left: 4px solid #b3261e;
+  border-radius: 12px;
+  background: #fdf2f1;
+  color: #7d1d17;
+}
+.submit-error-banner strong,
+.wa-submit-error strong {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.submit-error-banner span,
+.wa-submit-error span {
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 .field-helper-text {
   margin: 6px 0 0;
   font-size: 0.75rem;

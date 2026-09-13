@@ -4,16 +4,33 @@
    ----------------------------------------------------------------------------
    express-session store for the app_sessions table (sid, expires, data).
    Works with both the SQLite and MySQL drivers.
+
+   Writes are a single ATOMIC upsert, not a read-then-write inside a
+   transaction. The old read-then-write opened a `BEGIN IMMEDIATE` for every
+   session save; two overlapping requests (the browser fires several /api calls
+   right after sign-in) could collide on SQLite with "cannot start a
+   transaction within a transaction", and on MySQL two parallel logins could
+   race between the SELECT and the INSERT and hit a duplicate-key error. Either
+   one reached express-session's save() callback and surfaced to the user as
+   "Session save error." even though the credentials were correct.
    ========================================================================== */
 const session = require("express-session");
 const db = require("./db");
+
+const DEFAULT_TTL_MS = 86400000; // 24h fallback when the cookie has no expiry
+
+function expiryOf(sess) {
+  const raw = sess && sess.cookie && sess.cookie.expires;
+  const ts = raw ? new Date(raw).getTime() : NaN;
+  return Number.isFinite(ts) && ts > 0 ? ts : Date.now() + DEFAULT_TTL_MS;
+}
 
 class DBSessionStore extends session.Store {
   get(sid, cb) {
     db.get("SELECT * FROM app_sessions WHERE sid = ?", [sid])
       .then((row) => {
         if (!row) return cb(null, null);
-        if (row.expires && row.expires < Date.now()) {
+        if (row.expires && Number(row.expires) < Date.now()) {
           return this.destroy(sid, () => cb(null, null));
         }
         let data = null;
@@ -25,27 +42,29 @@ class DBSessionStore extends session.Store {
 
   set(sid, sess, cb) {
     const payload = JSON.stringify(sess);
-    const expires = sess.cookie && sess.cookie.expires
-      ? new Date(sess.cookie.expires).getTime()
-      : Date.now() + 86400000;
-    db.transaction(async (tx) => {
-      const exists = await tx.get("SELECT sid FROM app_sessions WHERE sid = ?", [sid]);
-      if (exists) {
-        await tx.run("UPDATE app_sessions SET data = ?, expires = ? WHERE sid = ?", [payload, expires, sid]);
-      } else {
-        await tx.run("INSERT INTO app_sessions (sid, expires, data) VALUES (?,?,?)", [sid, expires, payload]);
-      }
-    })
+    const expires = expiryOf(sess);
+    db.dialect()
+      .then((dialect) => {
+        const sql = dialect === "mysql"
+          ? "INSERT INTO app_sessions (sid, expires, data) VALUES (?,?,?) " +
+            "ON DUPLICATE KEY UPDATE expires = VALUES(expires), data = VALUES(data)"
+          : "INSERT INTO app_sessions (sid, expires, data) VALUES (?,?,?) " +
+            "ON CONFLICT(sid) DO UPDATE SET expires = excluded.expires, data = excluded.data";
+        return db.run(sql, [sid, expires, payload]);
+      })
       .then(() => cb(null))
       .catch((err) => cb(err));
   }
 
   touch(sid, sess, cb) {
-    const expires = sess.cookie && sess.cookie.expires
-      ? new Date(sess.cookie.expires).getTime()
-      : Date.now() + 86400000;
+    const expires = expiryOf(sess);
     db.run("UPDATE app_sessions SET expires = ? WHERE sid = ?", [expires, sid])
-      .then(() => cb(null))
+      .then((r) => {
+        // rolling sessions touch a row that a cleanup/restore may have removed.
+        // Re-create it instead of silently letting the session evaporate.
+        if (r && Number(r.changes) === 0) return this.set(sid, sess, cb);
+        cb(null);
+      })
       .catch((err) => cb(err));
   }
 
@@ -57,6 +76,11 @@ class DBSessionStore extends session.Store {
 
   clear(cb) {
     db.run("DELETE FROM app_sessions").then(() => cb(null)).catch((err) => cb(err));
+  }
+
+  /** Removes expired rows. Safe to call on a timer or at boot. */
+  prune() {
+    return db.run("DELETE FROM app_sessions WHERE expires IS NOT NULL AND expires < ?", [Date.now()]);
   }
 }
 

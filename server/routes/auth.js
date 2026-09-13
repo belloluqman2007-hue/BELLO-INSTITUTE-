@@ -44,6 +44,30 @@ function csrfGuard(req, res, next) {
   next();
 }
 
+/* ------------------------- session-store errors ------------------------- */
+
+/**
+ * Turns a session-store failure into a message that says what to DO.
+ * "Session save error." on its own told the administrator nothing: the
+ * password was right, the account was right, and the only broken thing was
+ * the write into app_sessions (historically MySQL rejecting a millisecond
+ * epoch in a 4-byte INT column — see migration 014_session_expiry_bigint).
+ */
+function sessionStoreMessage(err) {
+  const code = String((err && err.code) || "");
+  const text = String((err && err.message) || "");
+  if (code === "ER_WARN_DATA_OUT_OF_RANGE" || /out of range/i.test(text)) {
+    return "Sign-in could not be completed: the session table is out of date. " +
+      "Run \"npm run migrate\" on the server, then try again.";
+  }
+  if (code === "ER_NO_SUCH_TABLE" || /no such table|doesn't exist/i.test(text)) {
+    return "Sign-in could not be completed: the session table is missing. " +
+      "Run \"npm run migrate\" on the server, then try again.";
+  }
+  return "Sign-in could not be completed because the session could not be saved. " +
+    "Please try again — if it keeps happening, the server log has the details.";
+}
+
 /* ------------------------------ login ---------------------------------- */
 
 router.post("/login", async (req, res) => {
@@ -98,7 +122,10 @@ router.post("/login", async (req, res) => {
   }
 
   req.session.regenerate((err) => {
-    if (err) return res.status(500).json({ error: "Session error." });
+    if (err) {
+      console.error("Login failed while creating the session:", err);
+      return res.status(500).json({ error: sessionStoreMessage(err), code: "SESSION_ERROR" });
+    }
     req.session.userId = user.id;
     ensureCsrfToken(req);
     logActivity(db, {
@@ -110,7 +137,13 @@ router.post("/login", async (req, res) => {
       ip: req.ip || "",
     });
     req.session.save((saveErr) => {
-      if (saveErr) return res.status(500).json({ error: "Session save error." });
+      if (saveErr) {
+        // The credentials WERE correct — only writing the session row failed.
+        // Log the real driver error so the cause is visible in the server log
+        // instead of the user staring at a bare "Session save error.".
+        console.error("Login failed while saving the session:", saveErr);
+        return res.status(500).json({ error: sessionStoreMessage(saveErr), code: "SESSION_SAVE_ERROR" });
+      }
       res.json({
         ok: true,
         role: user.role,

@@ -306,14 +306,55 @@
     state.cache = {};
   }
 
+  /** Roles this console is built for. Every other (valid!) account — teacher,
+      student, parent — authenticates successfully but has no admin dashboard
+      to enter, and MUST be told so instead of being dropped back on an empty
+      form ("I sign in and nothing happens"). */
+  const ADMIN_ROLES = ["madrasa_admin", "super_admin"];
+  const ROLE_LABELS = {
+    teacher: "teacher",
+    student: "student",
+    parent: "parent",
+  };
+
+  /** Why a correct username/password still cannot open this console. */
+  function nonAdminMessage(role) {
+    const who = ROLE_LABELS[role] || "this";
+    return `Those details are correct, but the ${who} account has no administrator dashboard. ` +
+      "This sign-in is for Islamic School, Western Academy and platform administrators only.";
+  }
+
+  // boot() can be reached twice for one sign-in (the explicit call plus the
+  // hashchange fired by moving to #/app/dashboard). Without a guard both runs
+  // authenticate and render in parallel, doubling every request and letting
+  // the slower one paint over the faster one's result.
+  let bootInFlight = null;
+
   async function boot() {
+    if (bootInFlight) return bootInFlight;
+    bootInFlight = (async () => {
+      try { await bootOnce(); } finally { bootInFlight = null; }
+    })();
+    return bootInFlight;
+  }
+
+  async function bootOnce() {
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
 
     let me;
     try { me = await window.API.get("/auth/me"); } catch (e) { me = { loggedIn: false }; }
 
-    const authenticated = me.loggedIn && ["madrasa_admin", "super_admin"].includes(me.role);
+    const authenticated = me.loggedIn && ADMIN_ROLES.includes(me.role);
+
+    // Signed in with a real account that simply is not an administrator: end
+    // that session and say why, rather than re-rendering a blank form.
+    if (me.loggedIn && !authenticated) {
+      try { await window.API.logout(); } catch (e) { /* best effort */ }
+      resetSessionState();
+      renderLogin(root, nonAdminMessage(me.role), null);
+      return;
+    }
 
     // The login page ALWAYS shows the sign-in form. A visitor whose session
     // is still alive gets a "you are already signed in" notice with an
@@ -388,7 +429,7 @@
     else if (theme === "islamic") document.body.classList.add("dash-islamic");
   }
 
-  function renderLogin(root, error, session) {
+  function renderLogin(root, error, session, username) {
     applyTheme(null);
     document.title = "Admin Sign-In — BELLO";
     // Shown ONLY when /api/auth/me reports a live session: the visitor is
@@ -416,11 +457,11 @@
           <h1>Sign in to your dashboard</h1>
           <p class="sub">Islamic School, Western Academy and platform administrators use the same sign-in — BELLO routes you to the right dashboard automatically.</p>
           ${notice}
-          ${error ? `<div class="dash-login-error">${esc(error)}</div>` : ""}
-          <form id="dashLoginForm">
+          ${error ? `<div class="dash-login-error" role="alert" aria-live="assertive">${esc(error)}</div>` : ""}
+          <form id="dashLoginForm" novalidate>
             <div class="dash-login-field">
               <label for="dlUser">Username</label>
-              <input id="dlUser" name="username" autocomplete="username" required>
+              <input id="dlUser" name="username" autocomplete="username" value="${esc(username || "")}" required>
             </div>
             <div class="dash-login-field">
               <label for="dlPass">Password</label>
@@ -431,6 +472,13 @@
           <div class="dash-login-foot">Registering a new institution? <a href="/register-madrasa" data-noroute style="font-weight:700;color:#38146a;">Register an Islamic School</a> or <a href="/western-schools" data-noroute style="font-weight:700;color:#38146a;">a Western Academy</a>.</div>
         </div>
       </div>`;
+
+    // After a failed attempt the form is re-rendered, so put the cursor back
+    // where the visitor has to type next instead of leaving focus nowhere.
+    const focusTarget = root.querySelector(username ? "#dlPass" : "#dlUser");
+    if (focusTarget && typeof focusTarget.focus === "function") {
+      try { focusTarget.focus(); } catch (e) { /* non-fatal */ }
+    }
 
     const continueBtn = root.querySelector("#dashContinueBtn");
     if (continueBtn) continueBtn.addEventListener("click", () => {
@@ -445,30 +493,71 @@
     });
 
     const form = root.querySelector("#dashLoginForm");
+    // The submit button is the ONLY control that must never be left in the
+    // "Signing in…" state: a failed attempt that does not restore it looks
+    // exactly like "I press Sign In and nothing happens".
+    const submitBtn = form.querySelector("button[type=submit]") || form.querySelector("button");
+    const submitLabel = submitBtn ? submitBtn.textContent : "Sign In";
+
+    function failed(message) {
+      // Keep the typed username so a retry only needs the password again,
+      // and put the reason on screen where the form is.
+      const typed = form.elements.username ? form.elements.username.value : "";
+      renderLogin(root, message, session, typed);
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const btn = form.querySelector("button");
-      btn.disabled = true; btn.textContent = "Signing in…";
-      try {
-        // form.elements.<name> is the standard accessor (works in every
-        // engine; the form.<name> shortcut is not implemented by jsdom).
-        const username = form.elements.username.value.trim();
-        const password = form.elements.password.value;
-        await window.API.login(username, password);
-        // Signing in always switches the account: drop any stale dashboard
-        // state from a previous session before mounting the new one.
-        resetSessionState();
-        // Land on the admin section's own address when the form was opened
-        // from /login or /admin, so a reload never bounces back here.
-        const path = window.location.pathname.replace(/\/+$/, "") || "/";
-        if (path === "/login" || path === "/admin" || path === "/admin/login") {
-          window.history.replaceState(null, "", "/admin");
-        }
-        window.location.hash = "#/app/dashboard";
-        await boot();
-      } catch (err) {
-        renderLogin(root, err.message || "Invalid username or password.", session);
+      if (submitBtn && submitBtn.disabled) return;   // ignore double submits
+      // form.elements.<name> is the standard accessor (works in every
+      // engine; the form.<name> shortcut is not implemented by jsdom).
+      const username = (form.elements.username.value || "").trim();
+      const password = form.elements.password.value || "";
+      // Browsers with `required` normally block this, but autofill and
+      // password managers can submit an empty field — say so rather than
+      // firing a request that silently 400s.
+      if (!username || !password) {
+        failed("Enter both your username and your password.");
+        return;
       }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Signing in…"; }
+      let result;
+      try {
+        result = await window.API.login(username, password);
+      } catch (err) {
+        // A failed network request has no .message worth showing; everything
+        // else (401 wrong password, 403 deactivated, 429 rate limited) does.
+        const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+        failed(err && err.message
+          ? err.message
+          : (offline ? "You appear to be offline. Check your connection and try again."
+                     : "Could not reach the server. Please try again."));
+        return;
+      } finally {
+        if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.textContent = submitLabel; }
+      }
+
+      // Authenticated — but this console only serves administrators. A
+      // teacher/student/parent must be told that, not silently returned to
+      // the form with their session still open.
+      if (!ADMIN_ROLES.includes(result && result.role)) {
+        try { await window.API.logout(); } catch (e2) { /* best effort */ }
+        resetSessionState();
+        renderLogin(root, nonAdminMessage(result && result.role), null, username);
+        return;
+      }
+
+      // Signing in always switches the account: drop any stale dashboard
+      // state from a previous session before mounting the new one.
+      resetSessionState();
+      // Land on the admin section's own address when the form was opened
+      // from /login or /admin, so a reload never bounces back here.
+      const path = window.location.pathname.replace(/\/+$/, "") || "/";
+      if (path === "/login" || path === "/admin" || path === "/admin/login") {
+        window.history.replaceState(null, "", "/admin");
+      }
+      window.location.hash = "#/app/dashboard";
+      await boot();
     });
   }
 

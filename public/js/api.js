@@ -81,14 +81,37 @@
     patch: (p, b) => request("PATCH", p, b),
     del: (p) => request("DELETE", p),
     async login(username, password) {
-      const r = await fetch(BASE + "/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ username, password }),
-      });
+      let r;
+      try {
+        r = await fetch(BASE + "/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ username, password }),
+        });
+      } catch (networkError) {
+        // DNS failure, offline, server down, TLS error… fetch rejects and the
+        // caller previously saw nothing at all. Give it a real message.
+        const e = new Error("Could not reach the server. Check your connection and try again.");
+        e.status = 0;
+        e.cause = networkError;
+        throw e;
+      }
       const d = await r.json().catch(() => null);
-      if (!r.ok) { const e = new Error((d && d.error) || "Login failed"); e.status = r.status; throw e; }
+      if (!r.ok) {
+        // A proxy/host error page is not JSON, so there is no d.error to show:
+        // fall back to something that names the actual problem by status.
+        let message = (d && d.error) || "";
+        if (!message) {
+          if (r.status === 429) message = "Too many sign-in attempts. Please wait a few minutes and try again.";
+          else if (r.status >= 500) message = `The server could not complete the sign-in (error ${r.status}). Please try again shortly.`;
+          else message = `Sign-in failed (error ${r.status}).`;
+        }
+        const e = new Error(message);
+        e.status = r.status;
+        e.data = d;
+        throw e;
+      }
       return d;
     },
     async me() {

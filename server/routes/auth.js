@@ -60,6 +60,19 @@ router.post("/login", async (req, res) => {
   let match = false;
   try { match = await bcrypt.compare(password, hash); } catch (e) { match = false; }
   if (!user || !match) {
+    // A database with NO accounts at all is not a wrong password — it is an
+    // un-provisioned platform, and "Invalid username or password" sends the
+    // operator hunting for a typo that does not exist. This leaks nothing:
+    // it can only ever fire when there is no one to enumerate.
+    const any = await db.get("SELECT COUNT(*) AS n FROM users");
+    if (any && Number(any.n) === 0) {
+      return res.status(503).json({
+        error: "This platform has no accounts yet, so no sign-in can succeed. " +
+          "The administrator must create the super admin (set SUPER_ADMIN_PASSWORD, " +
+          "then run \"npm run reset-admin-password\") before anyone can log in.",
+        code: "NO_ACCOUNTS",
+      });
+    }
     return res.status(401).json({ error: "Invalid username or password." });
   }
   if (Number(user.is_active) !== 1) {

@@ -68,20 +68,107 @@ async function seedPlans() {
   return n;
 }
 
+/**
+ * Creates the ONE platform super admin on a database that has none.
+ *
+ * WHY THIS NO LONGER "SKIPS" SILENTLY
+ * Outside production SUPER_ADMIN_PASSWORD is usually unset (there is no .env
+ * on a fresh clone). The seed used to log one line and return, so the boot
+ * finished with an EMPTY users table — and every sign-in attempt, including
+ * the documented `admin`, answered "Invalid username or password" with no
+ * hint that the account had never been created. That is the reported
+ * "I type admin / … and nothing happens".
+ *
+ * Now a development boot generates a random password instead, writes it to
+ * `.dev-credentials.txt` (git-ignored) and prints it, so there is always a
+ * working way in. Production still refuses to invent a secret: it throws, so
+ * the deploy fails loudly instead of coming up permanently unreachable.
+ */
+/**
+ * Repairs super-admin accounts stored with upper-case characters.
+ * Login lower-cases the typed username before looking it up, so an account
+ * seeded as "Admin" (older seeds copied SUPER_ADMIN_USERNAME verbatim) could
+ * never be matched — the only account on the platform was unreachable.
+ * Idempotent, and skips a row whose lower-cased name is already taken.
+ */
+async function normalizeSuperAdminUsernames() {
+  const rows = await db.all("SELECT id, username FROM users WHERE role = 'super_admin'");
+  let fixed = 0;
+  for (const row of rows) {
+    const lower = String(row.username || "").toLowerCase();
+    if (lower === row.username) continue;
+    const clash = await db.get("SELECT id FROM users WHERE username = ? AND id <> ?", [lower, row.id]);
+    if (clash) {
+      console.warn(`Super admin "${row.username}" cannot be normalised to "${lower}" — that username is taken.`);
+      continue;
+    }
+    await db.run("UPDATE users SET username = ? WHERE id = ?", [lower, row.id]);
+    console.log(`Super admin username normalised: "${row.username}" -> "${lower}" (sign-in is case-insensitive).`);
+    fixed++;
+  }
+  return fixed;
+}
+
 async function seedSuperAdmin() {
+  await normalizeSuperAdminUsernames();
   const existing = await db.get("SELECT COUNT(*) AS n FROM users WHERE role = 'super_admin'");
   if (existing && Number(existing.n) > 0) return false;
-  if (!config.SUPER_ADMIN_PASSWORD) {
-    console.warn("SUPER_ADMIN_PASSWORD not set — skipping super admin creation.");
-    return false;
+
+  let password = config.SUPER_ADMIN_PASSWORD;
+  let generated = false;
+  if (!password) {
+    if (config.IS_PRODUCTION) {
+      throw new Error(
+        "SUPER_ADMIN_PASSWORD is not set and this database has no super admin. " +
+        "Refusing to start a production platform that nobody can sign in to. " +
+        "Set SUPER_ADMIN_PASSWORD (Render → Environment) and redeploy, or run " +
+        "`npm run reset-admin-password` against this database."
+      );
+    }
+    // Development/test convenience: a usable account beats an empty table.
+    password = "Dev-" + crypto.randomBytes(9).toString("base64url") + "!";
+    generated = true;
   }
-  const hash = bcrypt.hashSync(config.SUPER_ADMIN_PASSWORD, 10);
+
+  const hash = bcrypt.hashSync(password, 10);
   await db.run(
     "INSERT INTO users (madrasa_id, username, password_hash, role, full_name) VALUES (NULL, ?, ?, 'super_admin', 'Platform Super Admin')",
     [config.SUPER_ADMIN_USERNAME, hash]
   );
-  console.log(`Super admin created: ${config.SUPER_ADMIN_USERNAME} (change the password after first login).`);
+
+  if (generated) {
+    writeDevCredentials(config.SUPER_ADMIN_USERNAME, password);
+    console.log("──────────────────────────────────────────────────────────────");
+    console.log("  SUPER_ADMIN_PASSWORD was not set, so a development super");
+    console.log("  admin was created with a generated password:");
+    console.log(`      username: ${config.SUPER_ADMIN_USERNAME}`);
+    console.log(`      password: ${password}`);
+    console.log("  (also written to .dev-credentials.txt — git-ignored)");
+    console.log("  Set SUPER_ADMIN_PASSWORD in .env to choose your own.");
+    console.log("──────────────────────────────────────────────────────────────");
+  } else {
+    console.log(`Super admin created: ${config.SUPER_ADMIN_USERNAME} (change the password after first login).`);
+  }
   return true;
+}
+
+/** Best-effort note of the generated dev password; never fatal. */
+function writeDevCredentials(username, password) {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    fs.writeFileSync(
+      path.join(process.cwd(), ".dev-credentials.txt"),
+      "BELLO — local development super admin (generated " + new Date().toISOString() + ")\n" +
+      "Sign in at /login\n\n" +
+      "  username: " + username + "\n" +
+      "  password: " + password + "\n\n" +
+      "This file is git-ignored and applies to the local dev database only.\n",
+      { mode: 0o600 }
+    );
+  } catch (e) {
+    console.warn("Could not write .dev-credentials.txt: " + e.message);
+  }
 }
 
 /* --------------------------- demo data ---------------------------------- */
@@ -439,7 +526,7 @@ async function runSeed({ demo = false } = {}) {
   await db.close();
 }
 
-module.exports = { seedPlans, seedSuperAdmin, seedDemo, runSeed };
+module.exports = { seedPlans, seedSuperAdmin, seedDemo, runSeed, normalizeSuperAdminUsernames };
 
 if (require.main === module) {
   require("./db-target").announce({ allowCreate: true });

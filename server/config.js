@@ -172,7 +172,11 @@ const DB_CONFIG = {
 const SESSION_SECRET = String(process.env.SESSION_SECRET || "").trim();
 const SESSION_MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_HOURS || 12) * 60 * 60 * 1000;
 
-const SUPER_ADMIN_USERNAME = String(process.env.SUPER_ADMIN_USERNAME || "admin").trim();
+// Usernames are stored and compared in lower case (POST /api/auth/login
+// lower-cases whatever is typed). A configured "Admin"/"ADMIN" would therefore
+// create an account NOTHING can ever match — the login form would reject the
+// only credentials that exist, silently. Normalise here, once.
+const SUPER_ADMIN_USERNAME = String(process.env.SUPER_ADMIN_USERNAME || "admin").trim().toLowerCase();
 const SUPER_ADMIN_PASSWORD = String(process.env.SUPER_ADMIN_PASSWORD || "").trim();
 
 /* ---------------------------------------------------------------------------

@@ -37,7 +37,11 @@ const MIGRATIONS = [
   {
     id: "001_platform_core",
     up: async (api, dialect) => {
-      // Subscription plans (platform-level)
+      // Subscription plans (platform-level).
+      // NOTE: `features` deliberately has NO database-level default — MySQL
+      // rejects DEFAULT on TEXT/BLOB/JSON columns (ER_BLOB_CANT_HAVE_DEFAULT).
+      // The application always supplies '{}' when creating a plan
+      // (server/routes/platform.js: JSON.stringify(b.features || {})).
       await api.run(`
         CREATE TABLE IF NOT EXISTS plans (
           id ${D.autoInc(dialect)},
@@ -47,7 +51,7 @@ const MIGRATIONS = [
           price_ngn DECIMAL(10,2) NOT NULL DEFAULT 0,
           student_limit INT NOT NULL DEFAULT -1,
           teacher_limit INT NOT NULL DEFAULT -1,
-          features TEXT NOT NULL DEFAULT '{}',
+          features TEXT NOT NULL,
           is_active INT NOT NULL DEFAULT 1,
           sort_order INT NOT NULL DEFAULT 0,
           created_at ${D.ts()}
@@ -259,7 +263,11 @@ const MIGRATIONS = [
   {
     id: "004_results_attendance_announcements",
     up: async (api, dialect) => {
-      // Per-madrasa grading configuration (CA/exam weights, pass mark, bands)
+      // Per-madrasa grading configuration (CA/exam weights, pass mark, bands).
+      // `grade_bands` deliberately has NO database-level default — MySQL
+      // rejects DEFAULT on TEXT columns (ER_BLOB_CANT_HAVE_DEFAULT). The
+      // application supplies the default bands itself (server/services/grading.js:
+      // JSON.stringify(DEFAULT_BANDS); reads fall back to DEFAULT_BANDS).
       await api.run(`
         CREATE TABLE IF NOT EXISTS grading_config (
           id ${D.autoInc(dialect)},
@@ -269,7 +277,7 @@ const MIGRATIONS = [
           pass_mark DECIMAL(5,2) NOT NULL DEFAULT 50,
           promotion_min_average DECIMAL(5,2),
           promotion_require_pass INT NOT NULL DEFAULT 1,
-          grade_bands TEXT NOT NULL DEFAULT '[]',
+          grade_bands TEXT NOT NULL,
           created_at ${D.ts()}
         )${D.engine(dialect)}
       `);

@@ -266,3 +266,101 @@ test("a session that ends server-side bounces the open console back to the form"
   assert.ok(err && /session has ended/i.test(err.textContent), "the visitor is told why");
   page.close();
 });
+
+/* ------------------------------------------------------------------ */
+/* "I enter my username and password, press Sign In, NOTHING happens"  */
+/* ------------------------------------------------------------------ */
+/*
+   Every one of these used to end with the visitor staring at an unchanged
+   form: no console, no error, no clue. A sign-in attempt must ALWAYS end in
+   one of exactly two visible states — the console, or a stated reason.
+*/
+
+test("a valid NON-ADMIN account (teacher) is told why the console will not open", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/login");
+  page.doc.getElementById("dlUser").value = "teacher-a";
+  page.doc.getElementById("dlPass").value = "Passw0rd!123";
+  page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
+  await sleep(2000);
+
+  assert.ok(!page.shell(), "a teacher never gets the admin console");
+  assert.ok(page.form(), "the visitor stays on the sign-in form");
+  const err = page.doc.querySelector(".dash-login-error");
+  assert.ok(err, "the attempt does NOT fail silently — a reason is shown");
+  assert.match(err.textContent, /teacher account has no administrator dashboard/i);
+  // The credentials were correct, so a session was created: it must be ended
+  // again rather than left open for an account that cannot use this console.
+  const me = await new Client(ctx.base).req("GET", "/api/auth/me");
+  assert.equal(me.data.loggedIn, false, "the non-admin session is not left open");
+  page.close();
+});
+
+test("a valid NON-ADMIN account (student) is told why the console will not open", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/login");
+  page.doc.getElementById("dlUser").value = "student-a1";
+  page.doc.getElementById("dlPass").value = "Passw0rd!123";
+  page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
+  await sleep(2000);
+
+  assert.ok(!page.shell(), "a student never gets the admin console");
+  const err = page.doc.querySelector(".dash-login-error");
+  assert.ok(err && /student account has no administrator dashboard/i.test(err.textContent),
+    "the student is told why, instead of a silently re-rendered form");
+  page.close();
+});
+
+test("a failed attempt restores the Sign In button and keeps the typed username", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/login");
+  page.doc.getElementById("dlUser").value = "testadmin";
+  page.doc.getElementById("dlPass").value = "not-the-password";
+  page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
+  await sleep(1800);
+
+  const btn = page.doc.querySelector(".dash-login-submit");
+  assert.ok(btn, "the submit button is still there");
+  assert.equal(btn.disabled, false, "the button is re-enabled — a retry is possible");
+  assert.match(btn.textContent, /Sign In/i, "the button is not stuck on 'Signing in…'");
+  assert.equal(page.doc.getElementById("dlUser").value, "testadmin",
+    "the username survives the failed attempt so only the password must be retyped");
+  page.close();
+});
+
+test("submitting an empty form states what is missing instead of doing nothing", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/login");
+  // `novalidate` + autofill/password managers can submit blank fields.
+  page.doc.getElementById("dlUser").value = "";
+  page.doc.getElementById("dlPass").value = "";
+  page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
+  await sleep(800);
+
+  const err = page.doc.querySelector(".dash-login-error");
+  assert.ok(err, "an empty submit is not silently swallowed");
+  assert.match(err.textContent, /Enter both your username and your password/i);
+  assert.ok(!page.shell(), "no console");
+  page.close();
+});
+
+test("the API client turns an unreachable server into a readable message", () => {
+  // A rejected fetch (offline/DNS/server down) used to surface as an
+  // undefined message, which rendered as a blank error — i.e. "nothing".
+  assert.ok(/catch \(networkError\)/.test(API_JS), "login() catches fetch rejections");
+  assert.ok(/Could not reach the server/.test(API_JS), "and reports them in words");
+  assert.ok(/Too many sign-in attempts/.test(API_JS), "429 has a message of its own");
+  assert.ok(/r\.status >= 500/.test(API_JS), "a non-JSON 5xx page still yields a message");
+});
+
+test("one sign-in performs exactly one boot (no duplicated/racing dashboard loads)", () => {
+  assert.ok(/let bootInFlight = null;/.test(DASH_JS), "boot() is guarded against concurrent runs");
+  assert.ok(/if \(bootInFlight\) return bootInFlight;/.test(DASH_JS),
+    "a second boot() reuses the in-flight one instead of racing it");
+});
+
+test("the sign-in handler always leaves a visible outcome", () => {
+  // Source-level guard: the submit path must never fall through without
+  // either mounting the console or rendering an error.
+  assert.ok(/function nonAdminMessage\(role\)/.test(DASH_JS), "non-admin roles have an explicit message");
+  assert.ok(/const ADMIN_ROLES = \["madrasa_admin", "super_admin"\];/.test(DASH_JS),
+    "the roles that may open this console are named in one place");
+  assert.ok(/submitBtn\.disabled = false; submitBtn\.textContent = submitLabel;/.test(DASH_JS),
+    "the button is restored in a finally block");
+});

@@ -226,6 +226,7 @@
     route: "dashboard",
     sidebarOpen: false,
     openGroups: new Set(),
+    regStatusFilter: "", // Platform -> Registrations status filter (survives re-render)
     profile: null,       // /api/madrasa/profile cache
     dashboardData: null, // /api/madrasa/dashboard cache
     cache: {},           // generic per-route data cache
@@ -301,8 +302,9 @@
     state.me = me;
     state.superAdmin = me.role === "super_admin";
     state.category = me.category === "western" ? "western" : "islamic";
-    document.body.classList.remove("dash-islamic", "dash-western");
-    document.body.classList.add(state.category === "western" ? "dash-western" : "dash-islamic");
+    // The super admin is not a tenant: it gets its own indigo/slate console
+    // theme instead of silently inheriting the Islamic School identity.
+    applyTheme(state.superAdmin ? "super" : state.category);
 
     // Super admins have no tenant, so the institution profile endpoint does
     // not apply to them (and would 403). Only fetch it for tenant admins.
@@ -328,8 +330,17 @@
   /* --------------------------------------------------------------------
      Login screen (shown when not authenticated / wrong role)
      -------------------------------------------------------------------- */
+  /** Single place that owns the <body> theme class, so no caller can leave
+      two palettes applied at once (which silently broke every var()). */
+  function applyTheme(theme) {
+    document.body.classList.remove("dash-islamic", "dash-western", "dash-super");
+    if (theme === "super") document.body.classList.add("dash-super");
+    else if (theme === "western") document.body.classList.add("dash-western");
+    else if (theme === "islamic") document.body.classList.add("dash-islamic");
+  }
+
   function renderLogin(root, error) {
-    document.body.classList.remove("dash-islamic", "dash-western");
+    applyTheme(null);
     root.innerHTML = `
       <div class="dash-login-page">
         <div class="dash-login-card">
@@ -585,8 +596,13 @@
 
   /* ============================ DASHBOARD ============================= */
 
-  function statCard(icon, value, label, accent) {
-    return `<div class="dash-stat-card"><div class="dash-stat-icon${accent ? " accent" : ""}">${I[icon] || ""}</div><div class="dash-stat-value">${esc(value)}</div><div class="dash-stat-label">${esc(label)}</div></div>`;
+  /** `sub` is an optional smaller suffix beside the value (e.g. "/ 12").
+      It is a separate argument on purpose: `value` is always escaped, so
+      passing markup in it used to print literal "&lt;small…&gt;" tags. */
+  function statCard(icon, value, label, accent, sub) {
+    return `<div class="dash-stat-card"><div class="dash-stat-icon${accent ? " accent" : ""}">${I[icon] || ""}</div>` +
+      `<div class="dash-stat-value">${esc(value)}${sub ? `<small class="dash-stat-sub">${esc(sub)}</small>` : ""}</div>` +
+      `<div class="dash-stat-label">${esc(label)}</div></div>`;
   }
 
   function donutSvg(parts, size) {
@@ -1343,16 +1359,13 @@
 
   /* ------------------------- Overview ---------------------------- */
   async function pageSuperOverview(content) {
-    let data = null;
-    let regs = { registrations: [] };
-    try {
-      [data, regs] = await Promise.all([
-        window.API.get("/platform/stats"),
-        window.API.get("/platform/registrations?status=Pending").catch(() => ({ registrations: [] })),
-      ]);
-    } catch (e) {
-      data = null;
-    }
+    // Settled independently: a failing /stats call used to abandon the whole
+    // destructuring, so the pending-registrations badge silently read 0 even
+    // when applications were waiting.
+    const [data, regs] = await Promise.all([
+      window.API.get("/platform/stats").catch(() => null),
+      window.API.get("/platform/registrations?status=Pending").catch(() => ({ registrations: [] })),
+    ]);
     const pendingRegs = (regs.registrations || []).length;
     const act = (data && data.recentActivity) || [];
     const planMax = Math.max(1, ...((data && data.byPlan) || []).map((p) => Number(p.n) || 0));
@@ -1361,14 +1374,26 @@
       <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Platform Overview</h2><p>Every institution on BELLO, at a glance.</p></div>
         <button class="dash-btn dash-btn-primary" data-nav-route="platform/madaris">${I.plus} Add Madrasa / Academy</button></div>
 
+      ${pendingRegs ? `<div class="dash-alert" role="status">
+        <span class="dash-alert-icon">${I.admissions}</span>
+        <div class="dash-alert-body">
+          <strong>${pendingRegs} registration${pendingRegs === 1 ? "" : "s"} waiting for review</strong>
+          <span>Madrasas and academies that signed up are held here until you approve them.</span>
+        </div>
+        <button class="dash-btn dash-btn-primary dash-btn-sm" data-nav-route="platform/registrations">Review now</button>
+      </div>` : ""}
+
       ${data ? `<div class="dash-stats-grid">
-        ${statCard("building", `${Number(data.activeMadaris)}<small style="font-size:.7em;color:var(--d-muted)"> / ${Number(data.madaris)}</small>`, "Active Madrasas / Total")}
+        ${statCard("building", Number(data.activeMadaris), "Active Madrasas / Total", false, " / " + Number(data.madaris))}
         ${statCard("users", data.students, "Students")}
         ${statCard("teacher", data.teachers, "Teachers")}
         ${statCard("shield", data.madrasaAdmins, "Institution Admins")}
         ${statCard("mail", data.parents, "Parents")}
         ${statCard("admissions", pendingRegs, "Registrations Pending", true)}
-      </div>` : `<div class="dash-coming-soon"><div class="icon">${I.close}</div><h3>Could not load stats</h3></div>`}
+      </div>` : `<div class="dash-card" style="margin-bottom:22px;"><div class="dash-coming-soon">
+          <div class="icon">${I.close}</div><h3>Could not load platform statistics</h3>
+          <p>The counters above are unavailable right now. Everything else on this page still works.</p>
+        </div></div>`}
 
       <div class="dash-grid-2">
         <div class="dash-card">
@@ -1419,7 +1444,7 @@
             <tr>
               <td><strong>${esc(m.name_en)}</strong><div style="font-size:.74rem;color:var(--d-muted);">/${esc(m.slug)}</div></td>
               <td>${catPill(m.category)}</td>
-              <td><select data-plan="${m.id}" aria-label="Plan for ${esc(m.name_en)}">${planOptions(plans, m.plan_id)}</select></td>
+              <td><select class="dash-select" data-plan="${m.id}" aria-label="Plan for ${esc(m.name_en)}">${planOptions(plans, m.plan_id)}</select></td>
               <td>${Number(m.student_count) || 0}</td>
               <td>${Number(m.teacher_count) || 0}</td>
               <td><span class="dash-pill ${statusPill(m.status)}">${esc(m.status)}</span></td>
@@ -1616,7 +1641,10 @@
 
   /* ------------------------- Registrations ---------------------------- */
   async function pageSuperRegistrations(content) {
-    const statusFilter = content.getAttribute("data-sa-reg-status") || "";
+    // The filter lives in app state, not on the #dashContent element: every
+    // hashchange rebuilds the shell, so an attribute stored there was wiped
+    // and the list silently snapped back to "All".
+    const statusFilter = state.regStatusFilter || "";
     const q = statusFilter ? ("?status=" + encodeURIComponent(statusFilter)) : "";
     const data = await window.API.get("/platform/registrations" + q).catch(() => ({ registrations: [] }));
     const rows = data.registrations || [];
@@ -1652,7 +1680,7 @@
     `;
 
     content.querySelectorAll("[data-sa-reg-filter]").forEach((b) => b.addEventListener("click", async () => {
-      content.setAttribute("data-sa-reg-status", b.getAttribute("data-sa-reg-filter"));
+      state.regStatusFilter = b.getAttribute("data-sa-reg-filter");
       await pageSuperRegistrations(content);
     }));
     content.querySelectorAll("[data-reg-view]").forEach((b) => b.addEventListener("click", () => openRegistrationModal(b.getAttribute("data-reg-view"), content)));

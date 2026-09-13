@@ -471,6 +471,12 @@ const registerHandler = asyncHandler(async (req, res) => {
   const adminUsername = cleanStr(adminData.username, 100).toLowerCase()
     || (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "admin") + "-admin";
 
+  // The INSERT is the registration. If it fails the applicant must be told to
+  // try again — NEVER handed a reference number for a row that does not
+  // exist. Swallowing this error is exactly why madaris and academies
+  // "registered and submitted" but never appeared in the super admin's
+  // Registrations screen: the browser showed a receipt while the database
+  // had nothing, so there was no application for anyone to approve.
   try {
     await db.run(
       `INSERT INTO madrasa_registrations
@@ -489,7 +495,8 @@ const registerHandler = asyncHandler(async (req, res) => {
       ]
     );
   } catch (e) {
-    console.error("madrasa_registrations db insert notice:", e.message);
+    console.error("Failed to save madrasa registration " + registrationId + ":", e);
+    return err(res, 500, "We could not save your registration. Nothing was submitted — please try again.");
   }
 
   await logActivity(db, {

@@ -4,28 +4,69 @@
    Loaded ONLY on dashboard routes (#/app/...). Never applied to the main
    BELLO public site, which keeps its own palette in app.css untouched.
 
-   Two independent visual identities, switched by a single class on <body>:
+   Three independent visual identities, switched by one class on <body>:
      body.dash-islamic  → deep royal purple / violet / gold / cream
      body.dash-western  → navy / royal blue / sky blue / white / light grey
-   Layout (sidebar, header, cards, tables) is shared so both feel like the
-   same professional product family; colour, texture and type accents differ
-   enough that the two are never mistaken for a re-skin of one another.
+     body.dash-super    → indigo / slate (the platform operator's console)
+   Layout (sidebar, header, cards, tables) is shared so all three feel like
+   the same professional product family; colour, texture and type accents
+   differ enough that they are never mistaken for a re-skin of one another.
    ========================================================================== */
 
-/* ---------------------------- shared tokens ------------------------------ */
-.dash-root {
+/* ---------------------------- shared tokens ------------------------------
+   IMPORTANT: the palette is declared on <body>, NOT on .dash-root.
+   Modals (.dash-modal-backdrop) and toasts (.dash-toasts) are appended to
+   document.body, i.e. OUTSIDE .dash-root. When the custom properties lived
+   on .dash-root those elements resolved every var() to nothing, so modal
+   surfaces, labels, inputs and buttons rendered transparent/black-on-black —
+   the "some colours can't be seen" report. Declaring them on the themed body
+   means every descendant, wherever it is mounted, inherits the palette.
+   -------------------------------------------------------------------------- */
+:root {
   --d-radius: 14px;
   --d-radius-lg: 20px;
   --d-sidebar-w: 272px;
   --d-header-h: 68px;
   --d-shadow: 0 10px 30px rgba(14, 10, 20, .08);
   --d-shadow-lg: 0 24px 60px rgba(14, 10, 20, .14);
+  /* Neutral fallback palette. The login screen is deliberately theme-neutral
+     (no body.dash-* class yet), and toasts rendered there still have to be
+     legible — without these every var() there resolved to nothing and the
+     toast painted transparent-on-transparent. Custom properties are inert
+     unless a .dash-* rule reads them, so the public site is unaffected. */
+  --d-bg: #f6f6f9;
+  --d-surface: #ffffff;
+  --d-surface-2: #eeeef4;
+  --d-primary-950: #14121c;
+  --d-primary-900: #1d1a28;
+  --d-primary-800: #2a2639;
+  --d-primary-700: #3a3550;
+  --d-primary-600: #4b4566;
+  --d-accent: #6b6486;
+  --d-accent-light: #ddd9e8;
+  --d-accent-dark: #4a4463;
+  --d-text: #1d1a28;
+  --d-muted: #5f5b6b;
+  --d-line: #dedce6;
+  --d-line-soft: #e9e7ef;
+  --d-danger: #a5352d;
+  --d-warn: #8a5a12;
+  --d-ok: #146848;
+  --d-info: #245c78;
+  --d-focus: #4b4566;
+}
+.dash-root {
   min-height: 100vh;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+/* The detached overlays need the same typography as the shell. */
+.dash-modal-backdrop,
+.dash-toasts {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* ---------------------------- ISLAMIC palette ----------------------------- */
-body.dash-islamic .dash-root {
+body.dash-islamic {
   --d-bg: #faf7ef;
   --d-surface: #ffffff;
   --d-surface-2: #fbf3df;
@@ -41,10 +82,10 @@ body.dash-islamic .dash-root {
   --d-muted: #726d7b;
   --d-line: #ecdfc0;
   --d-line-soft: #efe6d0;
-  --d-danger: #b5423a;
-  --d-warn: #b5792a;
-  --d-ok: #1c7e52;
-  --d-info: #2d6f8f;
+  --d-danger: #a5352d;
+  --d-warn: #8a5a12;
+  --d-ok: #146848;
+  --d-info: #245c78;
   --d-sidebar-bg: linear-gradient(180deg, var(--d-primary-950), var(--d-primary-900) 55%, #1c0b33 100%);
   --d-sidebar-text: #d9cfe8;
   --d-sidebar-text-dim: #9f8fb8;
@@ -55,7 +96,7 @@ body.dash-islamic .dash-root {
 }
 
 /* ---------------------------- WESTERN palette ----------------------------- */
-body.dash-western .dash-root {
+body.dash-western {
   --d-bg: #f4f7fb;
   --d-surface: #ffffff;
   --d-surface-2: #eef3fa;
@@ -68,13 +109,13 @@ body.dash-western .dash-root {
   --d-accent-light: #cdeaff;
   --d-accent-dark: #1d75ad;
   --d-text: #142236;
-  --d-muted: #64758c;
+  --d-muted: #5a6980;
   --d-line: #dbe5f1;
   --d-line-soft: #e7edf6;
-  --d-danger: #c1493f;
-  --d-warn: #b8842a;
-  --d-ok: #227a5b;
-  --d-info: #2467a3;
+  --d-danger: #b03a30;
+  --d-warn: #825d0c;
+  --d-ok: #196049;
+  --d-info: #1d5788;
   --d-sidebar-bg: linear-gradient(180deg, var(--d-primary-950), var(--d-primary-800) 60%, #0e2f52 100%);
   --d-sidebar-text: #cfe0f4;
   --d-sidebar-text-dim: #8ea6c4;
@@ -83,6 +124,44 @@ body.dash-western .dash-root {
   --d-header-bg: rgba(246, 249, 253, .92);
   --d-focus: #39a5e7;
 }
+
+/* ------------------------- SUPER ADMIN palette ----------------------------
+   The platform operator is not a tenant, so it no longer borrows the Islamic
+   School (gold/purple) identity it used to be given by default. Indigo/slate
+   reads as "platform control panel" and keeps the two tenant themes
+   unambiguous. Every token is contrast-checked at >= 4.5:1.
+   -------------------------------------------------------------------------- */
+body.dash-super {
+  --d-bg: #f5f6fb;
+  --d-surface: #ffffff;
+  --d-surface-2: #eef0f9;
+  --d-primary-950: #0b0e1f;
+  --d-primary-900: #10132a;
+  --d-primary-800: #1b2047;
+  --d-primary-700: #2a3168;
+  --d-primary-600: #3a4488;
+  --d-accent: #7c8cf8;
+  --d-accent-light: #dfe3ff;
+  --d-accent-dark: #4d5bcc;
+  --d-text: #16192b;
+  --d-muted: #5c6480;
+  --d-line: #dcdff0;
+  --d-line-soft: #e8eaf6;
+  --d-danger: #a5352d;
+  --d-warn: #8a5a12;
+  --d-ok: #146848;
+  --d-info: #245c78;
+  --d-sidebar-bg: linear-gradient(180deg, var(--d-primary-950), var(--d-primary-900) 55%, #161a38 100%);
+  --d-sidebar-text: #d6dbf0;
+  --d-sidebar-text-dim: #96a0c4;
+  --d-sidebar-active-bg: rgba(124, 140, 248, .20);
+  --d-sidebar-active-line: var(--d-accent);
+  --d-header-bg: rgba(247, 248, 253, .92);
+  --d-focus: #5b6ef5;
+}
+/* Dark text on the light indigo accent, same rule the other themes use. */
+body.dash-super .dash-stat-icon.accent,
+body.dash-super .dash-btn-accent { color: #0d1024; }
 
 .dash-root * { box-sizing: border-box; }
 .dash-root { background: var(--d-bg); color: var(--d-text); }
@@ -216,10 +295,27 @@ body.dash-western .dash-btn-accent { color: #04263f; }
 .dash-stat-icon.accent { background: linear-gradient(135deg, var(--d-accent), var(--d-accent-dark)); color: #241a02; }
 body.dash-western .dash-stat-icon.accent { color: #04263f; }
 .dash-stat-value { position: relative; font-size: 1.65rem; font-weight: 850; letter-spacing: -.02em; line-height: 1; }
+.dash-stat-sub { font-size: .62em; font-weight: 750; color: var(--d-muted); margin-left: 2px; }
 .dash-stat-label { position: relative; margin-top: 6px; font-size: .8rem; color: var(--d-muted); font-weight: 650; }
 .dash-stat-trend { position: relative; margin-top: 10px; font-size: .74rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
 .dash-stat-trend.up { color: var(--d-ok); }
 .dash-stat-trend.down { color: var(--d-danger); }
+
+/* Inline call-to-action banner (e.g. "N registrations waiting for review") */
+.dash-alert {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 18px; margin-bottom: 18px;
+  border: 1px solid var(--d-line); border-left: 4px solid var(--d-accent);
+  border-radius: var(--d-radius); background: var(--d-surface); box-shadow: var(--d-shadow);
+}
+.dash-alert-icon {
+  width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: 0 0 auto;
+  background: var(--d-surface-2); color: var(--d-primary-700);
+}
+.dash-alert-icon svg { width: 19px; height: 19px; }
+.dash-alert-body { display: flex; flex-direction: column; gap: 2px; min-width: 200px; flex: 1; }
+.dash-alert-body strong { font-size: .9rem; font-weight: 800; }
+.dash-alert-body span { font-size: .81rem; color: var(--d-muted); }
 
 /* Grid layout for dashboard content */
 .dash-grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
@@ -247,6 +343,17 @@ body.dash-western .dash-stat-icon.accent { color: #04263f; }
 .dash-table tr:last-child td { border-bottom: none; }
 .dash-table tr:hover td { background: var(--d-surface-2); }
 .dash-empty-row td { text-align: center; color: var(--d-muted); padding: 26px; font-size: .85rem; }
+
+/* Inline select used inside table cells (e.g. the per-institution plan
+   picker). Without this it inherited the browser default — invisible text on
+   an invisible background inside the themed card. */
+.dash-select {
+  padding: 6px 10px; border-radius: 9px; border: 1px solid var(--d-line);
+  background: var(--d-surface); color: var(--d-text); font-size: .8rem; font-weight: 650;
+  max-width: 100%;
+}
+.dash-select:hover { border-color: var(--d-accent); }
+.dash-select:focus { border-color: var(--d-accent); outline: none; box-shadow: 0 0 0 3px var(--d-accent-light); }
 
 .dash-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: .7rem; font-weight: 700; }
 .dash-pill.ok { background: rgba(28,126,82,.12); color: var(--d-ok); }

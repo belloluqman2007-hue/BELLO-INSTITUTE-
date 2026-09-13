@@ -555,15 +555,17 @@ window.BelloAcademyRegister = (function () {
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
-      console.warn("Academy registration API error, showing offline receipt:", e);
-      const regId = "REG-" + new Date().getFullYear() + "-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      // Same rule as the madrasa form: no fabricated reference numbers. A
+      // failed submit must not look like a successful one, or the academy
+      // waits for an approval on an application that was never stored.
+      console.error("Academy registration failed:", e);
       state.submitting = false;
-      state.submissionReceipt = receiptFrom(regId, payload.academy.id, "Pending", new Date().toISOString());
-      state.currentStep = 4;
-      clearDraft();
-      syncUrl(4);
+      state.errors.submit = e && e.message
+        ? e.message
+        : "We could not reach the server. Your details are saved on this page — please check your connection and submit again.";
+      state.currentStep = 3;
       render();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollToFirstError();
     }
   }
 
@@ -1092,6 +1094,7 @@ window.BelloAcademyRegister = (function () {
   function renderStep3() {
     const m = state.formData.academy;
     const a = state.formData.administrator;
+    const err = state.errors;
 
     return `
       <div class="wa-reg-step">
@@ -1181,6 +1184,13 @@ window.BelloAcademyRegister = (function () {
             </article>
           </div>
         </section>
+
+        ${err.submit ? `
+          <div class="wa-submit-error has-error" role="alert" aria-live="assertive">
+            <strong>Registration not submitted</strong>
+            <span>${escapeHtml(err.submit)}</span>
+          </div>
+        ` : ""}
 
         <div class="wa-actions-bar">
           <button type="button" class="wa-btn wa-btn-ghost" data-wa-action="go-step" data-step="2"><span>${icons.arrowLeft}</span> Back to Administrator</button>

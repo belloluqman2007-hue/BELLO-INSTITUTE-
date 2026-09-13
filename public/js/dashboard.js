@@ -293,6 +293,7 @@
       the password gate: a live session never bypasses it. */
   function isLoginPage() {
     const hash = window.location.hash || "";
+    if (hash.startsWith("#/app")) return false;
     if (hash === "#/login" || hash.startsWith("#/login/")) return true;
     const path = window.location.pathname.replace(/\/+$/, "") || "/";
     return path === "/login" || path === "/admin/login";
@@ -482,8 +483,10 @@
 
     const continueBtn = root.querySelector("#dashContinueBtn");
     if (continueBtn) continueBtn.addEventListener("click", () => {
-      // A real navigation into the admin section: fresh boot, clean state.
-      window.location.assign("/admin");
+      const targetHash = (session && session.role === "super_admin") ? "#/app/platform" : "#/app/dashboard";
+      try { window.history.replaceState(null, "", "/admin" + targetHash); } catch (e) { /* ignore */ }
+      window.location.hash = targetHash;
+      boot();
     });
     const signOutBtn = root.querySelector("#dashSignOutBtn");
     if (signOutBtn) signOutBtn.addEventListener("click", async () => {
@@ -553,10 +556,11 @@
       // Land on the admin section's own address when the form was opened
       // from /login or /admin, so a reload never bounces back here.
       const path = window.location.pathname.replace(/\/+$/, "") || "/";
+      const targetHash = (result && result.role === "super_admin") ? "#/app/platform" : "#/app/dashboard";
       if (path === "/login" || path === "/admin" || path === "/admin/login") {
-        window.history.replaceState(null, "", "/admin");
+        try { window.history.replaceState(null, "", "/admin" + targetHash); } catch (e) { /* ignore */ }
       }
-      window.location.hash = "#/app/dashboard";
+      window.location.hash = targetHash;
       await boot();
     });
   }

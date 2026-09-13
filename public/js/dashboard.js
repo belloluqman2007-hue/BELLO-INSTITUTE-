@@ -288,6 +288,24 @@
   /* --------------------------------------------------------------------
      Boot
      -------------------------------------------------------------------- */
+  /** True when the visitor explicitly asked for the SIGN-IN page — either
+      the classic hash route (/#/login) or the real /login address. This is
+      the password gate: a live session never bypasses it. */
+  function isLoginPage() {
+    const hash = window.location.hash || "";
+    if (hash === "#/login" || hash.startsWith("#/login/")) return true;
+    const path = window.location.pathname.replace(/\/+$/, "") || "/";
+    return path === "/login" || path === "/admin/login";
+  }
+
+  function resetSessionState() {
+    state.me = null;
+    state.superAdmin = false;
+    state.profile = null;
+    state.dashboardData = null;
+    state.cache = {};
+  }
+
   async function boot() {
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
@@ -295,8 +313,15 @@
     let me;
     try { me = await window.API.get("/auth/me"); } catch (e) { me = { loggedIn: false }; }
 
-    if (!me.loggedIn || !["madrasa_admin", "super_admin"].includes(me.role)) {
-      renderLogin(root, null);
+    const authenticated = me.loggedIn && ["madrasa_admin", "super_admin"].includes(me.role);
+
+    // The login page ALWAYS shows the sign-in form. A visitor whose session
+    // is still alive gets a "you are already signed in" notice with an
+    // explicit Continue action — never a silent, passwordless entry into
+    // the super-admin console (the reported fault).
+    if (isLoginPage() || !authenticated) {
+      resetSessionState();
+      renderLogin(root, null, authenticated ? me : null);
       return;
     }
     state.me = me;
@@ -316,10 +341,34 @@
       }
     }
 
-    window.addEventListener("hashchange", () => { state.route = normalizeRoute(currentRoute()); renderApp(root); });
     state.route = normalizeRoute(currentRoute());
     renderApp(root);
   }
+
+  /** One listener for the whole page lifetime (boot() used to add a fresh
+      listener on every call, so they piled up after each login). It also
+      never renders the admin shell from stale state: without a session in
+      memory it re-authenticates instead. */
+  function onHashChange() {
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return;                       // the public site is mounted — not ours
+    if (isLoginPage()) { boot(); return; }   // explicit sign-in page → password gate
+    if (!state.me) { boot(); return; }       // no session in memory → re-authenticate
+    state.route = normalizeRoute(currentRoute());
+    renderApp(root);
+  }
+  window.addEventListener("hashchange", onHashChange);
+
+  /** Any authenticated API call answering 401 means the session ended
+      server-side (logged out elsewhere, expired, account deactivated).
+      The dashboard must fall back to the sign-in screen instead of
+      rendering an admin shell whose every request fails. */
+  window.addEventListener("bello:unauthorized", () => {
+    if (!state.me) return;                   // already signed out / on the form
+    resetSessionState();
+    const root = document.getElementById(ROOT_ID);
+    if (root) renderLogin(root, "Your session has ended. Please sign in again.", null);
+  });
 
   /** The super admin's "dashboard" is the platform overview, not a tenant. */
   function normalizeRoute(route) {
@@ -339,17 +388,34 @@
     else if (theme === "islamic") document.body.classList.add("dash-islamic");
   }
 
-  function renderLogin(root, error) {
+  function renderLogin(root, error, session) {
     applyTheme(null);
+    document.title = "Admin Sign-In — BELLO";
+    // Shown ONLY when /api/auth/me reports a live session: the visitor is
+    // told who is signed in and must explicitly choose to continue — the
+    // dashboard is never entered without that deliberate action or a
+    // password.
+    const notice = (session && session.loggedIn && session.user) ? `
+          <div class="dash-login-session">
+            <div class="dash-login-session-copy">
+              <strong>You are already signed in as ${esc(session.user.fullName || session.user.username)}.</strong>
+              <small>${session.role === "super_admin" ? "Platform Super Admin" : (session.category === "western" ? "Western Academy Admin" : "Islamic School Admin")}${session.institutionName ? " — " + esc(session.institutionName) : ""}</small>
+            </div>
+            <div class="dash-login-session-actions">
+              <button type="button" id="dashContinueBtn">Continue to dashboard</button>
+              <button type="button" id="dashSignOutBtn">Sign out</button>
+            </div>
+          </div>` : "";
     root.innerHTML = `
       <div class="dash-login-page">
         <div class="dash-login-card">
           <div class="brand-row">
             <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
-            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Institution Admin</div></div>
+            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Admin Sign-In</div></div>
           </div>
           <h1>Sign in to your dashboard</h1>
-          <p class="sub">Islamic School &amp; Western Academy administrators use the same sign-in — BELLO routes you to the right dashboard automatically.</p>
+          <p class="sub">Islamic School, Western Academy and platform administrators use the same sign-in — BELLO routes you to the right dashboard automatically.</p>
+          ${notice}
           ${error ? `<div class="dash-login-error">${esc(error)}</div>` : ""}
           <form id="dashLoginForm">
             <div class="dash-login-field">
@@ -365,17 +431,43 @@
           <div class="dash-login-foot">Registering a new institution? <a href="/register-madrasa" data-noroute style="font-weight:700;color:#38146a;">Register an Islamic School</a> or <a href="/western-schools" data-noroute style="font-weight:700;color:#38146a;">a Western Academy</a>.</div>
         </div>
       </div>`;
+
+    const continueBtn = root.querySelector("#dashContinueBtn");
+    if (continueBtn) continueBtn.addEventListener("click", () => {
+      // A real navigation into the admin section: fresh boot, clean state.
+      window.location.assign("/admin");
+    });
+    const signOutBtn = root.querySelector("#dashSignOutBtn");
+    if (signOutBtn) signOutBtn.addEventListener("click", async () => {
+      try { await window.API.logout(); } catch (e) { /* ignore */ }
+      resetSessionState();
+      renderLogin(root, "You have been signed out. Sign in with any administrator account below.", null);
+    });
+
     const form = root.querySelector("#dashLoginForm");
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const btn = form.querySelector("button");
       btn.disabled = true; btn.textContent = "Signing in…";
       try {
-        await window.API.login(form.username.value.trim(), form.password.value);
+        // form.elements.<name> is the standard accessor (works in every
+        // engine; the form.<name> shortcut is not implemented by jsdom).
+        const username = form.elements.username.value.trim();
+        const password = form.elements.password.value;
+        await window.API.login(username, password);
+        // Signing in always switches the account: drop any stale dashboard
+        // state from a previous session before mounting the new one.
+        resetSessionState();
+        // Land on the admin section's own address when the form was opened
+        // from /login or /admin, so a reload never bounces back here.
+        const path = window.location.pathname.replace(/\/+$/, "") || "/";
+        if (path === "/login" || path === "/admin" || path === "/admin/login") {
+          window.history.replaceState(null, "", "/admin");
+        }
         window.location.hash = "#/app/dashboard";
         await boot();
       } catch (err) {
-        renderLogin(root, err.message || "Invalid username or password.");
+        renderLogin(root, err.message || "Invalid username or password.", session);
       }
     });
   }
@@ -410,6 +502,9 @@
   }
 
   function renderApp(root) {
+    // No session in memory → never paint the admin shell from stale state;
+    // re-authenticate instead.
+    if (!state.me) { boot(); return; }
     const cat = state.category;
     const schema = state.superAdmin ? superAdminSchema() : sidebarSchema(cat);
     const t = T();
@@ -467,9 +562,13 @@
     bindNavLinks(root);
 
     root.querySelector("#dashLogoutBtn").addEventListener("click", async () => {
+      // Clear the in-memory session FIRST so nothing can re-render the
+      // admin shell from stale state while the request is in flight.
+      resetSessionState();
+      applyTheme(null);
       try { await window.API.logout(); } catch (e) { /* ignore */ }
-      window.location.hash = "";
-      window.location.href = "/";
+      // A real navigation away: fresh page, fresh state, no session cookie.
+      window.location.replace("/");
     });
     root.querySelector("#dashBurger").addEventListener("click", () => setSidebarOpen(root, true));
     root.querySelector("#dashOverlay").addEventListener("click", () => setSidebarOpen(root, false));

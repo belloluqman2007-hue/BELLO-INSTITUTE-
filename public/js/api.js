@@ -42,6 +42,14 @@
     const ct = res.headers.get("content-type") || "";
     if (ct.includes("application/json")) data = await res.json().catch(() => null);
     if (!res.ok) {
+      // A 401 on an authenticated call means the session ended server-side
+      // (logged out elsewhere, expired, deactivated). Tell the dashboard so
+      // it can fall back to the sign-in screen instead of painting a shell
+      // whose every request now fails. (The login endpoint itself uses raw
+      // fetch and never reaches this branch.)
+      if (res.status === 401 && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        try { window.dispatchEvent(new CustomEvent("bello:unauthorized", { detail: { path } })); } catch (e) { /* non-fatal */ }
+      }
       const e = new Error((data && data.error) || `Request failed (${res.status})`);
       e.status = res.status;
       e.data = data;

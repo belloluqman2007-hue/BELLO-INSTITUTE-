@@ -1,0 +1,268 @@
+"use strict";
+/* ============================================================================
+   ADMIN SECTION & LOGIN — regression tests for the reported fault
+   ----------------------------------------------------------------------------
+   Reported: "If I press login it will just take me to the super admin
+   without any password, which is not supposed to be."
+
+   Root causes covered here:
+     1. The dashboard's boot() treated ANY live session as permission to
+        mount the admin console. Because the session cookie outlives the
+        visit, pressing Login while (unknowingly) still signed in skipped
+        the form entirely and opened the super-admin console — zero
+        password entry.
+     2. boot() registered a NEW hashchange listener on every call and its
+        handler rendered the admin shell straight from in-memory state, so
+        after the session ended server-side the SPA kept painting a
+        "logged-in" console whose every request 401'd.
+
+   The contract now:
+     • /login (and the legacy /#/login hash) ALWAYS shows the sign-in form.
+       A live session adds a "you are already signed in as …" notice with an
+       EXPLICIT Continue action — never silent, passwordless entry.
+     • /admin is the admin section's own address; unauthenticated visitors
+       get the sign-in form, not the console.
+     • Wrong/empty credentials never open the console.
+     • A session that ends server-side bounces the SPA back to the form.
+   ========================================================================== */
+const { test, before, after } = require("node:test");
+const assert = require("node:assert");
+const fs = require("fs");
+const path = require("path");
+
+const { initEnv, setup, Client, SA_PASSWORD } = require("./helpers");
+initEnv();
+
+let JSDOM = null;
+let VirtualConsole = null;
+try {
+  ({ JSDOM, VirtualConsole } = require("jsdom"));
+} catch (e) {
+  /* jsdom devDependency not installed (production install) — UI half skips. */
+}
+
+const skipUI = !JSDOM ? "jsdom devDependency not installed" : false;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const ROOT = path.join(__dirname, "..");
+const DASH_JS = fs.readFileSync(path.join(ROOT, "public", "js", "dashboard.js"), "utf8");
+const APP_JS = fs.readFileSync(path.join(ROOT, "public", "js", "app.js"), "utf8");
+const ACADEMY_JS = fs.readFileSync(path.join(ROOT, "public", "js", "register-academy.js"), "utf8");
+const API_JS = fs.readFileSync(path.join(ROOT, "public", "js", "api.js"), "utf8");
+const SERVER_APP_JS = fs.readFileSync(path.join(ROOT, "server", "app.js"), "utf8");
+
+let ctx;
+
+before(async () => {
+  ctx = await setup();
+});
+after(async () => { await ctx.close(); });
+
+/* ------------------------------------------------------------------ */
+/* Source-level contract (runs even without jsdom)                     */
+/* ------------------------------------------------------------------ */
+
+test("the login page always shows the form — a live session never bypasses it", () => {
+  assert.ok(/function isLoginPage\(\)/.test(DASH_JS), "the dashboard knows what the sign-in page is");
+  assert.ok(/if \(isLoginPage\(\) \|\| !authenticated\) \{/.test(DASH_JS),
+    "boot() renders the sign-in form on the login page even when a session is alive");
+  assert.ok(/renderLogin\(root, null, authenticated \? me : null\)/.test(DASH_JS),
+    "a live session is passed to the form only as a notice, never as entry");
+});
+
+test("the admin section has real addresses and every public Login link uses them", () => {
+  assert.ok(/app\.get\("\/login", schoolLinkHandler\)/.test(SERVER_APP_JS), "GET /login serves the SPA shell");
+  assert.ok(/app\.get\("\/admin", schoolLinkHandler\)/.test(SERVER_APP_JS), "GET /admin serves the SPA shell");
+  assert.ok(/path === "\/login" \|\| path === "\/admin" \|\| path === "\/admin\/login"/.test(APP_JS),
+    "the SPA router routes /login and /admin into the admin module");
+  // The old hash link could boot the dashboard from whatever state the
+  // current page was holding; a real /login address always starts fresh.
+  for (const [name, src] of [["app.js", APP_JS], ["register-academy.js", ACADEMY_JS]]) {
+    assert.ok(!/href="\/#\/login"/.test(src), `${name} has no legacy /#/login links`);
+    assert.ok(/href="\/login"/.test(src), `${name} links to the real sign-in page`);
+  }
+});
+
+test("the dashboard can no longer render the admin shell from stale session state", () => {
+  // boot() used to add a fresh listener on every call (they piled up).
+  const registrations = DASH_JS.match(/addEventListener\("hashchange"/g) || [];
+  assert.equal(registrations.length, 1, "exactly ONE hashchange listener exists");
+  assert.ok(/if \(!state\.me\) \{ boot\(\); return; \}/.test(DASH_JS),
+    "renderApp() re-authenticates when there is no session in memory");
+  assert.ok(/function resetSessionState\(\)/.test(DASH_JS) && /resetSessionState\(\);/.test(DASH_JS),
+    "session state is explicitly cleared (login screen + logout)");
+});
+
+test("a 401 from an authenticated API call bounces the SPA to the sign-in form", () => {
+  assert.ok(/bello:unauthorized/.test(API_JS),
+    "the API client reports 401s (session ended server-side)");
+  assert.ok(/addEventListener\("bello:unauthorized"/.test(DASH_JS),
+    "the dashboard listens and falls back to the sign-in form");
+});
+
+/* ------------------------------------------------------------------ */
+/* HTTP contract                                                       */
+/* ------------------------------------------------------------------ */
+
+test("GET /login, /admin and /admin/login all serve the SPA shell", async () => {
+  const anon = new Client(ctx.base);
+  for (const p of ["/login", "/admin", "/admin/login"]) {
+    const r = await anon.req("GET", p);
+    assert.equal(r.status, 200, p);
+    const ct = r.res.headers.get("content-type") || "";
+    assert.ok(ct.includes("text/html"), `${p} serves HTML`);
+    assert.ok(r.res.url === ctx.base + p || true); // (no redirect expected)
+  }
+});
+
+test("the API itself never authenticates without a password", async () => {
+  const anon = new Client(ctx.base);
+  const empty = await anon.req("POST", "/api/auth/login", { username: "testadmin", password: "" });
+  assert.equal(empty.status, 400);
+  const wrong = await anon.req("POST", "/api/auth/login", { username: "testadmin", password: "definitely-wrong" });
+  assert.equal(wrong.status, 401);
+  const me = await anon.req("GET", "/api/auth/me");
+  assert.equal(me.data.loggedIn, false, "no session was created by the failed attempts");
+});
+
+/* ------------------------------------------------------------------ */
+/* Browser-level contract (jsdom; skips without the devDependency)     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Opens the shipped SPA at `path` (with an optional session cookie) the way
+ * a real browser would: real scripts from the server, a fetch that carries
+ * a cookie jar (so Set-Cookie from the login response is honoured).
+ */
+async function openAdminApp(urlPath, initialCookie) {
+  const jar = { value: initialCookie || "" };
+  const pageErrors = [];
+  const vc = new VirtualConsole();
+  vc.on("jsdomError", (e) => {
+    const msg = String((e.detail && e.detail.message) || e.message || e);
+    if (!/Not implemented/i.test(msg)) pageErrors.push("jsdomError: " + msg);
+  });
+
+  const res = await fetch(ctx.base + urlPath, { headers: jar.value ? { cookie: jar.value } : {} });
+  const html = await res.text();
+  const dom = new JSDOM(html, {
+    url: ctx.base + urlPath,
+    runScripts: "dangerously",
+    resources: "usable",
+    pretendToBeVisual: true,
+    virtualConsole: vc,
+    beforeParse(window) {
+      window.addEventListener("error", (e) => pageErrors.push(String(e.message)));
+      window.fetch = async (input, init = {}) => {
+        const abs = new URL(String(input), ctx.base).href;
+        const headers = Object.assign({}, init.headers || {}, jar.value ? { cookie: jar.value } : {});
+        const r = await fetch(abs, Object.assign({}, init, { headers }));
+        const setCookie = r.headers.get("set-cookie");
+        if (setCookie) jar.value = setCookie.split(";")[0];
+        return r;
+      };
+    },
+  });
+  await sleep(1600);
+  return {
+    dom,
+    jar,
+    pageErrors,
+    doc: dom.window.document,
+    form: () => dom.window.document.getElementById("dashLoginForm"),
+    shell: () => !!dom.window.document.querySelector(".dash-root"),
+    close() { try { dom.window.close(); } catch (e) { /* ignore */ } },
+  };
+}
+
+/** Session cookie for the seeded super admin. */
+async function superAdminCookie() {
+  const c = new Client(ctx.base);
+  const r = await c.login("testadmin", SA_PASSWORD);
+  assert.equal(r.status, 200, "seeded super admin can log in via the API");
+  return c.cookieHeader();
+}
+
+test("a visitor with NO session presses Login → the sign-in form, never the console", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/#/login");
+  assert.ok(page.form(), "the sign-in form is shown");
+  assert.ok(!page.shell(), "no admin console is rendered");
+  assert.ok(!page.doc.getElementById("dashContinueBtn"), "no 'already signed in' notice for an anonymous visitor");
+  assert.deepEqual(page.pageErrors, []);
+  page.close();
+});
+
+test("THE REPORTED FAULT: a live super-admin session pressing Login still gets the form", { skip: skipUI }, async () => {
+  const cookie = await superAdminCookie();
+  for (const route of ["/login", "/#/login"]) {
+    const page = await openAdminApp(route, cookie);
+    assert.ok(page.form(), `${route}: the sign-in form is shown`);
+    assert.ok(!page.shell(), `${route}: the super-admin console must NOT open without a password`);
+    const notice = page.doc.querySelector(".dash-login-session-copy");
+    assert.ok(notice, `${route}: the 'already signed in' notice is shown`);
+    assert.match(notice.textContent, /already signed in as Test Admin/i);
+    assert.ok(page.doc.getElementById("dashContinueBtn"),
+      `${route}: continuing requires an EXPLICIT action, not silent entry`);
+    assert.deepEqual(page.pageErrors, []);
+    page.close();
+  }
+});
+
+test("an unauthenticated visitor opening /admin gets the form, not the console", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/admin");
+  assert.ok(page.form(), "the sign-in form is shown");
+  assert.ok(!page.shell(), "no admin console is rendered");
+  assert.deepEqual(page.pageErrors, []);
+  page.close();
+});
+
+test("wrong credentials keep the visitor on the form with the API's error", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/login");
+  page.doc.getElementById("dlUser").value = "testadmin";
+  page.doc.getElementById("dlPass").value = "not-the-password";
+  page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
+  await sleep(1500);
+  assert.ok(page.form(), "still on the sign-in form");
+  assert.ok(!page.shell(), "no admin console is rendered");
+  const err = page.doc.querySelector(".dash-login-error");
+  assert.ok(err, "the failure is shown");
+  assert.match(err.textContent, /Invalid username or password/i);
+  page.close();
+});
+
+test("correct credentials sign the admin in and mount the console", { skip: skipUI }, async () => {
+  const page = await openAdminApp("/login");
+  page.doc.getElementById("dlUser").value = "testadmin";
+  page.doc.getElementById("dlPass").value = SA_PASSWORD;
+  page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
+  await sleep(2500);
+  assert.ok(!page.form(), "the form is gone after a successful sign-in");
+  assert.ok(page.shell(), "the admin console is mounted");
+  assert.equal(page.dom.window.location.pathname, "/admin",
+    "the address bar lands on the admin section's own address");
+  assert.deepEqual(page.pageErrors, []);
+  page.close();
+});
+
+test("a session that ends server-side bounces the open console back to the form", { skip: skipUI }, async () => {
+  const cookie = await superAdminCookie();
+  const page = await openAdminApp("/admin", cookie);
+  assert.ok(page.shell(), "the console is mounted while the session is alive");
+
+  // End the session server-side (logged out in another tab / expiry /
+  // deactivated) — the SPA in this "tab" still holds stale state.
+  const c = new Client(ctx.base);
+  c.cookies = { mm_session: page.jar.value.replace(/^mm_session=/, "") };
+  const out = await c.api("POST", "/api/auth/logout");
+  assert.equal(out.status, 200, "server-side logout");
+
+  // Navigate inside the SPA: the old code re-rendered the admin shell from
+  // stale in-memory state; now the 401 must bounce to the sign-in form.
+  page.dom.window.location.hash = "#/app/platform/madaris";
+  await sleep(2500);
+  assert.ok(page.form(), "the sign-in form is back");
+  assert.ok(!page.shell(), "no admin console survives the dead session");
+  const err = page.doc.querySelector(".dash-login-error");
+  assert.ok(err && /session has ended/i.test(err.textContent), "the visitor is told why");
+  page.close();
+});

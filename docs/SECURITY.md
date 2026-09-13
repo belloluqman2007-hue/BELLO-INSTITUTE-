@@ -21,6 +21,15 @@ bottom with their fixes.
 - Account lifecycle: deactivated users are rejected at login (`403`);
   suspended madaris' users are rejected (`403`), verified by test.
 - Password change requires the current password and rotates the session.
+- **The admin sign-in page (`/login`) is a real password gate**: it renders
+  the form even when the visitor's session cookie is still valid (a live
+  session only adds a *"you are already signed in"* notice with an explicit
+  Continue action — never silent, passwordless entry into the super-admin
+  console). Verified by browser-level test (`test/admin-login.test.js`).
+- A session that ends server-side (logged out elsewhere, expired,
+  deactivated) makes the next authenticated API call answer `401`; the SPA
+  then drops its in-memory session state and falls back to the sign-in page
+  instead of rendering an admin shell from stale state. Same test file.
 
 ## 2. Authorization (role boundaries)
 

@@ -174,7 +174,9 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
     subjects,
     notices,
     publishedTermCount: Number(summaryCount.n),
-    loginUrl: "/#/login",
+    // The administrator sign-in page — a real address (always asks for a
+    // password) rather than the old hash route.
+    loginUrl: "/login",
   });
 }));
 

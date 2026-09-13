@@ -60,6 +60,17 @@ and analytics windows are therefore always populated, whenever you seed.
 
 ## Roles & permissions (enforced on the backend)
 
+**Admin sign-in** lives at **`/login`** (the `Login` link on every public
+page). It **always asks for a username and password** — a still-valid session
+never opens the console on its own; it only adds a *"you are already signed
+in as …"* notice with an explicit **Continue** action. **`/admin`** is the
+admin section's own address (it falls back to the sign-in page when the
+visitor is not authenticated), and Islamic School, Western Academy and
+platform administrators all use the same form — BELLO routes each one to the
+right dashboard. If a session ends server-side while a dashboard is open, the
+next request bounces the tab back to the sign-in page instead of painting a
+console whose every call fails.
+
 | Role | Access |
 | ---- | ------ |
 | **SUPER ADMIN** | All madaris: create/suspend, plans (FREE / BASIC / PREMIUM with student & teacher limits and feature flags), platform stats **and platform-wide analytics**, activity log, platform settings. |

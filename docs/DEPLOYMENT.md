@@ -114,8 +114,28 @@ explicit reset command against that database:
 
 The command sets the super admin's password to the current
 `SUPER_ADMIN_PASSWORD` value (and creates the account if it does not exist
-yet). No restart is required — just log in again. Note the username is
-stored exactly as configured (default: `admin`, lowercase).
+yet). No restart is required — just log in again.
+
+**Usernames are case-insensitive.** Sign-in lower-cases whatever is typed, so
+the stored username is lower-cased too (`SUPER_ADMIN_USERNAME=Admin` and
+`admin` are the same account). Earlier releases stored the variable verbatim,
+which could create an account that no input would ever match; boot and
+`npm run reset-admin-password` now repair such a row automatically.
+
+### "Nothing happens when I sign in"
+
+A platform whose database has **no accounts at all** used to answer
+`Invalid username or password` — indistinguishable from a typo, and the
+reason the documented `admin` login appeared to do nothing. Two guards now
+make that state impossible to reach silently:
+
+- **Boot:** a production boot with no super admin and no `SUPER_ADMIN_PASSWORD`
+  **fails** with an explicit error instead of starting a platform nobody can
+  enter. (In development the seed generates a password and prints it.)
+- **Login:** if the users table is empty, `POST /api/auth/login` answers
+  `503 NO_ACCOUNTS` and the form displays *"This platform has no accounts yet…"*
+  with the command to run. This cannot leak account information — it only
+  fires when there are no accounts to enumerate.
 
 You can check the account exists in your database with:
 

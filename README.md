@@ -29,13 +29,42 @@ npm run dev        # migrate + serve on http://localhost:3000
 First run creates the dev SQLite database (`data/madrasa_platform.sqlite`)
 and one super-admin account.
 
+**The first boot always prints how to sign in.** If `SUPER_ADMIN_PASSWORD` is
+not set (the normal state of a fresh clone), the seed generates a password
+rather than skipping account creation, and prints it as a banner:
+
+```
+──────────────────────────────────────────────────────────────
+  SUPER_ADMIN_PASSWORD was not set, so a development super
+  admin was created with a generated password:
+      username: admin
+      password: Dev-xxxxxxxxxxxx!
+  (also written to .dev-credentials.txt — git-ignored)
+──────────────────────────────────────────────────────────────
+```
+
+Set `SUPER_ADMIN_PASSWORD` in `.env` before the first boot to choose your own.
+Usernames are **case-insensitive** (`Admin` and `admin` are the same account).
+
 ```bash
 npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results,
                          #            timetables, published results and public-site flags
-npm test                 # automated suite (isolated temp database, 160 tests —
+npm test                 # automated suite (isolated temp database, 215 tests —
                          # includes browser-level checks that drive public/js/app.js in jsdom)
 bash test/smoke.sh       # end-to-end checks against a running dev server (70 checks)
 ```
+
+### "I type my username and password and nothing happens"
+
+Almost always one of these — the sign-in form now names each one on screen
+instead of failing silently:
+
+| What the form says | What it means | Fix |
+| ------------------ | ------------- | --- |
+| *This platform has no accounts yet…* | The database is empty — the super admin was never created (e.g. `SUPER_ADMIN_PASSWORD` was unset on a host that skipped seeding, or the data directory was wiped). | `npm run reset-admin-password` with `SUPER_ADMIN_PASSWORD` set |
+| *Invalid username or password.* | The account exists; the credentials are wrong. | `npm run reset-admin-password` to set a known password |
+| *Those details are correct, but the … account has no administrator dashboard* | A teacher/student/parent account — correct password, no admin console. | Sign in with an admin account |
+| *Too many sign-in attempts…* | Rate limit (`LOGIN_RATE_LIMIT`, default 10 per 15 min). | Wait, or raise the limit |
 
 ### Demo logins (after `npm run seed -- --demo`)
 

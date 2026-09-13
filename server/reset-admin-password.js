@@ -36,7 +36,14 @@ require("./db-target").announce({ allowCreate: false });
       process.exit(1);
     }
     const hash = bcrypt.hashSync(config.SUPER_ADMIN_PASSWORD, 10);
-    const res = await db.run("UPDATE users SET password_hash = ? WHERE role = 'super_admin'", [hash]);
+    // Usernames are matched in lower case at login, so an account stored as
+    // "Admin" (an older seed honoured the env var's casing verbatim) can never
+    // be signed into. Repair the casing while we are here, or the reset would
+    // report success against an account that still cannot log in.
+    const res = await db.run(
+      "UPDATE users SET password_hash = ?, username = LOWER(username), is_active = 1 WHERE role = 'super_admin'",
+      [hash]
+    );
     if (Number(res.changes) > 0) {
       const rows = await db.all("SELECT username FROM users WHERE role = 'super_admin'");
       console.log(`Super admin password reset for: ${rows.map((r) => r.username).join(", ")}`);

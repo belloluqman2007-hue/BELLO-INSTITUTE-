@@ -109,19 +109,22 @@ router.post("/login", async (req, res) => {
       entityId: String(user.id),
       ip: req.ip || "",
     });
-    res.json({
-      ok: true,
-      role: user.role,
-      madrasaId: user.madrasa_id,
-      category,
-      institutionName,
-      user: {
-        id: user.id,
-        username: user.username,
+    req.session.save((saveErr) => {
+      if (saveErr) return res.status(500).json({ error: "Session save error." });
+      res.json({
+        ok: true,
         role: user.role,
-        fullName: user.full_name,
-        fullNameAr: user.full_name_ar,
-      },
+        madrasaId: user.madrasa_id,
+        category,
+        institutionName,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          fullName: user.full_name,
+          fullNameAr: user.full_name_ar,
+        },
+      });
     });
   });
 });

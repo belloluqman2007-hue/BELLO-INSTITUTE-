@@ -308,7 +308,18 @@ router.get("/dashboard", adminOrSupport, asyncHandler(async (req, res) => {
   });
 }));
 
-/** Per-madrasa key/value settings (admission prefix, etc.) */
+/** Per-madrasa key/value settings (admission prefix, notification preference,
+ *  website page copy, etc.). Values remain private unless a public projection
+ *  deliberately asks for them. */
+router.get("/settings", adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const rows = await db.all("SELECT key_name, value FROM settings WHERE madrasa_id = ? ORDER BY key_name", [m.id]);
+  const settings = {};
+  rows.forEach((row) => { settings[row.key_name] = row.value; });
+  ok(res, { settings });
+}));
+
 router.put("/settings", adminOrSupport, asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
@@ -520,6 +531,24 @@ rootRouter.post("/sessions/:id/terms", requireAuth, requireTenant, adminOrSuppor
     [m.id, s.id, pos, nameEn, cleanStr(b.name_ar, 60), b.start_date || null, b.end_date || null]
   );
   ok(res, { ok: true, id: r.lastInsertRowid });
+}));
+
+/* Update a term's names and dates. Term position is deliberately immutable
+ * once results exist; create a new ordered term instead of changing history. */
+rootRouter.patch("/terms/:id", requireAuth, requireTenant, adminOrSupport, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res);
+  if (!m) return;
+  const term = await db.get("SELECT * FROM terms WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+  if (!term) return res.status(404).json({ error: "Term not found." });
+  const b = req.body || {};
+  const sets = []; const vals = [];
+  if (b.name_en !== undefined) { const name = cleanStr(b.name_en, 60); if (!name) return err(res, 400, "English term name is required."); sets.push("name_en = ?"); vals.push(name); }
+  if (b.name_ar !== undefined) { sets.push("name_ar = ?"); vals.push(cleanStr(b.name_ar, 60)); }
+  for (const field of ["start_date", "end_date"]) if (b[field] !== undefined) { sets.push(`${field} = ?`); vals.push(b[field] || null); }
+  if (!sets.length) return err(res, 400, "Nothing to update.");
+  vals.push(term.id);
+  await db.run(`UPDATE terms SET ${sets.join(", ")} WHERE id = ?`, vals);
+  ok(res, { ok: true });
 }));
 
 /* ------------------------------ grading config ------------------------- */

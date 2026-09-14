@@ -48,6 +48,78 @@ router.get("/", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
   ok(res, { teachers: rows, classes, subjects: subs });
 }));
 
+/* ------------------------- recruitment applications --------------------- */
+
+router.get("/applications", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const status = cleanStr(req.query.status, 20);
+  const params = [tid];
+  let sql = "SELECT * FROM teacher_applications WHERE madrasa_id = ?";
+  if (["pending", "approved", "rejected", "on_hold"].includes(status)) { sql += " AND status = ?"; params.push(status); }
+  sql += " ORDER BY id DESC LIMIT 200";
+  const applications = await db.all(sql, params);
+  ok(res, { applications });
+}));
+
+/** Add a walk-in/e-mailed candidate to the recruitment queue. */
+router.post("/applications", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const b = req.body || {};
+  const fullName = cleanStr(b.full_name, 160);
+  if (!fullName) return err(res, 400, "full_name is required.");
+  if (b.phone && !validPhone(b.phone)) return err(res, 400, "Invalid phone number.");
+  const r = await db.run(
+    "INSERT INTO teacher_applications (madrasa_id, full_name, email, phone, message) VALUES (?,?,?,?,?)",
+    [tid, fullName, cleanStr(b.email, 120), cleanStr(b.phone, 60), cleanStr(b.message, 5000)]
+  );
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "teacher_application.create", entity: "teacher_application", entityId: String(r.lastInsertRowid), ip: req.ip });
+  ok(res, { ok: true, id: r.lastInsertRowid });
+}));
+
+router.patch("/applications/:id", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const app = await db.get("SELECT * FROM teacher_applications WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
+  if (!app) return res.status(404).json({ error: "Teacher application not found." });
+  const b = req.body || {};
+  const status = cleanStr(b.status, 20);
+  if (!["pending", "rejected", "on_hold"].includes(status)) return err(res, 400, "Use pending, on_hold or rejected.");
+  await db.run("UPDATE teacher_applications SET status = ?, review_note = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?", [status, cleanStr(b.review_note, 2000), req.user.id, app.id]);
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "teacher_application." + status, entity: "teacher_application", entityId: String(app.id), ip: req.ip });
+  ok(res, { ok: true, status });
+}));
+
+/** Approve a candidate and atomically create their real teacher account. */
+router.post("/applications/:id/approve", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const app = await db.get("SELECT * FROM teacher_applications WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
+  if (!app) return res.status(404).json({ error: "Teacher application not found." });
+  if (app.status === "approved" || app.teacher_user_id) return err(res, 400, "This candidate has already been approved.");
+  const b = req.body || {};
+  const username = cleanStr(b.username, 100).toLowerCase();
+  const password = String(b.password || "");
+  if (!/^[a-z0-9_.-]{3,}$/.test(username) || password.length < 8) return err(res, 400, "A valid username and password of at least 8 characters are required.");
+  const limitCheck = await checkPlanLimits(db, tid, "teacher");
+  if (!limitCheck.allowed) return err(res, 403, limitCheck.message, { limit: limitCheck.limit, count: limitCheck.count });
+  const taken = await db.get("SELECT id FROM users WHERE username = ?", [username]);
+  if (taken) return err(res, 400, "That username is already taken.");
+  let teacherId = 0;
+  await db.transaction(async (tx) => {
+    const r = await tx.run(
+      "INSERT INTO users (madrasa_id, username, password_hash, role, full_name, email, phone) VALUES (?,?,?,?,?,?,?)",
+      [tid, username, bcrypt.hashSync(password, 10), "teacher", app.full_name, app.email, app.phone]
+    );
+    teacherId = r.lastInsertRowid;
+    await setAssignments(tid, teacherId, b.assignments, tx);
+    await tx.run("UPDATE teacher_applications SET status = 'approved', review_note = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, teacher_user_id = ? WHERE id = ?", [cleanStr(b.review_note, 2000), req.user.id, teacherId, app.id]);
+  });
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "teacher_application.approve", entity: "teacher_application", entityId: String(app.id), meta: { teacherId }, ip: req.ip });
+  ok(res, { ok: true, teacherId });
+}));
+
 /* ------------------------------ create --------------------------------- */
 
 router.post("/", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
@@ -81,21 +153,23 @@ router.post("/", requireRole("madrasa_admin"), asyncHandler(async (req, res) => 
 }));
 
 /** assignments: [{ class_id, subject_id? }]  (subject_id optional) */
-async function setAssignments(tid, userId, assignments) {
+async function setAssignments(tid, userId, assignments, api = db) {
   if (!Array.isArray(assignments)) return;
-  await db.run("DELETE FROM teacher_assignments WHERE madrasa_id = ? AND user_id = ?", [tid, userId]);
+  await api.run("DELETE FROM teacher_assignments WHERE madrasa_id = ? AND user_id = ?", [tid, userId]);
   for (const a of assignments) {
     const cid = a.class_id ? toNum(a.class_id, 0) : null;
     const sid = a.subject_id ? toNum(a.subject_id, 0) : null;
     if (cid) {
-      const c = await db.get("SELECT id FROM classes WHERE id = ? AND madrasa_id = ?", [cid, tid]);
+      const c = await api.get("SELECT id FROM classes WHERE id = ? AND madrasa_id = ?", [cid, tid]);
       if (!c) continue;
     }
     if (sid) {
-      const s = await db.get("SELECT id FROM subjects WHERE id = ? AND madrasa_id = ?", [sid, tid]);
+      const s = await api.get("SELECT id FROM subjects WHERE id = ? AND madrasa_id = ?", [sid, tid]);
       if (!s) continue;
     }
-    await db.insertIgnore("teacher_assignments", "madrasa_id, user_id, class_id, subject_id", [tid, userId, cid, sid]);
+    const dialect = typeof api.dialect === "string" ? api.dialect : await db.dialect();
+    const verb = dialect === "sqlite" ? "INSERT OR IGNORE" : "INSERT IGNORE";
+    await api.run(`${verb} INTO teacher_assignments (madrasa_id, user_id, class_id, subject_id) VALUES (?,?,?,?)`, [tid, userId, cid, sid]);
   }
 }
 

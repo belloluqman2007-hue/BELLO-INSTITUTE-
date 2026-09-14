@@ -205,6 +205,29 @@ router.get("/me", asyncHandler(async (req, res) => {
   });
 }));
 
+/** The signed-in account can keep its own visible contact details current.
+ * This deliberately cannot alter role, tenant, username or activation state. */
+router.get("/account", asyncHandler(async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Authentication required." });
+  const user = await db.get("SELECT id, username, role, full_name, full_name_ar, email, phone, created_at FROM users WHERE id = ?", [req.user.id]);
+  if (!user) return res.status(404).json({ error: "User not found." });
+  res.json({ account: user });
+}));
+router.put("/account", asyncHandler(async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Authentication required." });
+  const b = req.body || {};
+  const fields = [];
+  const values = [];
+  for (const [key, max] of [["full_name", 160], ["full_name_ar", 160], ["email", 120], ["phone", 60]]) {
+    if (b[key] !== undefined) { fields.push(`${key} = ?`); values.push(cleanStr(b[key], max)); }
+  }
+  if (!fields.length) return res.status(400).json({ error: "Nothing to update." });
+  values.push(req.user.id);
+  await db.run(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`, values);
+  logActivity(db, { madrasaId: req.user.madrasaId, userId: req.user.id, action: "account.update", entity: "user", entityId: String(req.user.id), ip: req.ip });
+  res.json({ ok: true });
+}));
+
 router.post("/change-password", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Authentication required." });
   const current = String((req.body && req.body.currentPassword) || "");

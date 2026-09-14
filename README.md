@@ -201,18 +201,25 @@ render.yaml        NEW Render service definition (production)
   that school's own public page directly instead of the platform landing.
   The link is shown with a copy button on the school's public page and in
   `School Settings`, and on the super-admin's madrasa detail screen.
-- **Expanded role menus** — each role signs in to the modules it needs:
-  notifications, school chat and staff-only chat, homework board, grade
-  book, class and third-term results, result checking, teacher comments,
-  publish centre, manage users, notify parents, finance overview,
-  certificates, ID cards, broadcasts, madrasah calendar and personal
-  settings — all bilingual (EN/AR) and tenant-isolated.
+- **Complete administrator workspaces** — every tenant-admin sidebar item
+  opens a working, tenant-scoped screen rather than a placeholder: institution
+  profile/contact/appearance/page copy/gallery, student profiles/groups/portal
+  accounts, teacher recruitment and teaching assignments, class rosters and
+  timetables, staff and student attendance, lessons and assignments, grade
+  bands, score entry, calculated/published report cards, sessions and terms,
+  admission review/settings, announcements/messages/parent communication,
+  fee items/payments/balances/reports, account security and saved notification
+  preferences. Every counter and chart comes from current tenant data.
+- **Live institution share pages** — `/s/<slug>` renders each institution’s
+  real public profile, public announcements, subject/classes information,
+  admission form and status checker, and published-result verification. Public
+  page copy saved by the administrator is allow-listed before it is exposed;
+  operational settings are never sent to visitors.
 
 ## Future SaaS roadmap (designed for, NOT built)
 
-Subscriptions & payment, SMS/WhatsApp/email notifications, certificates,
-ID cards, online exams, assignments, library, expenses, payroll, native mobile
-app. (Timetables and online admissions are now built; public *payment* of fees
-is not.) The schema and
-routes are shaped so these can be added without re-architecture — none are
-implemented now, and no payment gateway is connected.
+Subscriptions and public payment, provider-backed SMS/WhatsApp/email delivery,
+certificates, ID cards, library, expenses, payroll and a native mobile app.
+(Timetables, online admissions, assignments and public result checking are now
+built; public *payment* of fees is not.) The schema and routes are shaped so
+these can be added without re-architecture — no payment gateway is connected.

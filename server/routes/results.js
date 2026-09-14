@@ -44,6 +44,43 @@ async function guardAccess(req, res, tid, classId, subjectId, termId) {
   return cls;
 }
 
+/* ------------------------------ gradebook roster ---------------------- */
+
+/**
+ * GET /api/results/roster?classId=&termId=&subjectId=
+ * Returns every active learner in the class, even before any score exists.
+ * This is the authoritative gradebook input list; /class remains available
+ * for integrations that only want saved result rows.
+ */
+router.get("/roster", asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const classId = toNum(req.query.classId, 0);
+  const termId = toNum(req.query.termId, 0);
+  const subjectId = toNum(req.query.subjectId, 0);
+  if (!classId || !termId || !subjectId) return err(res, 400, "classId, termId and subjectId are required.");
+  const cls = await guardAccess(req, res, tid, classId, subjectId, termId);
+  if (!cls) return;
+  const subject = await db.get("SELECT id, name_en, name_ar FROM subjects WHERE id = ? AND madrasa_id = ?", [subjectId, tid]);
+  if (!subject) return err(res, 404, "Subject not found.");
+  const rows = await db.all(
+    `SELECT s.id AS student_id, s.admission_no, s.first_name, s.last_name, s.name_ar,
+            r.id AS result_id, r.ca, r.exam, r.total
+       FROM students s
+       LEFT JOIN results r ON r.madrasa_id = s.madrasa_id AND r.student_id = s.id
+            AND r.term_id = ? AND r.subject_id = ?
+      WHERE s.madrasa_id = ? AND s.class_id = ? AND s.status IN ('active','promoted','suspended')
+      ORDER BY s.admission_no`,
+    [termId, subjectId, tid, classId]
+  );
+  const cfg = await grading.getGradingConfig(tid);
+  ok(res, { class: cls, subject, students: rows.map((r) => Object.assign({}, r, {
+    ca: r.ca === null || r.ca === undefined ? "" : Number(r.ca),
+    exam: r.exam === null || r.exam === undefined ? "" : Number(r.exam),
+    total: r.total === null || r.total === undefined ? "" : Number(r.total),
+  })), config: { caMax: cfg.caMax, examMax: cfg.examMax, passMark: cfg.passMark } });
+}));
+
 /* ------------------------------ read class results --------------------- */
 
 router.get("/class", asyncHandler(async (req, res) => {

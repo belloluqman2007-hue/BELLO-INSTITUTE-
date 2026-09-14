@@ -692,6 +692,76 @@
     }
   }
 
+
+  /* Public institution page -------------------------------------------------
+     `/s/<slug>` is the share link an administrator sees in the dashboard.
+     It must render that tenant's actual data — never the platform homepage. */
+  function safe(value) {
+    return String(value === null || value === undefined ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function publicPageCopy(pages, key, fallbackTitle, fallbackBody) {
+    return {
+      title: pages[`website_${key}_title`] || fallbackTitle,
+      body: pages[`website_${key}_content`] || fallbackBody || "",
+    };
+  }
+  async function renderSchoolPublic(slug) {
+    document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
+    app.innerHTML = `${headerMarkup()}<main id="main-content" class="school-public"><div class="school-public-loading">Loading institution profile…</div></main>${footerMarkup()}`;
+    initPageEvents();
+    try {
+      const data = await window.API.public.get(`/madaris/${encodeURIComponent(slug)}`);
+      const m = data.madrasa || {}; const pages = data.pages || {};
+      const home = publicPageCopy(pages, "homepage", m.nameEn || "Welcome", m.descriptionEn || m.mottoEn || "");
+      const about = publicPageCopy(pages, "about", "About us", m.descriptionEn || "");
+      const programs = publicPageCopy(pages, "programs", m.category === "western" ? "Programs" : "Programs & courses", "");
+      const teachers = publicPageCopy(pages, "teachers", "Our teaching team", "");
+      const admissions = publicPageCopy(pages, "admissions", "Admissions", "");
+      const brand = /^#[0-9a-fA-F]{3,8}$/.test(m.brandColor || "") ? m.brandColor : (m.category === "western" ? "#0a2342" : "#31075e");
+      document.title = `${m.nameEn || "Institution"} — BELLO`;
+      app.innerHTML = `
+        ${headerMarkup()}
+        <main id="main-content" class="school-public" style="--school-brand:${safe(brand)}">
+          <section class="school-hero">
+            ${m.heroImagePath ? `<img src="${safe(m.heroImagePath)}" alt="" class="school-hero-image">` : ""}
+            <div class="school-hero-overlay"></div>
+            <div class="container school-hero-inner">
+              ${m.logoPath ? `<img src="${safe(m.logoPath)}" class="school-logo" alt="${safe(m.nameEn)} logo">` : ""}
+              <p class="school-kicker">${safe(m.city)}${m.state ? `, ${safe(m.state)}` : ""}</p>
+              <h1>${safe(home.title)}</h1>
+              ${m.nameAr ? `<p lang="ar" dir="rtl" class="school-ar">${safe(m.nameAr)}</p>` : ""}
+              <p class="school-lead">${safe(home.body)}</p>
+              <div class="school-actions">${m.canApply ? `<a class="button button-gold" href="#apply">Apply for admission <span>${icons.arrow}</span></a>` : ""}${m.canCheckResults ? `<a class="button school-outline" href="#results">Check results</a>` : ""}</div>
+            </div>
+          </section>
+          <section class="school-stats"><div class="container school-stat-grid"><div><strong>${Number(m.students || 0)}</strong><span>Students</span></div><div><strong>${Number(m.teachers || 0)}</strong><span>Teachers</span></div><div><strong>${Number(m.classes || 0)}</strong><span>Classes</span></div><div><strong>${Number(m.subjects || 0)}</strong><span>Subjects</span></div></div></section>
+          <section class="school-section"><div class="container school-two-col"><div><p class="section-kicker">About the institution</p><h2>${safe(about.title)}</h2><p class="school-copy">${safe(about.body || "Our information will be updated soon.")}</p>${m.foundedYear ? `<p class="school-founded">Established ${safe(m.foundedYear)}</p>` : ""}</div><aside class="school-contact-card"><h3>Contact</h3>${m.address ? `<p>${safe(m.address)}<br>${safe(m.city)}${m.state ? `, ${safe(m.state)}` : ""}</p>` : ""}${m.phone ? `<p><a href="tel:${safe(m.phone)}">${safe(m.phone)}</a></p>` : ""}${m.email ? `<p><a href="mailto:${safe(m.email)}">${safe(m.email)}</a></p>` : ""}${m.mapsLink ? `<a href="${safe(m.mapsLink)}" target="_blank" rel="noopener" class="school-text-link">Find us on the map</a>` : ""}</aside></div></section>
+          <section class="school-section school-section-muted"><div class="container"><p class="section-kicker">Learning</p><h2>${safe(programs.title)}</h2>${programs.body ? `<p class="school-copy school-copy-wide">${safe(programs.body)}</p>` : ""}<div class="school-tag-list">${(data.subjects || []).length ? data.subjects.map((s) => `<span>${safe(s.name_en || s.name_ar)}</span>`).join("") : `<span>Subject catalogue coming soon</span>`}</div>${(data.classes || []).length ? `<p class="school-classes"><strong>Classes:</strong> ${data.classes.map((c) => safe(c.name_en || c.name_ar)).join(" · ")}</p>` : ""}</div></section>
+          ${teachers.body ? `<section class="school-section"><div class="container school-two-col"><div><p class="section-kicker">People</p><h2>${safe(teachers.title)}</h2><p class="school-copy">${safe(teachers.body)}</p></div><div class="school-quote">Our staff details are protected; contact the institution directly for enrolment and teaching enquiries.</div></div></section>` : ""}
+          <section class="school-section"><div class="container"><p class="section-kicker">Latest updates</p><h2>News & announcements</h2><div class="school-news-grid">${(data.notices || []).length ? data.notices.map((n) => `<article><small>${safe(new Date(n.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" }))}</small><h3>${safe(n.title)}</h3><p>${safe(n.body)}</p></article>`).join("") : `<p class="school-copy">There are no public announcements at the moment.</p>`}</div></div></section>
+          ${m.canCheckResults ? `<section id="results" class="school-section school-results"><div class="container school-two-col"><div><p class="section-kicker">Published results</p><h2>Check your results</h2><p>For privacy, enter the admission number together with the surname or date of birth on the student record.</p></div><form id="publicResultForm" class="school-form"><label>Admission number<input name="admissionNo" required></label><label>Surname<input name="surname"></label><label>Date of birth (or surname)<input name="dateOfBirth" type="date"></label><button class="button button-primary" type="submit">Check results <span>${icons.arrow}</span></button><p class="school-form-result" id="publicResultOutput" aria-live="polite"></p></form></div></section>` : ""}
+          ${m.canApply ? `<section id="apply" class="school-section school-section-muted"><div class="container school-two-col"><div><p class="section-kicker">Join our community</p><h2>${safe(admissions.title)}</h2><p class="school-copy">${safe(admissions.body || "Complete the form and the admissions team will review your request.")}</p><div class="school-application-status"><h3>Already applied?</h3><form id="publicStatusForm"><input name="reference" placeholder="Application reference" required><input name="phone" placeholder="Guardian phone" required><button type="submit" class="school-text-link">Check application status</button><p id="publicStatusOutput" aria-live="polite"></p></form></div></div><form id="publicApplicationForm" class="school-form school-form-wide"><div class="school-form-grid"><label>First name *<input name="first_name" required></label><label>Last name<input name="last_name"></label><label>Arabic name<input name="name_ar" dir="rtl"></label><label>Gender<select name="gender"><option value="">Prefer not to say</option><option value="M">Male</option><option value="F">Female</option></select></label><label>Date of birth<input name="date_of_birth" type="date"></label><label>Preferred class<select name="class_id"><option value="">Not specified</option>${(data.classes || []).map((c) => `<option value="${safe(c.id || "")}">${safe(c.name_en || c.name_ar)}</option>`).join("")}</select></label><label>Parent / guardian name *<input name="parent_name" required></label><label>Parent / guardian phone *<input name="parent_phone" required></label><label>Email<input name="parent_email" type="email"></label><label>Previous school<input name="previous_school"></label><label class="full">Address<input name="address"></label><label class="full">Message / additional details<textarea name="message"></textarea></label><label class="school-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label></div><button class="button button-primary" type="submit">Submit application <span>${icons.arrow}</span></button><p id="publicApplicationOutput" class="school-form-result" aria-live="polite"></p></form></div></section>` : ""}
+        </main>${footerMarkup()}`;
+      initPageEvents();
+      const resultForm = document.getElementById("publicResultForm");
+      if (resultForm) resultForm.addEventListener("submit", async (event) => {
+        event.preventDefault(); const out = document.getElementById("publicResultOutput"); const fd = new FormData(resultForm); if (!fd.get("surname") && !fd.get("dateOfBirth")) { out.textContent = "Enter the surname or date of birth to verify the record."; return; }
+        out.textContent = "Checking…";
+        try { const r = await window.API.public.post("/results/verify", { madrasaSlug: slug, admissionNo: fd.get("admissionNo"), surname: fd.get("surname"), dateOfBirth: fd.get("dateOfBirth") }); out.innerHTML = r.terms && r.terms.length ? `${safe(r.student.name)} — ${r.terms.map((t) => `<a href="${safe(t.reportUrl)}" target="_blank" rel="noopener">${safe(t.session_label)} ${safe(t.name_en)}: ${safe(t.average)}% (${safe(t.overall_grade)})</a>`).join(" · ")}` : safe(r.message || "No published results yet."); } catch (err) { out.textContent = err.message || "We could not find a matching record."; }
+      });
+      const applyForm = document.getElementById("publicApplicationForm");
+      if (applyForm) applyForm.addEventListener("submit", async (event) => { event.preventDefault(); const out = document.getElementById("publicApplicationOutput"); out.textContent = "Submitting…"; try { const r = await window.API.public.post(`/madaris/${encodeURIComponent(slug)}/apply`, Object.fromEntries(new FormData(applyForm))); out.textContent = `Application received. Keep this reference: ${r.reference}`; applyForm.reset(); } catch (err) { out.textContent = err.message || "We could not submit the application."; } });
+      const statusForm = document.getElementById("publicStatusForm");
+      if (statusForm) statusForm.addEventListener("submit", async (event) => { event.preventDefault(); const out = document.getElementById("publicStatusOutput"); const fd = new FormData(statusForm); out.textContent = "Checking…"; try { const r = await window.API.public.get(`/madaris/${encodeURIComponent(slug)}/apply-status?reference=${encodeURIComponent(fd.get("reference"))}&phone=${encodeURIComponent(fd.get("phone"))}`); out.textContent = `Status: ${r.status}${r.note ? ` — ${r.note}` : ""}${r.admissionNo ? ` · Admission no.: ${r.admissionNo}` : ""}`; } catch (err) { out.textContent = err.message || "Application not found."; } });
+    } catch (err) {
+      const main = document.querySelector(".school-public");
+      if (main) main.innerHTML = `<div class="container school-not-found"><h1>Institution page unavailable</h1><p>${safe(err.message || "This school may not be publicly listed.")}</p><a href="/" data-route="/" class="button button-primary">Return to BELLO</a></div>`;
+      initPageEvents();
+    }
+  }
+
   /* Institution admin dashboard (Islamic + Western) — a self-contained
      module (public/js/dashboard.js) mounted into its own container so it
      never shares markup or styles with the public marketing site. */
@@ -720,6 +790,8 @@
       renderDashboard();
     // Every onboarding stage is its own page (…/administrator, …/review,
     // …/submitted), so the whole subtree routes into the matching module.
+    } else if (/^\/(?:s|school|m)\/[^/]+$/.test(path)) {
+      renderSchoolPublic(decodeURIComponent(path.split("/").pop()));
     } else if (path === "/register-academy" || path.startsWith("/register-academy/") || hash === "#/register-academy" || hash === "#register-academy") {
       renderAcademyRegistration();
     } else if (path === "/register-madrasa" || path.startsWith("/register-madrasa/") || hash === "#/register-madrasa" || hash === "#register-madrasa") {

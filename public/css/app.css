@@ -3025,3 +3025,66 @@ body.islamic-experience .modal-icon { background: #e8e2f0; color: var(--forest-8
   .category-title-ar { font-size: 1.08rem; }
   .type-ar { font-size: .8rem; }
 }
+
+/* Per-institution public pages — actual data behind /s/<slug> ------------ */
+.school-public { --school-brand:#31075e; background:#fff; color:#25202c; }
+.school-public-loading, .school-not-found { min-height:48vh; display:grid; place-content:center; text-align:center; padding:64px 20px; color:#625b6c; }
+.school-hero { min-height:470px; background:var(--school-brand); color:#fff; position:relative; display:flex; overflow:hidden; align-items:center; isolation:isolate; }
+.school-hero-image, .school-hero-overlay { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.school-hero-overlay { background:linear-gradient(105deg,color-mix(in srgb,var(--school-brand) 94%,#000) 12%,color-mix(in srgb,var(--school-brand) 60%,transparent) 70%); z-index:-1; }
+.school-hero-image { z-index:-2; }
+.school-hero-inner { position:relative; padding-top:70px; padding-bottom:70px; max-width:900px; margin-left:max(5vw,calc((100vw - 1180px)/2)); margin-right:5vw; }
+.school-logo { width:84px; height:84px; padding:4px; border-radius:18px; background:#fff; object-fit:contain; margin-bottom:18px; }
+.school-kicker { color:#f4d36e; text-transform:uppercase; letter-spacing:.12em; font-size:.78rem; font-weight:800; margin:0 0 10px; }
+.school-hero h1 { color:#fff; font-size:clamp(2.2rem,5vw,4.35rem); line-height:1.04; max-width:760px; margin:0; }
+.school-ar { margin:8px 0 0; font-size:1.3rem; color:#f4d36e; font-family:Tahoma,Arial,sans-serif; }
+.school-lead { font-size:1.07rem; line-height:1.75; max-width:690px; white-space:pre-line; margin:18px 0 0; color:#f7f4fa; }
+.school-actions { display:flex; flex-wrap:wrap; gap:11px; margin-top:26px; }
+.school-outline { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.68); }
+.school-outline:hover { background:rgba(255,255,255,.13); color:#fff; }
+.school-stats { background:var(--school-brand); color:#fff; border-top:1px solid rgba(255,255,255,.16); }
+.school-stat-grid { display:grid; grid-template-columns:repeat(4,1fr); padding:22px 0; gap:18px; text-align:center; }
+.school-stat-grid strong { display:block; font-size:1.65rem; color:#f4d36e; }
+.school-stat-grid span { font-size:.82rem; color:#f5eef9; }
+.school-section { padding:78px 0; }
+.school-section-muted { background:#f8f6fa; }
+.school-two-col { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(260px,.7fr); gap:52px; align-items:start; }
+.school-section h2 { font-size:clamp(1.8rem,3vw,2.6rem); color:#211331; line-height:1.1; margin:5px 0 17px; }
+.school-copy { white-space:pre-line; line-height:1.75; color:#625b6c; max-width:700px; }
+.school-copy-wide { max-width:840px; }
+.school-founded { font-weight:800; color:var(--school-brand); margin-top:18px; }
+.school-contact-card { border:1px solid #e3dce9; border-radius:17px; padding:25px; box-shadow:0 12px 24px rgba(41,20,70,.06); }
+.school-contact-card h3 { color:var(--school-brand); margin-top:0; }
+.school-contact-card p { color:#625b6c; line-height:1.6; }
+.school-contact-card a, .school-text-link { color:var(--school-brand); font-weight:800; }
+.school-tag-list { display:flex; flex-wrap:wrap; gap:9px; margin-top:25px; }
+.school-tag-list span { padding:8px 12px; border:1px solid color-mix(in srgb,var(--school-brand) 20%,#fff); border-radius:100px; background:#fff; color:var(--school-brand); font-size:.84rem; font-weight:700; }
+.school-classes { color:#625b6c; margin-top:18px; line-height:1.6; }
+.school-quote { background:var(--school-brand); color:#fff; border-radius:15px; padding:24px; line-height:1.7; }
+.school-news-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:28px; }
+.school-news-grid article { padding:22px; border:1px solid #e5dfea; border-radius:14px; background:#fff; }
+.school-news-grid small { color:var(--school-brand); font-weight:800; }
+.school-news-grid h3 { margin:9px 0 8px; color:#2d1a43; }
+.school-news-grid p { color:#625b6c; line-height:1.65; white-space:pre-line; }
+.school-results { background:var(--school-brand); color:#fff; }
+.school-results h2, .school-results .section-kicker { color:#fff; }
+.school-results .section-kicker { opacity:.8; }
+.school-results .school-two-col > div > p:not(.section-kicker) { color:#f4edf8; line-height:1.7; }
+.school-form { border-radius:15px; padding:22px; background:#fff; color:#25202c; box-shadow:0 15px 35px rgba(0,0,0,.18); }
+.school-form label { display:block; color:#484151; font-size:.78rem; font-weight:800; margin-bottom:11px; }
+.school-form input, .school-form select, .school-form textarea, .school-application-status input { display:block; width:100%; margin-top:5px; border:1px solid #dcd4e5; border-radius:8px; padding:10px; background:#fff; color:#25202c; font:inherit; }
+.school-form textarea { min-height:90px; resize:vertical; }
+.school-form .button { margin-top:3px; }
+.school-form-result { font-size:.85rem; line-height:1.55; color:#51465e; margin:12px 0 0; }
+.school-form-result a { color:var(--school-brand); font-weight:800; display:inline-block; margin:4px 6px 0 0; }
+.school-form-wide { width:100%; }
+.school-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 14px; }
+.school-form-grid .full { grid-column:1/-1; }
+.school-honeypot { position:absolute!important; left:-9999px!important; height:1px; overflow:hidden; }
+.school-application-status { margin-top:28px; border-top:1px solid #e3dce9; padding-top:19px; }
+.school-application-status h3 { margin:0 0 10px; }
+.school-application-status form { display:grid; gap:8px; }
+.school-application-status .school-text-link { background:none; border:0; padding:4px 0; font:inherit; text-align:left; cursor:pointer; }
+.school-application-status p { margin:4px 0; color:#625b6c; font-size:.86rem; }
+@media (max-width:800px) { .school-hero { min-height:410px; } .school-hero-inner { margin:0; padding:56px 24px; } .school-stat-grid { grid-template-columns:repeat(2,1fr); } .school-two-col { grid-template-columns:1fr; gap:30px; } .school-news-grid { grid-template-columns:1fr; } .school-section { padding:55px 0; } }
+@media (max-width:520px) { .school-form-grid { grid-template-columns:1fr; } .school-hero h1 { font-size:2.25rem; } }

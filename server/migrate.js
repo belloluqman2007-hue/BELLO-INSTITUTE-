@@ -660,6 +660,63 @@ const MIGRATIONS = [
       await api.run(`DELETE FROM app_sessions WHERE expires IS NULL OR expires <= 0`);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "015_admin_workspace",
+    up: async (api, dialect) => {
+      // A distinct register for staff attendance. Student attendance already
+      // has a student_id foreign key, so recording staff in it would either
+      // corrupt reports or force fake student records. Keep the two ledgers
+      // separate and tenant-owned.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS teacher_attendance (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          user_id INT NOT NULL,
+          day DATE NOT NULL,
+          status VARCHAR(10) NOT NULL DEFAULT 'present',
+          recorded_by INT,
+          created_at ${D.ts()},
+          UNIQUE (madrasa_id, user_id, day)
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_teacher_attendance ON teacher_attendance (madrasa_id, day, user_id)`);
+
+      // Recruitment applicants are intentionally separate from real teacher
+      // accounts. A candidate cannot sign in or see tenant data until an
+      // administrator explicitly approves the application and creates their
+      // credentials.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS teacher_applications (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          full_name VARCHAR(160) NOT NULL,
+          email VARCHAR(120) NOT NULL DEFAULT '',
+          phone VARCHAR(60) NOT NULL DEFAULT '',
+          message TEXT,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          review_note TEXT,
+          reviewed_by INT,
+          reviewed_at TIMESTAMP NULL,
+          teacher_user_id INT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_teacher_applications ON teacher_applications (madrasa_id, status, id)`);
+    },
+  },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "016_homework_kind",
+    up: async (api) => {
+      // Lessons and assignments share delivery, deadlines and visibility but
+      // remain distinct in the administrator and family workspaces.
+      await api.run(`ALTER TABLE homework ADD COLUMN kind VARCHAR(20) NOT NULL DEFAULT 'assignment'`);
+      await api.run(`CREATE INDEX idx_homework_kind ON homework (madrasa_id, kind, id)`);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

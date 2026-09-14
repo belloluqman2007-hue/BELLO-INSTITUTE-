@@ -64,7 +64,8 @@ async function publicSettings() {
 
 /* Shared projection for every public card/profile. m.id is kept internally. */
 const CARD_SELECT = `
-  SELECT m.id, m.slug, m.name_en, m.name_ar, m.motto_en, m.motto_ar, m.logo_path, m.city, m.state_name,
+  SELECT m.id, m.slug, m.name_en, m.name_ar, m.motto_en, m.motto_ar, m.logo_path, m.hero_image_path,
+         m.brand_color, m.category, m.city, m.state_name, m.maps_link,
          m.description_en, m.description_ar, m.founded_year, m.website, m.phone, m.email,
          m.public_listing, m.public_results, m.public_admissions,
          (SELECT COUNT(*) FROM students s WHERE s.madrasa_id = m.id AND s.status IN ('active','promoted','suspended')) AS student_count,
@@ -84,6 +85,10 @@ function cardOut(m) {
     mottoEn: m.motto_en || "",
     mottoAr: m.motto_ar || "",
     logoPath: m.logo_path || "",
+    heroImagePath: m.hero_image_path || "",
+    brandColor: m.brand_color || "",
+    category: m.category || "islamic",
+    mapsLink: m.maps_link || "",
     city: m.city || "",
     state: m.state_name || "",
     descriptionEn: m.description_en || "",
@@ -151,8 +156,8 @@ router.get("/madaris", publicLimiter, asyncHandler(async (req, res) => {
 router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
   const m = await findPublicMadrasa(req.params.slug);
   if (!m || Number(m.public_listing) !== 1) return err(res, 404, "That madrasa page is not available.");
-  const [classes, subjects, notices, summaryCount] = await Promise.all([
-    db.all("SELECT name_en, name_ar FROM classes WHERE madrasa_id = ? AND is_active = 1 ORDER BY sort_order, id", [m.id]),
+  const [classes, subjects, notices, summaryCount, pageRows] = await Promise.all([
+    db.all("SELECT id, name_en, name_ar FROM classes WHERE madrasa_id = ? AND is_active = 1 ORDER BY sort_order, id", [m.id]),
     db.all("SELECT name_en, name_ar FROM subjects WHERE madrasa_id = ? AND is_active = 1 ORDER BY name_en", [m.id]),
     db.all(
       `SELECT a.id, a.title, a.body, a.created_at, a.publish_until FROM announcements a
@@ -167,13 +172,29 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
        WHERE ts.madrasa_id = ? AND ts.published_at IS NOT NULL`,
       [m.id]
     ),
+    // A small, allow-listed public projection of page copy saved by the
+    // school administrator. Notification and operational settings remain
+    // private in the same settings table.
+    db.all(
+      `SELECT key_name, value FROM settings
+       WHERE madrasa_id = ? AND key_name IN
+         ('website_homepage_title', 'website_homepage_content',
+          'website_about_title', 'website_about_content',
+          'website_programs_title', 'website_programs_content',
+          'website_teachers_title', 'website_teachers_content',
+          'website_admissions_title', 'website_admissions_content')`,
+      [m.id]
+    ),
   ]);
+  const pages = {};
+  pageRows.forEach((row) => { pages[row.key_name] = row.value || ""; });
   ok(res, {
     madrasa: cardOut(m),
     classes,
     subjects,
     notices,
     publishedTermCount: Number(summaryCount.n),
+    pages,
     // The administrator sign-in page — a real address (always asks for a
     // password) rather than the old hash route.
     loginUrl: "/login",

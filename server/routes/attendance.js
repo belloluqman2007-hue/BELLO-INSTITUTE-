@@ -8,7 +8,7 @@
 const express = require("express");
 const db = require("../db");
 const { asyncHandler, err, ok, toNum, cleanStr, validDate, logActivity } = require("../util");
-const { requireAuth, requireTenant } = require("../middleware/auth");
+const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId, getTeacherAssignments, teacherCanMarkAttendance } = require("../middleware/tenant");
 
 const router = express.Router();
@@ -99,6 +99,83 @@ router.post("/mark", asyncHandler(async (req, res) => {
 }));
 
 /** GET /api/attendance/student/:studentId?limit= */
+/* ------------------------------ staff attendance ---------------------- */
+
+/** GET /api/attendance/teachers?date=YYYY-MM-DD
+ * A separate staff register — never piggybacked onto pupil attendance. */
+router.get("/teachers", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const day = validDate(req.query.date);
+  if (!day) return err(res, 400, "date (YYYY-MM-DD) is required.");
+  const [teachers, marks] = await Promise.all([
+    db.all("SELECT id, full_name, full_name_ar, email, phone, is_active FROM users WHERE madrasa_id = ? AND role = 'teacher' ORDER BY full_name", [tid]),
+    db.all("SELECT user_id, status FROM teacher_attendance WHERE madrasa_id = ? AND day = ?", [tid, day]),
+  ]);
+  const markMap = new Map(marks.map((m) => [Number(m.user_id), m.status]));
+  ok(res, { date: day, teachers: teachers.map((t) => Object.assign({}, t, { status: markMap.get(Number(t.id)) || "" })) });
+}));
+
+/** POST /api/attendance/teachers/mark
+ * Body: { date, statuses: { userId: present|absent|excused } } */
+router.post("/teachers/mark", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const b = req.body || {};
+  const day = validDate(b.date);
+  if (!day) return err(res, 400, "date (YYYY-MM-DD) is required.");
+  const statuses = b.statuses && typeof b.statuses === "object" ? b.statuses : {};
+  const allowed = new Set(["present", "absent", "excused"]);
+  let saved = 0;
+  for (const [rawId, status] of Object.entries(statuses)) {
+    const userId = toNum(rawId, 0);
+    if (!userId || !allowed.has(status)) continue;
+    const teacher = await db.get("SELECT id FROM users WHERE id = ? AND madrasa_id = ? AND role = 'teacher'", [userId, tid]);
+    if (!teacher) continue;
+    const existing = await db.get("SELECT id FROM teacher_attendance WHERE madrasa_id = ? AND user_id = ? AND day = ?", [tid, userId, day]);
+    if (existing) {
+      await db.run("UPDATE teacher_attendance SET status = ?, recorded_by = ? WHERE id = ?", [status, req.user.id, existing.id]);
+    } else {
+      await db.run("INSERT INTO teacher_attendance (madrasa_id, user_id, day, status, recorded_by) VALUES (?,?,?,?,?)", [tid, userId, day, status, req.user.id]);
+    }
+    saved++;
+  }
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "teacher_attendance.mark", entity: "teacher_attendance", meta: { date: day, saved }, ip: req.ip });
+  ok(res, { ok: true, saved });
+}));
+
+/** A date-range summary for the attendance reports page. */
+router.get("/report", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const from = validDate(req.query.from);
+  const to = validDate(req.query.to);
+  if (!from || !to || from > to) return err(res, 400, "A valid from and to date are required.");
+  const classId = req.query.classId ? toNum(req.query.classId, 0) : null;
+  if (classId) {
+    const cls = await db.get("SELECT id FROM classes WHERE id = ? AND madrasa_id = ?", [classId, tid]);
+    if (!cls) return err(res, 404, "Class not found.");
+  }
+  const where = ["a.madrasa_id = ?", "a.day >= ?", "a.day <= ?"];
+  const params = [tid, from, to];
+  if (classId) { where.push("a.class_id = ?"); params.push(classId); }
+  const rows = await db.all(
+    `SELECT s.id, s.admission_no, s.first_name, s.last_name, c.name_en AS class_en,
+            SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present,
+            SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absent,
+            SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) AS excused,
+            COUNT(a.id) AS marked
+       FROM attendance a JOIN students s ON s.id = a.student_id
+       LEFT JOIN classes c ON c.id = s.class_id
+      WHERE ${where.join(" AND ")}
+      GROUP BY s.id, s.admission_no, s.first_name, s.last_name, c.name_en
+      ORDER BY s.admission_no`, params
+  );
+  ok(res, { from, to, classId, students: rows.map((r) => Object.assign({}, r, {
+    present: Number(r.present || 0), absent: Number(r.absent || 0), excused: Number(r.excused || 0), marked: Number(r.marked || 0),
+  })) });
+}));
+
 router.get("/student/:studentId", asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;

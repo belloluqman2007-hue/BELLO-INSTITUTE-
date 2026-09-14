@@ -318,12 +318,19 @@ async function tenantAnalytics(madrasaId, opts = {}) {
       [tid]
     ),
     db.get("SELECT COALESCE(SUM(amount_ngn),0) AS billed FROM fee_items WHERE madrasa_id = ? AND term_id = ?", [tid, termId]),
-    db.all("SELECT student_id, SUM(amount_ngn) AS paid FROM fee_payments WHERE madrasa_id = ? GROUP BY student_id", [tid]),
+    db.all(
+      `SELECT fp.student_id, SUM(fp.amount_ngn) AS paid
+         FROM fee_payments fp
+         JOIN fee_items fi ON fi.id = fp.fee_item_id AND fi.madrasa_id = fp.madrasa_id
+        WHERE fp.madrasa_id = ? AND fi.term_id = ?
+        GROUP BY fp.student_id`,
+      [tid, termId]
+    ),
   ]);
 
   // Billed/outstanding semantics mirror GET /api/fees/balance exactly:
-  // the term's fee items are billed to every student on the roll, and each
-  // student's payments (all of them) are credited against that.
+  // the term's fee items are billed to every student on the roll, and only
+  // payments allocated to an item in this same term are credited.
   const billedPerStudent = num(billedRow && billedRow.billed);
   const billedTotal = billedPerStudent * studentCount;
   const collected = num(feeTotals && feeTotals.amount);

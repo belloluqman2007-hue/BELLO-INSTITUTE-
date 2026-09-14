@@ -140,7 +140,17 @@ router.get("/balance", asyncHandler(async (req, res) => {
     "SELECT id, admission_no, first_name, last_name FROM students WHERE madrasa_id = ? AND status IN ('active','promoted','suspended') ORDER BY admission_no",
     [tid]
   );
-  const paidRows = await db.all("SELECT student_id, SUM(amount_ngn) AS paid FROM fee_payments WHERE madrasa_id = ? GROUP BY student_id", [tid]);
+  // Only payments attached to an item in THIS term count towards this
+  // term’s balance. A payment from a prior term must not make a current-term
+  // invoice look settled.
+  const paidRows = await db.all(
+    `SELECT fp.student_id, SUM(fp.amount_ngn) AS paid
+       FROM fee_payments fp
+       JOIN fee_items fi ON fi.id = fp.fee_item_id AND fi.madrasa_id = fp.madrasa_id
+      WHERE fp.madrasa_id = ? AND fi.term_id = ?
+      GROUP BY fp.student_id`,
+    [tid, termId]
+  );
   const paidMap = new Map(paidRows.map((r) => [r.student_id, Number(r.paid)]));
   const out = students.map((s) => {
     const paid = paidMap.get(s.id) || 0;

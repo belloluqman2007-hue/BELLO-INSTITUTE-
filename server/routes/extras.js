@@ -169,6 +169,7 @@ router.get("/homework", ...gate, asyncHandler(async (req, res) => {
   if (tid == null) return;
   const allowed = await homeworkClassIds(req, tid);
   const wantClass = toNum(req.query.classId, 0);
+  const kind = ["lesson", "assignment"].includes(cleanStr(req.query.kind, 20)) ? cleanStr(req.query.kind, 20) : "";
   let rows = [];
   try {
     rows = await db.all(
@@ -185,6 +186,7 @@ router.get("/homework", ...gate, asyncHandler(async (req, res) => {
   } catch (e) { rows = []; }
   if (allowed !== null) rows = rows.filter((r) => !r.class_id || allowed.includes(r.class_id));
   if (wantClass) rows = rows.filter((r) => Number(r.class_id) === wantClass);
+  if (kind) rows = rows.filter((r) => r.kind === kind);
   ok(res, { homework: rows });
 }));
 
@@ -206,9 +208,10 @@ router.post("/homework", requireRole("madrasa_admin", "teacher"), ...gate, async
   }
   const due = b.due_date ? validDate(b.due_date) : null;
   if (b.due_date && !due) return err(res, 400, "due_date must be YYYY-MM-DD.");
+  const kind = ["lesson", "assignment"].includes(cleanStr(b.kind, 20)) ? cleanStr(b.kind, 20) : "assignment";
   const r = await db.run(
-    "INSERT INTO homework (madrasa_id, class_id, subject_id, title, details, due_date, created_by) VALUES (?,?,?,?,?,?,?)",
-    [tid, classId, subjectId, title, cleanStr(b.details, 5000), due, req.user.id]
+    "INSERT INTO homework (madrasa_id, class_id, subject_id, title, details, due_date, kind, created_by) VALUES (?,?,?,?,?,?,?,?)",
+    [tid, classId, subjectId, title, cleanStr(b.details, 5000), due, kind, req.user.id]
   );
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: "homework.create", entity: "homework", entityId: String(r.lastInsertRowid), ip: req.ip });
   ok(res, { ok: true, id: r.lastInsertRowid });

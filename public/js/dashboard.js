@@ -715,53 +715,61 @@
     try {
       if (state.superAdmin) return await renderSuperRoute(content, route);
       if (route === "dashboard") return await pageDashboard(content);
-      if (route === "institution/profile" || route === "institution/information") return await pageInstitutionProfile(content);
-      if (route === "institution/website") return await pageWebsiteOverview(content);
+
+      // Institution and public-site management
+      if (["institution/profile", "institution/information", "institution/contact", "institution/settings", "settings/institution"].includes(route)) return await pageInstitutionEditor(content, route);
+      if (route === "institution/website" || route === "website/public") return await pageWebsiteOverview(content);
       if (route === "institution/appearance" || route === "website/appearance") return await pageAppearance(content);
       if (route === "institution/gallery" || route === "website/gallery") return await pageGallery(content);
-      if (route === "institution/contact" || route === "website/contact") return await pageContact(content);
-      if (route === "institution/settings" || route === "settings/institution") return await pageInstitutionProfile(content);
-      if (route === "institution/pages" || route === "website/homepage" || route === "website/about" || route === "website/programs" || route === "website/news" || route === "website/public" || route === "website/admissions" || route === "website/teachers") {
-        return pageWebsiteBuilderStub(content, route);
-      }
+      if (["institution/pages", "website/homepage", "website/about", "website/programs", "website/teachers", "website/admissions", "website/news", "website/contact"].includes(route)) return await pageWebsiteContent(content, route);
 
-      if (route === "students/all") return await pageStudentsAll(content);
-      if (route === "students/add") return await pageStudentAdd(content);
+      // Students, staff, classes and subjects
+      if (route === "students/all") return await pageStudents(content);
+      if (route === "students/add") return await pageStudentForm(content);
       if (route === "students/applications") return await pageAdmissionApplications(content);
-      if (route === "students/groups" || route === "students/profiles") return pageComingSoon(content, "Students", route);
+      if (route === "students/groups") return await pageStudentGroups(content);
+      if (route === "students/profiles") return await pageStudentProfiles(content);
 
-      if (route === "teachers/all") return await pageTeachersAll(content);
-      if (route === "teachers/add") return await pageTeacherAdd(content);
-      if (route === "teachers/applications" || route === "teachers/profiles") return pageComingSoon(content, "Teachers", route);
+      if (route === "teachers/all") return await pageTeachers(content);
+      if (route === "teachers/add") return await pageTeacherForm(content);
+      if (route === "teachers/applications") return await pageTeacherApplications(content);
+      if (route === "teachers/profiles") return await pageTeacherProfiles(content);
 
-      if (route === "classes/all") return await pageClassesAll(content);
-      if (route === "classes/add") return await pageClassAdd(content);
-      if (route === "classes/timetable") return await pageTimetable(content);
-      if (route === "classes/students" || route === "classes/teachers") return pageComingSoon(content, "Classes", route);
-
+      if (route === "classes/all") return await pageClasses(content);
+      if (route === "classes/add") return await pageClassForm(content);
+      if (route === "classes/timetable") return await pageTimetableManager(content);
+      if (route === "classes/students") return await pageClassRoster(content);
+      if (route === "classes/teachers") return await pageClassTeacherRoster(content);
       if (route.startsWith("subjects/")) return await pageSubjectDetail(content, decodeURIComponent(route.slice("subjects/".length)));
 
+      // Attendance and academics
       if (route === "attendance/students") return await pageAttendanceStudents(content);
-      if (route === "attendance/teachers" || route === "attendance/reports") return pageComingSoon(content, "Attendance", route);
+      if (route === "attendance/teachers") return await pageTeacherAttendance(content);
+      if (route === "attendance/reports") return await pageAttendanceReport(content);
+      if (["academic/lessons", "academic/assignments"]) return await pageHomework(content, route);
+      if (route === "academic/examinations") return await pageGrading(content);
+      if (route === "academic/results") return await pageResultsWorkbook(content);
+      if (route === "academic/report-cards") return await pageReportCards(content);
+      if (route === "academic/sessions" || route === "academic/terms") return await pageSessionsManager(content, route);
 
-      if (route === "academic/sessions") return await pageSessions(content);
-      if (route === "academic/results") return pageComingSoon(content, "Results", route, "Enter and publish results from the Academic → Results workbook — reuse the existing results engine per class and term.");
-      if (route.startsWith("academic/")) return pageComingSoon(content, "Academic", route);
-
+      // Admissions, communication and finance
       if (route === "admissions/applications" || route === "admissions/status") return await pageAdmissionApplications(content);
-      if (route.startsWith("admissions/")) return pageComingSoon(content, "Admissions", route);
-
+      if (route === "admissions/requirements") return await pageAdmissionRequirements(content);
+      if (route === "admissions/settings") return await pageAdmissionSettings(content);
       if (route === "communication/announcements") return await pageAnnouncements(content);
-      if (route.startsWith("communication/")) return pageComingSoon(content, "Communication", route);
+      if (route === "communication/messages") return await pageMessages(content);
+      if (route === "communication/notifications") return await pageNotifications(content);
+      if (route === "communication/parents") return await pageParentCommunication(content);
+      if (route === "finance/fees") return await pageFees(content);
+      if (route === "finance/payments" || route === "finance/records") return await pagePayments(content);
+      if (route === "finance/outstanding") return await pageOutstandingFees(content);
+      if (route === "finance/reports") return await pageFinanceReport(content);
 
-      if (route === "finance/fees") return await pageFeeItems(content);
-      if (route === "finance/payments" || route === "finance/records") return await pageFeePayments(content);
-      if (route === "finance/outstanding" || route === "finance/reports") return pageComingSoon(content, "Finance", route);
-
-      if (route === "settings/account") return await pageAccountSettings(content);
-      if (route === "settings/staff") return await pageTeachersAll(content);
-      if (route.startsWith("settings/")) return pageComingSoon(content, "Settings", route);
-
+      // Account, access controls and notification preferences
+      if (route === "settings/account" || route === "settings/security") return await pageAccountSettings(content);
+      if (route === "settings/staff") return await pageTeachers(content);
+      if (route === "settings/roles") return await pageRoles(content);
+      if (route === "settings/notifications") return await pageNotificationSettings(content);
       return pageComingSoon(content, "Dashboard", route);
     } catch (e) {
       content.innerHTML = `<div class="dash-coming-soon"><div class="icon">${I.close}</div><h3>Something went wrong</h3><p>${esc(e.message || "Please try again.")}</p></div>`;
@@ -774,7 +782,7 @@
       <div class="dash-card"><div class="dash-coming-soon">
         <div class="icon">${I.settings}</div>
         <h3>${esc(routeLabel(route))}</h3>
-        <p>${esc(note || "This screen is on the roadmap for this section — the sidebar, tenant scoping and data model are already in place, and the workspace will appear here in a coming update.")}</p>
+        <p>${esc(note || "This address is not part of the administrator workspace. Choose a section from the sidebar.")}</p>
       </div></div>`;
   }
   function routeLabel(route) {
@@ -818,8 +826,13 @@
   }
 
   async function pageDashboard(content) {
-    let data;
-    try { data = await window.API.get("/madrasa/dashboard"); } catch (e) { data = null; }
+    let data; let analytics;
+    try {
+      [data, analytics] = await Promise.all([
+        window.API.get("/madrasa/dashboard"),
+        window.API.get("/madrasa/analytics?months=6&attendanceDays=30"),
+      ]);
+    } catch (e) { data = null; analytics = null; }
     state.dashboardData = data;
     const m = (state.profile && state.profile.madrasa) || {};
     const t = T();
@@ -827,6 +840,8 @@
     const url = `${slug}.bello.ng`;
     const s = (data && data.stats) || { totalStudents: 0, totalTeachers: 0, totalClasses: 0, totalSubjects: 0, pendingApplications: 0, attendanceToday: { present: 0, absent: 0, late: 0, unmarked: 0 } };
     const att = s.attendanceToday;
+    const enrolmentByClass = (analytics && analytics.analytics && analytics.analytics.enrolment && analytics.analytics.enrolment.byClass) || [];
+    const maxClassCount = Math.max(1, ...enrolmentByClass.map((row) => Number(row.value) || 0));
 
     content.innerHTML = `
       <div class="dash-website-card" style="margin-bottom:22px;">
@@ -855,7 +870,7 @@
           <div class="dash-card-head"><h3>Student Overview</h3><span class="hint">Enrollment</span></div>
           <div class="dash-card-pad">
             <div class="dash-bars">
-              ${["Class A", "Class B", "Class C", "Class D"].map((l, i) => `<div class="dash-bar-col"><div class="dash-bar" style="height:${Math.max(10, (i + 1) * 22)}px"></div><div class="dash-bar-label">${l}</div></div>`).join("")}
+              ${enrolmentByClass.length ? enrolmentByClass.map((row) => `<div class="dash-bar-col" title="${esc(row.label)}: ${Number(row.value) || 0}"><div class="dash-bar" style="height:${Math.max(4, Math.round(((Number(row.value) || 0) / maxClassCount) * 100))}px"></div><div class="dash-bar-label">${esc(row.label)}</div></div>`).join("") : `<p class="hint">No class enrolment data yet. Create a class and assign students to see this chart.</p>`}
             </div>
           </div>
         </div>
@@ -1284,25 +1299,6 @@
 
   /* ============================== SUBJECTS ================================ */
 
-  async function pageSubjectDetail(content, name) {
-    const subs = await window.API.get("/subjects").catch(() => ({ subjects: [] }));
-    const existing = subs.subjects.find((s) => s.name_en === name);
-    content.innerHTML = `
-      <div class="dash-page-head"><div><div class="dash-crumb">${state.category === "western" ? "Academic Programs" : "Islamic Subjects"}</div><h2>${esc(name)}</h2></div></div>
-      <div class="dash-card"><div class="dash-card-pad">
-        ${existing
-          ? `<p style="color:var(--d-ok);font-weight:700;display:flex;align-items:center;gap:8px;">${I.check} This subject is active for your ${state.category === "western" ? "academy" : "institution"}.</p>`
-          : `<p style="color:var(--d-muted);margin-bottom:14px;">This subject has not been added yet.</p>
-             <button class="dash-btn dash-btn-primary" id="addSubjBtn">${I.plus} Add "${esc(name)}"</button>`}
-      </div></div>
-    `;
-    const btn = content.querySelector("#addSubjBtn");
-    if (btn) btn.addEventListener("click", async () => {
-      try { await window.API.post("/subjects", { name_en: name }); toast("Subject added.", "success"); pageSubjectDetail(content, name); }
-      catch (err) { toast(err.message || "Could not add subject.", "error"); }
-    });
-  }
-
   /* ============================= ATTENDANCE ================================ */
 
   async function pageAttendanceStudents(content) {
@@ -1367,53 +1363,7 @@
 
   /* ============================= ADMISSIONS ================================ */
 
-  async function pageAdmissionApplications(content) {
-    const data = await window.API.get("/admissions").catch(() => ({ requests: [] }));
-    const rows = data.requests || data.applications || [];
-    content.innerHTML = `
-      <div class="dash-page-head"><div><div class="dash-crumb">Admissions</div><h2>Applications</h2></div></div>
-      <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table">
-        <thead><tr><th>Reference</th><th>Applicant</th><th>Status</th></tr></thead>
-        <tbody>
-          ${rows.length ? rows.map((r) => `<tr><td>${esc(r.reference)}</td><td>${esc(r.first_name || "")} ${esc(r.last_name || "")}</td><td><span class="dash-pill ${pillFor(r.status)}">${esc(r.status)}</span></td></tr>`).join("")
-            : `<tr class="dash-empty-row"><td colspan="3">No applications yet.</td></tr>`}
-        </tbody>
-      </table></div></div>
-    `;
-  }
-
   /* ============================ COMMUNICATION ============================== */
-
-  async function pageAnnouncements(content) {
-    const data = await window.API.get("/announcements").catch(() => ({ announcements: [] }));
-    content.innerHTML = `
-      <div class="dash-page-head"><div><div class="dash-crumb">Communication</div><h2>Announcements</h2></div>
-        <button class="dash-btn dash-btn-primary" id="newAnnBtn">${I.plus} New Announcement</button></div>
-      <div class="dash-card"><div class="dash-card-pad" id="annForm" style="display:none;border-bottom:1px solid var(--d-line);padding-bottom:16px;margin-bottom:16px;">
-        <div class="dash-form-grid">
-          <div class="dash-field" style="grid-column:1/-1;"><label>Title</label><input id="annTitle"></div>
-          <div class="dash-field" style="grid-column:1/-1;"><label>Message</label><textarea id="annBody"></textarea></div>
-        </div>
-        <button class="dash-btn dash-btn-primary" id="annSaveBtn" style="margin-top:10px;">${I.check} Post</button>
-      </div>
-      <div class="dash-card-pad">
-        ${data.announcements.length ? data.announcements.map((a) => `
-          <div style="padding:10px 0;border-bottom:1px solid var(--d-line-soft);"><strong>${esc(a.title)}</strong><div style="font-size:.82rem;color:var(--d-muted);margin-top:2px;">${esc(a.body)}</div></div>`).join("")
-          : `<div class="dash-coming-soon"><p>No announcements yet.</p></div>`}
-      </div></div>
-    `;
-    content.querySelector("#newAnnBtn").addEventListener("click", () => {
-      const f = content.querySelector("#annForm");
-      f.style.display = f.style.display === "none" ? "block" : "none";
-    });
-    content.querySelector("#annSaveBtn").addEventListener("click", async () => {
-      const title = content.querySelector("#annTitle").value.trim();
-      const body = content.querySelector("#annBody").value.trim();
-      if (!title || !body) return toast("Title and message are required.", "error");
-      try { await window.API.post("/announcements", { title, body }); toast("Announcement posted.", "success"); pageAnnouncements(content); }
-      catch (err) { toast(err.message || "Could not post.", "error"); }
-    });
-  }
 
   /* =============================== FINANCE ================================= */
 
@@ -1447,28 +1397,448 @@
 
   /* =============================== SETTINGS ================================= */
 
-  async function pageAccountSettings(content) {
-    content.innerHTML = `
-      <div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Administrator Account</h2></div></div>
-      <div class="dash-card"><div class="dash-card-pad">
-        <form id="pwForm">
-          <div class="dash-form-grid">
-            <div class="dash-field"><label>Current Password</label><input name="currentPassword" type="password" required></div>
-            <div class="dash-field"><label>New Password</label><input name="newPassword" type="password" minlength="8" required></div>
-          </div>
-          <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px;">${I.check} Update Password</button>
-        </form>
-      </div></div>
-    `;
-    content.querySelector("#pwForm").addEventListener("submit", async (e) => {
+  /* =====================================================================
+     COMPLETE TENANT ADMIN WORKSPACE
+     ---------------------------------------------------------------------
+     Every sidebar item below is a data-backed workspace. Empty states are
+     deliberate guidance, never a fake chart or a "coming soon" screen.
+     ===================================================================== */
+  function bindRouteButtons(scope) {
+    scope.querySelectorAll("[data-nav-route]").forEach((el) => el.addEventListener("click", (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
-      try {
-        await window.API.post("/auth/change-password", { currentPassword: fd.get("currentPassword"), newPassword: fd.get("newPassword") });
-        toast("Password updated.", "success");
-        e.target.reset();
-      } catch (err) { toast(err.message || "Could not update password.", "error"); }
+      go(el.getAttribute("data-nav-route"));
+    }));
+  }
+  function options(rows, selected, label) {
+    return (rows || []).map((r) => `<option value="${esc(r.id)}" ${String(r.id) === String(selected) ? "selected" : ""}>${esc(label ? label(r) : (r.name_en || r.label || r.full_name || r.id))}</option>`).join("");
+  }
+  function emptyRow(cols, copy) {
+    return `<tr class="dash-empty-row"><td colspan="${cols}">${esc(copy)}</td></tr>`;
+  }
+  function todayIso() { return new Date().toISOString().slice(0, 10); }
+  function routeTitle(route) { return routeLabel(route).replace(/\b\w/g, (c) => c.toUpperCase()); }
+  async function catalogue() {
+    const [classes, subjects, sessions] = await Promise.all([
+      window.API.get("/classes").catch(() => ({ classes: [] })),
+      window.API.get("/subjects").catch(() => ({ subjects: [] })),
+      window.API.get("/sessions").catch(() => ({ sessions: [] })),
+    ]);
+    return { classes: classes.classes || [], subjects: subjects.subjects || [], sessions: sessions.sessions || [] };
+  }
+  function allTerms(sessions) {
+    return (sessions || []).flatMap((s) => (s.terms || []).map((t) => Object.assign({ session_label: s.label }, t)));
+  }
+
+  /* =========================== INSTITUTION ============================ */
+  async function pageInstitutionEditor(content, route) {
+    const profile = await window.API.get("/madrasa/profile");
+    state.profile = profile;
+    const m = profile.madrasa || {};
+    const isContact = route.includes("contact");
+    const isSettings = route.includes("settings");
+    const heading = isContact ? "Contact Information" : (isSettings ? `${T().institutionLabel} Settings` : `${T().institutionLabel} Profile`);
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">My ${esc(T().institutionLabel)}</div><h2>${esc(heading)}</h2><p>${isContact ? "Keep the public contact details and links families rely on up to date." : "These details are used throughout the administrator workspace and on your public profile."}</p></div></div>
+      <div class="dash-card"><div class="dash-card-pad"><form id="institutionEditor">
+        <div class="dash-form-grid">
+          <div class="dash-field"><label>Name (English)</label><input name="name_en" required value="${esc(m.name_en)}"></div>
+          <div class="dash-field"><label>Name (Arabic)</label><input name="name_ar" dir="rtl" value="${esc(m.name_ar)}"></div>
+          <div class="dash-field"><label>Motto (English)</label><input name="motto_en" value="${esc(m.motto_en)}"></div>
+          <div class="dash-field"><label>Motto (Arabic)</label><input name="motto_ar" dir="rtl" value="${esc(m.motto_ar)}"></div>
+          <div class="dash-field"><label>Phone</label><input name="phone" autocomplete="tel" value="${esc(m.phone)}"></div>
+          <div class="dash-field"><label>Email</label><input name="email" type="email" autocomplete="email" value="${esc(m.email)}"></div>
+          <div class="dash-field"><label>WhatsApp</label><input name="whatsapp" autocomplete="tel" value="${esc(m.whatsapp)}"></div>
+          <div class="dash-field"><label>Website URL</label><input name="website" type="url" placeholder="https://…" value="${esc(m.website)}"></div>
+          <div class="dash-field"><label>City</label><input name="city" value="${esc(m.city)}"></div>
+          <div class="dash-field"><label>State</label><input name="state_name" value="${esc(m.state_name)}"></div>
+          <div class="dash-field" style="grid-column:1/-1"><label>Street Address</label><input name="address" value="${esc(m.address)}"></div>
+          <div class="dash-field"><label>Facebook URL</label><input name="facebook" type="url" value="${esc(m.facebook)}"></div>
+          <div class="dash-field"><label>Instagram URL</label><input name="instagram" type="url" value="${esc(m.instagram)}"></div>
+          <div class="dash-field" style="grid-column:1/-1"><label>Map Link</label><input name="maps_link" type="url" placeholder="https://maps.google.com/…" value="${esc(m.maps_link)}"></div>
+          <div class="dash-field"><label>Administrator / Head Name</label><input name="admin_full_name" value="${esc(m.admin_full_name)}"></div>
+          <div class="dash-field"><label>Position</label><input name="admin_position" value="${esc(m.admin_position)}"></div>
+        </div>
+        <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save ${esc(heading)}</button>
+      </form></div></div>`;
+    content.querySelector("#institutionEditor").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.target); const body = {};
+      ["name_en", "name_ar", "motto_en", "motto_ar", "phone", "email", "whatsapp", "website", "city", "state_name", "address", "facebook", "instagram", "maps_link", "admin_full_name", "admin_position"].forEach((k) => { body[k] = form.get(k); });
+      try { await window.API.put("/madrasa/profile", body); toast("Institution details saved.", "success"); await pageInstitutionEditor(content, route); }
+      catch (err) { toast(err.message || "Could not save institution details.", "error"); }
     });
+  }
+
+  async function pageWebsiteContent(content, route) {
+    const [profile, publicSite, settingData] = await Promise.all([
+      window.API.get("/madrasa/profile"), window.API.get("/madrasa/public-site"), window.API.get("/madrasa/settings"),
+    ]);
+    state.profile = profile;
+    const m = profile.madrasa || {}; const site = publicSite.settings || {}; const settings = settingData.settings || {};
+    const key = route.split("/").pop();
+    const meta = {
+      pages: ["Website pages", "Edit the content sections shown to visitors."],
+      homepage: ["Homepage", "Welcome visitors with an accurate introduction and call to action."],
+      about: ["About", "Tell families about your institution’s identity and approach."],
+      programs: [state.category === "western" ? "Programs" : "Programs & Courses", "Explain the learning programmes alongside the live subjects list."],
+      teachers: ["Teachers", "Introduce your teaching team without exposing private staff details."],
+      admissions: ["Admissions", "Set the admission guidance visible to prospective families."],
+      news: ["News & Announcements", "Public news comes from announcements marked for public publication."],
+      contact: ["Contact Page", "Contact details below are published from your institution profile."],
+    }[key] || ["Website content", "Update the copy visitors see."];
+    const contentKey = `website_${key}_content`;
+    const titleKey = `website_${key}_title`;
+    const defaultCopy = key === "homepage" ? (site.description_en || "") : key === "admissions" ? (m.admission_info || "") : (settings[contentKey] || "");
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Website</div><h2>${esc(meta[0])}</h2><p>${esc(meta[1])}</p></div>
+        <a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${I.external} Preview public site</a></div>
+      <div class="dash-card"><div class="dash-card-pad">
+        <form id="websiteContentForm">
+          <div class="dash-form-grid">
+            <div class="dash-field" style="grid-column:1/-1"><label>Section heading</label><input name="title" maxlength="200" value="${esc(settings[titleKey] || (key === "homepage" ? m.name_en : meta[0]))}"></div>
+            <div class="dash-field" style="grid-column:1/-1"><label>${key === "admissions" ? "Admission requirements and guidance" : "Page content"}</label><textarea name="body" maxlength="4000" rows="10" placeholder="Write clear, family-friendly content…">${esc(defaultCopy)}</textarea></div>
+          </div>
+          <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save public content</button>
+        </form>
+        ${key === "news" ? `<p class="hint" style="margin:16px 0 0">Create and control public news in <button class="dash-link-btn" type="button" data-nav-route="communication/announcements">Announcements</button>. Only items marked “Publish on public website” appear to visitors.</p>` : ""}
+        ${key === "contact" ? `<p class="hint" style="margin:16px 0 0">Phone, email, address and social links are managed in <button class="dash-link-btn" type="button" data-nav-route="institution/contact">Contact Information</button>.</p>` : ""}
+      </div></div>`;
+    content.querySelector("#websiteContentForm").addEventListener("submit", async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const body = {};
+      body[titleKey] = fd.get("title"); body[contentKey] = fd.get("body");
+      try {
+        await window.API.put("/madrasa/settings", body);
+        if (key === "homepage") await window.API.put("/madrasa/public-site", { description_en: fd.get("body") });
+        if (key === "admissions") await window.API.put("/madrasa/profile", { admission_info: fd.get("body") });
+        toast("Public content saved.", "success");
+      } catch (err) { toast(err.message || "Could not save public content.", "error"); }
+    });
+    bindRouteButtons(content);
+  }
+
+  /* ============================== STUDENTS ============================= */
+  async function pageStudents(content) {
+    const [data, classes] = await Promise.all([window.API.get("/students?perPage=200"), window.API.get("/classes")]);
+    const draw = (rows) => {
+      const tbody = content.querySelector("#studentRows");
+      tbody.innerHTML = rows.length ? rows.map((s) => `<tr><td>${esc(s.admission_no)}</td><td><strong>${esc(s.first_name)} ${esc(s.last_name)}</strong>${s.name_ar ? `<small class="dash-ar">${esc(s.name_ar)}</small>` : ""}</td><td>${esc(s.class_en || "Unassigned")}</td><td>${esc(s.gender || "—")}</td><td><span class="dash-pill ${pillFor(s.status)}">${esc(s.status)}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-student="${s.id}">${I.edit} Manage</button></td></tr>`).join("") : emptyRow(6, "No students match this filter.");
+      tbody.querySelectorAll("[data-student]").forEach((button) => button.addEventListener("click", () => openStudentModal(Number(button.dataset.student), classes.classes || [])));
+    };
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>All Students</h2><p>${data.total || 0} student(s) enrolled. Search and update records here.</p></div>
+        <div class="dash-actions"><a class="dash-btn dash-btn-ghost" href="${window.API.url("/exports/students.csv")}" target="_blank" rel="noopener">${I.download} Export</a><button class="dash-btn dash-btn-primary" data-nav-route="students/add">${I.plus} Add Student</button></div></div>
+      <div class="dash-card"><div class="dash-card-pad" style="border-bottom:1px solid var(--d-line)"><div class="dash-form-grid"><div class="dash-field"><label>Search</label><input id="studentSearch" type="search" placeholder="Name or admission number"></div><div class="dash-field"><label>Class</label><select id="studentClass"><option value="">All classes</option>${options(classes.classes)}</select></div></div></div>
+      <div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Admission No.</th><th>Student</th><th>Class</th><th>Gender</th><th>Status</th><th></th></tr></thead><tbody id="studentRows"></tbody></table></div></div>`;
+    const filter = () => {
+      const q = content.querySelector("#studentSearch").value.trim().toLowerCase(); const cls = content.querySelector("#studentClass").value;
+      draw((data.students || []).filter((s) => (!cls || String(s.class_id) === cls) && (!q || `${s.first_name} ${s.last_name} ${s.name_ar || ""} ${s.admission_no}`.toLowerCase().includes(q))));
+    };
+    content.querySelector("#studentSearch").addEventListener("input", filter); content.querySelector("#studentClass").addEventListener("change", filter); filter(); bindRouteButtons(content);
+  }
+
+  async function pageStudentForm(content) {
+    const { classes, sessions } = await catalogue();
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>Add Student</h2><p>The admission number is allocated automatically and is unique to your institution.</p></div></div>
+      <div class="dash-card"><div class="dash-card-pad"><form id="studentForm"><div class="dash-form-grid">
+        <div class="dash-field"><label>First Name <span class="req">*</span></label><input name="first_name" required></div><div class="dash-field"><label>Last Name</label><input name="last_name"></div>
+        <div class="dash-field"><label>Arabic Name</label><input name="name_ar" dir="rtl"></div><div class="dash-field"><label>Gender</label><select name="gender"><option value="">Prefer not to say</option><option value="M">Male</option><option value="F">Female</option></select></div>
+        <div class="dash-field"><label>Date of Birth</label><input name="date_of_birth" type="date"></div><div class="dash-field"><label>Class</label><select name="class_id"><option value="">Unassigned</option>${options(classes)}</select></div>
+        <div class="dash-field"><label>Academic Session</label><select name="session_id"><option value="">Not set</option>${options(sessions, null, (s) => s.label)}</select></div><div class="dash-field"><label>Guardian Name</label><input name="parent_name"></div>
+        <div class="dash-field"><label>Guardian Phone</label><input name="parent_phone" autocomplete="tel"></div><div class="dash-field" style="grid-column:1/-1"><label>Address</label><input name="address"></div><div class="dash-field" style="grid-column:1/-1"><label>Internal Notes</label><textarea name="notes"></textarea></div>
+      </div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Enrol Student</button></form></div></div>`;
+    content.querySelector("#studentForm").addEventListener("submit", async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const body = {}; ["first_name", "last_name", "name_ar", "gender", "date_of_birth", "class_id", "session_id", "parent_name", "parent_phone", "address", "notes"].forEach((k) => body[k] = fd.get(k));
+      try { const r = await window.API.post("/students", body); toast(`Student enrolled — ${r.admissionNo}.`, "success"); go("students/all"); } catch (err) { toast(err.message || "Could not enrol student.", "error"); }
+    });
+  }
+
+  async function pageStudentGroups(content) {
+    const data = await window.API.get("/classes"); const classes = data.classes || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>Student Groups</h2><p>Classes are the groups used for attendance, results, timetable and teaching assignments.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="classes/add">${I.plus} Create Class</button></div>
+      <div class="dash-grid-3">${classes.length ? classes.map((c) => `<article class="dash-card"><div class="dash-card-pad"><strong>${esc(c.name_en)}</strong>${c.name_ar ? `<div class="dash-ar">${esc(c.name_ar)}</div>` : ""}<div class="dash-big-number">${Number(c.student_count || 0)}</div><span class="hint">students · ${Number(c.subject_count || 0)} subjects</span><div style="margin-top:14px"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-class-roster="${c.id}">View roster</button></div></div></article>`).join("") : `<div class="dash-card"><div class="dash-card-pad">No groups exist yet. Create a class before assigning students.</div></div>`}</div>`;
+    content.querySelectorAll("[data-class-roster]").forEach((b) => b.addEventListener("click", () => { state.cache.rosterClassId = Number(b.dataset.classRoster); go("classes/students"); })); bindRouteButtons(content);
+  }
+
+  async function pageStudentProfiles(content) {
+    const data = await window.API.get("/students?perPage=200");
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>Student Profiles</h2><p>Open an individual record to update placement, status, photo and portal access.</p></div></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Admission No.</th><th>Guardian</th><th>Profile</th></tr></thead><tbody>${(data.students || []).length ? data.students.map((s) => `<tr><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td>${esc(s.admission_no)}</td><td>${esc(s.parent_name || "—")}</td><td><button class="dash-btn dash-btn-primary dash-btn-sm" data-student="${s.id}">Open profile</button></td></tr>`).join("") : emptyRow(4, "No student profiles yet.")}</tbody></table></div></div>`;
+    content.querySelectorAll("[data-student]").forEach((b) => b.addEventListener("click", () => openStudentModal(Number(b.dataset.student), [])));
+  }
+
+  async function openStudentModal(id, knownClasses) {
+    const [record, base] = await Promise.all([window.API.get(`/students/${id}`), catalogue()]);
+    const s = record.student; const classes = knownClasses.length ? knownClasses : base.classes;
+    const modal = openModal(`${s.first_name} ${s.last_name} — student profile`, `<form id="studentEditForm"><div class="dash-form-grid">
+      <div class="dash-field"><label>First Name</label><input name="first_name" required value="${esc(s.first_name)}"></div><div class="dash-field"><label>Last Name</label><input name="last_name" value="${esc(s.last_name)}"></div>
+      <div class="dash-field"><label>Arabic Name</label><input name="name_ar" dir="rtl" value="${esc(s.name_ar)}"></div><div class="dash-field"><label>Status</label><select name="status">${["active", "promoted", "suspended", "graduated", "withdrawn"].map((x) => `<option value="${x}" ${s.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
+      <div class="dash-field"><label>Class</label><select name="class_id"><option value="">Unassigned</option>${options(classes, s.class_id)}</select></div><div class="dash-field"><label>Academic Session</label><select name="session_id"><option value="">Not set</option>${options(base.sessions, s.session_id, (x) => x.label)}</select></div>
+      <div class="dash-field"><label>Guardian</label><input name="parent_name" value="${esc(s.parent_name)}"></div><div class="dash-field"><label>Guardian Phone</label><input name="parent_phone" value="${esc(s.parent_phone)}"></div>
+      <div class="dash-field" style="grid-column:1/-1"><label>Address</label><input name="address" value="${esc(s.address)}"></div><div class="dash-field" style="grid-column:1/-1"><label>Notes</label><textarea name="notes">${esc(s.notes)}</textarea></div>
+    </div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save Profile</button></form>
+    <hr class="dash-rule"><div class="dash-modal-actions"><label class="dash-btn dash-btn-ghost" style="cursor:pointer">${I.image} Upload photo<input id="studentPhoto" type="file" accept="image/png,image/jpeg,image/webp" hidden></label><button id="studentPortal" type="button" class="dash-btn dash-btn-ghost">Create / reset student login</button><button id="parentPortal" type="button" class="dash-btn dash-btn-ghost">Create parent login</button></div>`);
+    modal.querySelector("#studentEditForm").addEventListener("submit", async (e) => {
+      e.preventDefault(); const fd = new FormData(e.target); const body = {}; ["first_name", "last_name", "name_ar", "class_id", "session_id", "parent_name", "parent_phone", "address", "notes"].forEach((k) => body[k] = fd.get(k));
+      try { await window.API.patch(`/students/${id}`, body); await window.API.patch(`/students/${id}/status`, { status: fd.get("status") }); toast("Student profile saved.", "success"); closeModal(); }
+      catch (err) { toast(err.message || "Could not save student profile.", "error"); }
+    });
+    modal.querySelector("#studentPhoto").addEventListener("change", async (e) => { const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append("photo", f); try { await window.API.post(`/students/${id}/photo`, fd); toast("Student photo saved.", "success"); } catch (err) { toast(err.message || "Photo upload failed.", "error"); } });
+    modal.querySelector("#studentPortal").addEventListener("click", () => openPortalAccountModal(id, "student"));
+    modal.querySelector("#parentPortal").addEventListener("click", () => openPortalAccountModal(id, "parent"));
+  }
+
+  function openPortalAccountModal(studentId, kind) {
+    const isParent = kind === "parent"; const modal = openModal(isParent ? "Create parent portal account" : "Create student portal account", `<form id="portalAccountForm"><div class="dash-form-grid"><div class="dash-field"><label>Username</label><input name="username" required minlength="3"></div><div class="dash-field"><label>Temporary Password</label><input name="password" required minlength="8" type="password"></div>${isParent ? `<div class="dash-field"><label>Parent Full Name</label><input name="full_name"></div><div class="dash-field"><label>Phone</label><input name="phone"></div>` : ""}</div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save account</button></form>`);
+    modal.querySelector("#portalAccountForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); const body = {}; ["username", "password", "full_name", "phone"].forEach((k) => body[k] = fd.get(k)); try { await window.API.post(`/students/${studentId}/${isParent ? "parent-account" : "portal-account"}`, body); toast(`${isParent ? "Parent" : "Student"} account saved.`, "success"); closeModal(); } catch (err) { toast(err.message || "Could not create account.", "error"); } });
+  }
+
+  /* =============================== STAFF =============================== */
+  async function pageTeachers(content) {
+    const data = await window.API.get("/teachers"); const teachers = data.teachers || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Teachers</div><h2>All Teachers</h2><p>${teachers.length} teacher account(s). Assignments decide access to class registers and results.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="teachers/add">${I.plus} Add Teacher</button></div>
+      <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Teacher</th><th>Username</th><th>Assignments</th><th>Status</th><th></th></tr></thead><tbody>${teachers.length ? teachers.map((t) => `<tr><td><strong>${esc(t.full_name)}</strong>${t.full_name_ar ? `<small class="dash-ar">${esc(t.full_name_ar)}</small>` : ""}</td><td>${esc(t.username)}</td><td>${esc((t.assignments || []).map((a) => `${a.class ? a.class.name_en : "All classes"}${a.subject ? ` · ${a.subject.name_en}` : ""}`).join(", ") || "Not assigned")}</td><td><span class="dash-pill ${t.is_active ? "ok" : "danger"}">${t.is_active ? "active" : "inactive"}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-teacher="${t.id}">${I.edit} Manage</button></td></tr>`).join("") : emptyRow(5, "No teacher accounts yet.")}</tbody></table></div></div>`;
+    content.querySelectorAll("[data-teacher]").forEach((b) => b.addEventListener("click", () => openTeacherModal(Number(b.dataset.teacher), data)));
+    bindRouteButtons(content);
+  }
+
+  async function pageTeacherForm(content) {
+    const { classes, subjects } = await catalogue();
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Teachers</div><h2>Add Teacher</h2><p>Create a secure staff account, then choose the classes and subjects it can manage.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="teacherForm"><div class="dash-form-grid"><div class="dash-field"><label>Full Name <span class="req">*</span></label><input name="full_name" required></div><div class="dash-field"><label>Arabic Name</label><input name="full_name_ar" dir="rtl"></div><div class="dash-field"><label>Username <span class="req">*</span></label><input name="username" required autocomplete="off"></div><div class="dash-field"><label>Temporary Password <span class="req">*</span></label><input name="password" required minlength="8" type="password"></div><div class="dash-field"><label>Email</label><input name="email" type="email"></div><div class="dash-field"><label>Phone</label><input name="phone"></div></div><div class="dash-field" style="margin-top:16px"><label>Teaching assignments</label><div id="assignmentRows"></div><button class="dash-btn dash-btn-ghost dash-btn-sm" id="addAssignment" type="button" style="margin-top:8px">${I.plus} Add assignment</button></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Create Teacher</button></form></div></div>`;
+    const addRow = () => { const r = document.createElement("div"); r.className = "dash-assignment-row"; r.innerHTML = `<select class="assign-class"><option value="">All classes</option>${options(classes)}</select><select class="assign-subject"><option value="">All subjects in class</option>${options(subjects)}</select><button type="button" class="dash-icon-btn" aria-label="Remove assignment">${I.close}</button>`; r.querySelector("button").addEventListener("click", () => r.remove()); content.querySelector("#assignmentRows").appendChild(r); };
+    content.querySelector("#addAssignment").addEventListener("click", addRow); addRow();
+    content.querySelector("#teacherForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); const body = {}; ["full_name", "full_name_ar", "username", "password", "email", "phone"].forEach((k) => body[k] = fd.get(k)); body.assignments = [...content.querySelectorAll(".dash-assignment-row")].map((r) => ({ class_id: r.querySelector(".assign-class").value || null, subject_id: r.querySelector(".assign-subject").value || null })); try { await window.API.post("/teachers", body); toast("Teacher account created.", "success"); go("teachers/all"); } catch (err) { toast(err.message || "Could not create teacher.", "error"); } });
+  }
+
+  async function openTeacherModal(id, data) {
+    const t = (data.teachers || []).find((row) => Number(row.id) === id); if (!t) return;
+    const modal = openModal(`Manage ${t.full_name}`, `<form id="teacherEditForm"><div class="dash-form-grid"><div class="dash-field"><label>Full Name</label><input name="full_name" value="${esc(t.full_name)}"></div><div class="dash-field"><label>Email</label><input name="email" type="email" value="${esc(t.email)}"></div><div class="dash-field"><label>Phone</label><input name="phone" value="${esc(t.phone)}"></div><div class="dash-field"><label>New password (optional)</label><input name="password" minlength="8" type="password"></div><div class="dash-field"><label>Account status</label><select name="is_active"><option value="true" ${t.is_active ? "selected" : ""}>Active</option><option value="false" ${!t.is_active ? "selected" : ""}>Inactive</option></select></div></div><div class="dash-field" style="margin-top:14px"><label>Assignments</label><div id="editAssignmentRows"></div><button class="dash-btn dash-btn-ghost dash-btn-sm" id="editAddAssignment" type="button" style="margin-top:8px">${I.plus} Add assignment</button></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save Teacher</button></form>`);
+    const add = (assignment = {}) => { const r = document.createElement("div"); r.className = "dash-assignment-row"; r.innerHTML = `<select class="assign-class"><option value="">All classes</option>${options(data.classes, assignment.classId)}</select><select class="assign-subject"><option value="">All subjects in class</option>${options(data.subjects, assignment.subjectId)}</select><button type="button" class="dash-icon-btn" aria-label="Remove assignment">${I.close}</button>`; r.querySelector("button").addEventListener("click", () => r.remove()); modal.querySelector("#editAssignmentRows").appendChild(r); };
+    (t.assignments || []).forEach(add); if (!(t.assignments || []).length) add(); modal.querySelector("#editAddAssignment").addEventListener("click", () => add());
+    modal.querySelector("#teacherEditForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); const body = { full_name: fd.get("full_name"), email: fd.get("email"), phone: fd.get("phone"), is_active: fd.get("is_active") === "true", assignments: [...modal.querySelectorAll(".dash-assignment-row")].map((r) => ({ class_id: r.querySelector(".assign-class").value || null, subject_id: r.querySelector(".assign-subject").value || null })) }; if (fd.get("password")) body.password = fd.get("password"); try { await window.API.patch(`/teachers/${id}`, body); toast("Teacher details saved.", "success"); closeModal(); pageTeachers(document.querySelector("#dashContent")); } catch (err) { toast(err.message || "Could not save teacher.", "error"); } });
+  }
+
+  async function pageTeacherProfiles(content) { return pageTeachers(content); }
+
+
+  async function pageTeacherApplications(content) {
+    const data = await window.API.get("/teachers/applications"); const rows = data.applications || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Teachers</div><h2>Teacher Applications</h2><p>Keep candidates separate from staff accounts until you approve them.</p></div><button id="addTeacherCandidate" class="dash-btn dash-btn-primary">${I.plus} Add Candidate</button></div>
+      <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Candidate</th><th>Contact</th><th>Submitted</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map((a) => `<tr><td><strong>${esc(a.full_name)}</strong><small>${esc((a.message || "").slice(0, 100))}</small></td><td>${esc(a.email || "—")}<small>${esc(a.phone || "")}</small></td><td>${fmtDate(a.created_at)}</td><td><span class="dash-pill ${pillFor(a.status)}">${esc(a.status)}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-teacher-app="${a.id}">${a.status === "pending" ? "Review" : "View"}</button></td></tr>`).join("") : emptyRow(5, "No teacher candidates yet. Add applications received by email or in person.")}</tbody></table></div></div>`;
+    content.querySelector("#addTeacherCandidate").addEventListener("click", () => openTeacherCandidateModal());
+    content.querySelectorAll("[data-teacher-app]").forEach((b) => b.addEventListener("click", () => openTeacherApplicationModal(Number(b.dataset.teacherApp), rows.find((a) => Number(a.id) === Number(b.dataset.teacherApp)))));
+  }
+  function openTeacherCandidateModal() {
+    const modal = openModal("Add teacher candidate", `<form id="candidateForm"><div class="dash-form-grid"><div class="dash-field"><label>Full Name</label><input name="full_name" required></div><div class="dash-field"><label>Email</label><input name="email" type="email"></div><div class="dash-field"><label>Phone</label><input name="phone"></div><div class="dash-field" style="grid-column:1/-1"><label>Application / interview notes</label><textarea name="message"></textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Add candidate</button></form>`);
+    modal.querySelector("#candidateForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.post("/teachers/applications", Object.fromEntries(fd)); toast("Teacher candidate added.", "success"); closeModal(); pageTeacherApplications(document.querySelector("#dashContent")); } catch (err) { toast(err.message || "Could not add candidate.", "error"); } });
+  }
+  async function openTeacherApplicationModal(id, app) {
+    const base = await catalogue(); const modal = openModal(`Teacher application — ${app.full_name}`, `<p class="dash-info-line">${esc(app.message || "No application note was added.")}</p><form id="reviewTeacherApp"><div class="dash-form-grid"><div class="dash-field"><label>Review status</label><select name="status"><option value="pending" ${app.status === "pending" ? "selected" : ""}>Pending</option><option value="on_hold" ${app.status === "on_hold" ? "selected" : ""}>On hold</option><option value="rejected" ${app.status === "rejected" ? "selected" : ""}>Rejected</option></select></div><div class="dash-field"><label>Review note</label><input name="review_note" value="${esc(app.review_note || "")}"></div></div><button type="submit" class="dash-btn dash-btn-ghost" style="margin-top:14px">Save review</button></form>${app.status !== "approved" ? `<hr class="dash-rule"><h4>Create teacher account</h4><form id="approveTeacherApp"><div class="dash-form-grid"><div class="dash-field"><label>Username</label><input name="username" required minlength="3"></div><div class="dash-field"><label>Temporary Password</label><input name="password" required minlength="8" type="password"></div></div><div class="dash-field" style="margin-top:14px"><label>Assignments</label><div id="candidateAssignments"></div><button id="candidateAddAssign" class="dash-btn dash-btn-ghost dash-btn-sm" type="button" style="margin-top:8px">${I.plus} Add assignment</button></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">Approve & create teacher</button></form>` : `<p class="dash-info-line">This candidate is now a teacher account.</p>`}`);
+    modal.querySelector("#reviewTeacherApp").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.patch(`/teachers/applications/${id}`, Object.fromEntries(fd)); toast("Review saved.", "success"); closeModal(); pageTeacherApplications(document.querySelector("#dashContent")); } catch (err) { toast(err.message || "Could not save review.", "error"); } });
+    const list = modal.querySelector("#candidateAssignments");
+    const add = () => { const row = document.createElement("div"); row.className = "dash-assignment-row"; row.innerHTML = `<select class="assign-class"><option value="">All classes</option>${options(base.classes)}</select><select class="assign-subject"><option value="">All subjects</option>${options(base.subjects)}</select><button class="dash-icon-btn" type="button">${I.close}</button>`; row.querySelector("button").addEventListener("click", () => row.remove()); list.appendChild(row); };
+    const approve = modal.querySelector("#approveTeacherApp"); if (approve) { modal.querySelector("#candidateAddAssign").addEventListener("click", add); add(); approve.addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); const body = { username: fd.get("username"), password: fd.get("password"), review_note: app.review_note || "", assignments: [...list.querySelectorAll(".dash-assignment-row")].map((row) => ({ class_id: row.querySelector(".assign-class").value || null, subject_id: row.querySelector(".assign-subject").value || null })) }; try { await window.API.post(`/teachers/applications/${id}/approve`, body); toast("Candidate approved and teacher account created.", "success"); closeModal(); pageTeacherApplications(document.querySelector("#dashContent")); } catch (err) { toast(err.message || "Could not approve candidate.", "error"); } }); }
+  }
+
+  /* ============================ CLASSES ================================ */
+  async function pageClasses(content) {
+    const [data, subs] = await Promise.all([window.API.get("/classes"), window.API.get("/subjects")]); const classes = data.classes || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>All Classes</h2><p>Set up each group, then attach the subjects it studies.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="classes/add">${I.plus} Add Class</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Class</th><th>Students</th><th>Subjects</th><th>Manage</th></tr></thead><tbody>${classes.length ? classes.map((c) => `<tr><td><strong>${esc(c.name_en)}</strong>${c.name_ar ? `<small class="dash-ar">${esc(c.name_ar)}</small>` : ""}</td><td>${Number(c.student_count || 0)}</td><td>${esc((c.subjects || []).map((s) => s.name_en).join(", ") || "No subjects yet")}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-class-manage="${c.id}">${I.edit} Manage</button></td></tr>`).join("") : emptyRow(4, "No classes have been created.")}</tbody></table></div></div>`;
+    content.querySelectorAll("[data-class-manage]").forEach((b) => b.addEventListener("click", () => openClassModal(Number(b.dataset.classManage), classes, subs.subjects || []))); bindRouteButtons(content);
+  }
+  async function pageClassForm(content) {
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>Add Class</h2><p>Create a class first, then add subjects and assign students/teachers.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="classForm"><div class="dash-form-grid"><div class="dash-field"><label>Class Name (English) <span class="req">*</span></label><input name="name_en" required></div><div class="dash-field"><label>Class Name (Arabic)</label><input name="name_ar" dir="rtl"></div><div class="dash-field"><label>Display order</label><input name="sort_order" type="number" min="0" value="0"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Create Class</button></form></div></div>`;
+    content.querySelector("#classForm").addEventListener("submit", async (e) => { e.preventDefault(); const body = Object.fromEntries(new FormData(e.target)); try { await window.API.post("/classes", body); toast("Class created.", "success"); go("classes/all"); } catch (err) { toast(err.message || "Could not create class.", "error"); } });
+  }
+  function openClassModal(id, classes, subjects) {
+    const c = classes.find((x) => Number(x.id) === id); if (!c) return; const chosen = new Set((c.subjects || []).map((s) => Number(s.id)));
+    const modal = openModal(`Manage ${c.name_en}`, `<form id="classEdit"><div class="dash-form-grid"><div class="dash-field"><label>Class Name (English)</label><input name="name_en" value="${esc(c.name_en)}"></div><div class="dash-field"><label>Class Name (Arabic)</label><input name="name_ar" dir="rtl" value="${esc(c.name_ar)}"></div><div class="dash-field"><label>Display order</label><input name="sort_order" type="number" min="0" value="${esc(c.sort_order)}"></div><div class="dash-field"><label>Class status</label><select name="is_active"><option value="true" ${c.is_active ? "selected" : ""}>Active</option><option value="false" ${!c.is_active ? "selected" : ""}>Inactive</option></select></div></div><div class="dash-field" style="margin-top:14px"><label>Subjects for this class</label><div class="dash-check-grid">${subjects.length ? subjects.map((s) => `<label><input type="checkbox" name="subjects" value="${s.id}" ${chosen.has(Number(s.id)) ? "checked" : ""}> ${esc(s.name_en)}</label>`).join("") : "No subjects yet — add one in the Subjects menu."}</div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save Class</button></form><hr class="dash-rule"><button class="dash-btn dash-btn-danger" type="button" id="deleteClass">${I.trash} Delete class</button>`);
+    modal.querySelector("#classEdit").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.patch(`/classes/${id}`, { name_en: fd.get("name_en"), name_ar: fd.get("name_ar"), sort_order: fd.get("sort_order"), is_active: fd.get("is_active") === "true" }); await window.API.put(`/classes/${id}/subjects`, { subject_ids: fd.getAll("subjects") }); toast("Class saved.", "success"); closeModal(); pageClasses(document.querySelector("#dashContent")); } catch (err) { toast(err.message || "Could not save class.", "error"); } });
+    modal.querySelector("#deleteClass").addEventListener("click", async () => { if (!window.confirm("Delete this empty class? Students must be moved first.")) return; try { await window.API.del(`/classes/${id}`); toast("Class deleted.", "success"); closeModal(); pageClasses(document.querySelector("#dashContent")); } catch (err) { toast(err.message || "Could not delete class.", "error"); } });
+  }
+
+  async function pageClassRoster(content) {
+    const classesData = await window.API.get("/classes"); const classes = classesData.classes || []; const selected = state.cache.rosterClassId || (classes[0] && classes[0].id) || "";
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>Class Students</h2><p>View each class roster and jump directly to a student record.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-field" style="max-width:420px"><label>Class</label><select id="rosterClass"><option value="">Select class</option>${options(classes, selected)}</select></div><div id="rosterResult" style="margin-top:16px"></div></div></div>`;
+    const load = async () => { const cid = content.querySelector("#rosterClass").value; const out = content.querySelector("#rosterResult"); if (!cid) return out.innerHTML = ""; const data = await window.API.get(`/students?classId=${encodeURIComponent(cid)}&perPage=200`); out.innerHTML = `<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Admission No.</th><th>Student</th><th>Status</th><th></th></tr></thead><tbody>${data.students.length ? data.students.map((s) => `<tr><td>${esc(s.admission_no)}</td><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td><span class="dash-pill ${pillFor(s.status)}">${esc(s.status)}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-student="${s.id}">Open</button></td></tr>`).join("") : emptyRow(4, "This class has no students.")}</tbody></table></div>`; out.querySelectorAll("[data-student]").forEach((b) => b.addEventListener("click", () => openStudentModal(Number(b.dataset.student), classes))); };
+    content.querySelector("#rosterClass").addEventListener("change", () => { state.cache.rosterClassId = Number(content.querySelector("#rosterClass").value); load(); }); if (selected) load();
+  }
+
+  async function pageClassTeacherRoster(content) {
+    const data = await window.API.get("/teachers"); const classes = data.classes || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>Class Teachers</h2><p>Teaching assignments by class and subject.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="teachers/add">${I.plus} Add Teacher</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Class</th><th>Assigned Teachers</th></tr></thead><tbody>${classes.length ? classes.map((c) => { const assigned = (data.teachers || []).flatMap((t) => (t.assignments || []).filter((a) => Number(a.classId) === Number(c.id) || !a.classId).map((a) => `${t.full_name}${a.subject ? ` — ${a.subject.name_en}` : ""}`)); return `<tr><td>${esc(c.name_en)}</td><td>${esc(assigned.join(", ") || "No teachers assigned")}</td></tr>`; }).join("") : emptyRow(2, "No classes have been created.")}</tbody></table></div></div>`; bindRouteButtons(content);
+  }
+
+  async function pageSubjectDetail(content, name) {
+    const data = await window.API.get("/subjects"); const existing = (data.subjects || []).find((s) => s.name_en === name); const all = data.subjects || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">${state.category === "western" ? "Academic Programs" : "Islamic Subjects"}</div><h2>${esc(name)}</h2><p>Subjects are shared across classes; choose class subjects from the Class manager.</p></div></div><div class="dash-card"><div class="dash-card-pad">${existing ? `<form id="subjectForm"><div class="dash-form-grid"><div class="dash-field"><label>English name</label><input name="name_en" value="${esc(existing.name_en)}"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" value="${esc(existing.name_ar)}"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save Subject</button><button class="dash-btn dash-btn-danger" type="button" id="removeSubject" style="margin:14px 0 0 8px">${I.trash} Delete</button></form>` : `<p>This subject is not yet in your catalogue.</p><button class="dash-btn dash-btn-primary" id="addSubject">${I.plus} Add ${esc(name)}</button>`}</div></div><div class="dash-card" style="margin-top:18px"><div class="dash-card-head"><h3>Subject Catalogue</h3></div><div class="dash-card-pad"><div class="dash-chip-list">${all.map((s) => `<button type="button" class="dash-chip" data-subject-route="${esc(s.name_en)}">${esc(s.name_en)}</button>`).join("") || "No subjects in this catalogue yet."}</div></div></div>`;
+    const add = content.querySelector("#addSubject"); if (add) add.addEventListener("click", async () => { try { await window.API.post("/subjects", { name_en: name }); toast("Subject added.", "success"); pageSubjectDetail(content, name); } catch (err) { toast(err.message || "Could not add subject.", "error"); } });
+    const form = content.querySelector("#subjectForm"); if (form) form.addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.patch(`/subjects/${existing.id}`, { name_en: fd.get("name_en"), name_ar: fd.get("name_ar") }); toast("Subject saved.", "success"); pageSubjectDetail(content, fd.get("name_en")); } catch (err) { toast(err.message || "Could not save subject.", "error"); } });
+    const remove = content.querySelector("#removeSubject"); if (remove) remove.addEventListener("click", async () => { if (!window.confirm("Delete this subject? Subjects with marks cannot be deleted.")) return; try { await window.API.del(`/subjects/${existing.id}`); toast("Subject deleted.", "success"); go("classes/all"); } catch (err) { toast(err.message || "Could not delete subject.", "error"); } });
+    content.querySelectorAll("[data-subject-route]").forEach((b) => b.addEventListener("click", () => go(`subjects/${b.dataset.subjectRoute}`)));
+  }
+
+
+  /* ============================ TIMETABLE ============================== */
+  async function pageTimetableManager(content) {
+    const [catalog, teacherData] = await Promise.all([catalogue(), window.API.get("/teachers").catch(() => ({ teachers: [] }))]);
+    const selected = state.cache.timetableClassId || (catalog.classes[0] && catalog.classes[0].id) || "";
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>Class Timetable</h2><p>Build the weekly timetable for one class. Changes replace that class’s selected term timetable.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Class</label><select id="timetableClass"><option value="">Select class</option>${options(catalog.classes, selected)}</select></div><div class="dash-field"><label>Term</label><select id="timetableTerm"><option value="">Current term</option>${options(allTerms(catalog.sessions), "", (t) => `${t.session_label} — ${t.name_en}`)}</select></div></div><div id="timetableEditor" style="margin-top:18px"></div></div></div>`;
+    const load = async () => {
+      const classId = content.querySelector("#timetableClass").value; const termId = content.querySelector("#timetableTerm").value; const out = content.querySelector("#timetableEditor"); if (!classId) return out.innerHTML = "";
+      state.cache.timetableClassId = Number(classId); let grid;
+      try { grid = await window.API.get(`/timetable?classId=${encodeURIComponent(classId)}${termId ? `&termId=${encodeURIComponent(termId)}` : ""}`); } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not load timetable.")}</p>`; return; }
+      const found = (day, period) => (grid.slots || []).find((s) => s.day === day && Number(s.period) === Number(period)) || {};
+      out.innerHTML = `<div class="dash-table-wrap"><table class="dash-table dash-timetable-edit"><thead><tr><th>Day / Period</th><th>Time</th><th>Subject</th><th>Teacher</th><th>Room</th></tr></thead><tbody>${(grid.days || []).flatMap((day) => (grid.periods || []).map((p) => { const slot = found(day, p.period); return `<tr data-day="${day}" data-period="${p.period}"><td><strong>${day}</strong> · Period ${p.period}</td><td><input class="slot-start" type="time" value="${esc(slot.startTime || p.start || "")}"> <input class="slot-end" type="time" value="${esc(slot.endTime || p.end || "")}"></td><td><select class="slot-subject"><option value="">— No class —</option>${options(catalog.subjects, slot.subjectId)}</select></td><td><select class="slot-teacher"><option value="">—</option>${options(teacherData.teachers || [], slot.teacherId, (t) => t.full_name)}</select></td><td><input class="slot-room" value="${esc(slot.room || "")}" placeholder="Room"></td></tr>`; })).join("")}</tbody></table></div><div class="dash-actions" style="margin-top:16px"><button id="saveTimetable" class="dash-btn dash-btn-primary">${I.check} Save timetable</button><a class="dash-btn dash-btn-ghost" href="${window.API.url(`/timetable/print?classId=${encodeURIComponent(classId)}${termId ? `&termId=${encodeURIComponent(termId)}` : ""}`)}" target="_blank" rel="noopener">${I.external} Print</a></div>`;
+      out.querySelector("#saveTimetable").addEventListener("click", async () => { const slots = [...out.querySelectorAll("tbody tr")].map((row) => ({ day: row.dataset.day, period: Number(row.dataset.period), startTime: row.querySelector(".slot-start").value, endTime: row.querySelector(".slot-end").value, subjectId: row.querySelector(".slot-subject").value || null, teacherId: row.querySelector(".slot-teacher").value || null, room: row.querySelector(".slot-room").value })).filter((s) => s.subjectId || s.teacherId || s.room); try { const r = await window.API.put("/timetable", { classId: Number(classId), termId: termId ? Number(termId) : undefined, slots }); toast(`${r.saved} timetable slot(s) saved.`, "success"); } catch (err) { toast(err.message || "Could not save timetable.", "error"); } });
+    };
+    content.querySelector("#timetableClass").addEventListener("change", load); content.querySelector("#timetableTerm").addEventListener("change", load); if (selected) load();
+  }
+
+  /* =========================== ATTENDANCE ============================== */
+  async function pageTeacherAttendance(content) {
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Attendance</div><h2>Teacher Attendance</h2><p>Record staff attendance in its separate register.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-field" style="max-width:320px"><label>Date</label><input id="teacherAttendanceDate" type="date" value="${todayIso()}"></div><div id="teacherAttendanceBody" style="margin-top:16px"></div></div></div>`;
+    const load = async () => { const date = content.querySelector("#teacherAttendanceDate").value; const out = content.querySelector("#teacherAttendanceBody"); if (!date) return; const data = await window.API.get(`/attendance/teachers?date=${encodeURIComponent(date)}`); out.innerHTML = `<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Teacher</th><th>Contact</th><th>Status</th></tr></thead><tbody>${data.teachers.length ? data.teachers.map((t) => `<tr><td>${esc(t.full_name)}</td><td>${esc(t.phone || t.email || "—")}</td><td><select data-teacher-status="${t.id}"><option value="">— Not marked —</option>${["present", "absent", "excused"].map((x) => `<option value="${x}" ${t.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("") : emptyRow(3, "No teacher accounts yet.")}</tbody></table></div><button id="saveTeacherAttendance" class="dash-btn dash-btn-primary" style="margin-top:16px">${I.check} Save attendance</button>`; out.querySelector("#saveTeacherAttendance").addEventListener("click", async () => { const statuses = {}; out.querySelectorAll("[data-teacher-status]").forEach((el) => { if (el.value) statuses[el.dataset.teacherStatus] = el.value; }); try { const r = await window.API.post("/attendance/teachers/mark", { date, statuses }); toast(`${r.saved} staff attendance record(s) saved.`, "success"); } catch (err) { toast(err.message || "Could not save staff attendance.", "error"); } }); };
+    content.querySelector("#teacherAttendanceDate").addEventListener("change", load); load();
+  }
+  async function pageAttendanceReport(content) {
+    const data = await window.API.get("/classes"); const now = new Date(); const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Attendance</div><h2>Attendance Reports</h2><p>Review marked pupil attendance over any date range and export a spreadsheet.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Class</label><select id="reportAttendanceClass"><option value="">All classes</option>${options(data.classes || [])}</select></div><div class="dash-field"><label>From</label><input id="reportAttendanceFrom" type="date" value="${monthStart}"></div><div class="dash-field"><label>To</label><input id="reportAttendanceTo" type="date" value="${todayIso()}"></div></div><button id="loadAttendanceReport" class="dash-btn dash-btn-primary" style="margin-top:14px">Generate report</button><div id="attendanceReportResult" style="margin-top:18px"></div></div></div>`;
+    content.querySelector("#loadAttendanceReport").addEventListener("click", async () => { const cls = content.querySelector("#reportAttendanceClass").value; const from = content.querySelector("#reportAttendanceFrom").value; const to = content.querySelector("#reportAttendanceTo").value; const out = content.querySelector("#attendanceReportResult"); try { const r = await window.API.get(`/attendance/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cls ? `&classId=${encodeURIComponent(cls)}` : ""}`); out.innerHTML = `<div class="dash-actions" style="margin-bottom:10px"><a class="dash-btn dash-btn-ghost dash-btn-sm" href="${window.API.url(`/exports/attendance.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cls ? `&classId=${encodeURIComponent(cls)}` : ""}`)}" target="_blank" rel="noopener">${I.download} Export CSV</a></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Class</th><th>Present</th><th>Absent</th><th>Excused</th><th>Rate</th></tr></thead><tbody>${r.students.length ? r.students.map((s) => `<tr><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td>${esc(s.class_en || "—")}</td><td>${s.present}</td><td>${s.absent}</td><td>${s.excused}</td><td>${s.marked ? Math.round((s.present / s.marked) * 100) : 0}%</td></tr>`).join("") : emptyRow(6, "No attendance marks in this date range.")}</tbody></table></div>`; } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not generate report.")}</p>`; } });
+  }
+
+  /* ============================= ACADEMIC ============================== */
+  async function pageHomework(content, route) {
+    const [data, base] = await Promise.all([window.API.get(`/homework?kind=${route.endsWith("lessons") ? "lesson" : "assignment"}`), catalogue()]); const label = route.endsWith("lessons") ? "Lessons" : "Assignments";
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>${label}</h2><p>Post classroom work with optional subject, due date and instructions.</p></div><button id="addHomework" class="dash-btn dash-btn-primary">${I.plus} Add ${label.slice(0, -1)}</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Title</th><th>Class</th><th>Subject</th><th>Due</th><th>Posted by</th><th></th></tr></thead><tbody>${(data.homework || []).length ? data.homework.map((h) => `<tr><td><strong>${esc(h.title)}</strong><small>${esc((h.details || "").slice(0, 120))}</small></td><td>${esc(h.class_en || "All classes")}</td><td>${esc(h.subject_en || "—")}</td><td>${fmtDate(h.due_date)}</td><td>${esc(h.author || "—")}</td><td><button class="dash-btn dash-btn-danger dash-btn-sm" data-delete-homework="${h.id}">${I.trash}</button></td></tr>`).join("") : emptyRow(6, `No ${label.toLowerCase()} have been posted yet.`)}</tbody></table></div></div>`;
+    content.querySelector("#addHomework").addEventListener("click", () => { const modal = openModal(`Add ${label.slice(0, -1)}`, `<form id="homeworkForm"><div class="dash-form-grid"><div class="dash-field" style="grid-column:1/-1"><label>Title</label><input name="title" required></div><div class="dash-field"><label>Class</label><select name="class_id"><option value="">All classes</option>${options(base.classes)}</select></div><div class="dash-field"><label>Subject</label><select name="subject_id"><option value="">Not specified</option>${options(base.subjects)}</select></div><div class="dash-field"><label>Due date</label><input name="due_date" type="date"></div><div class="dash-field" style="grid-column:1/-1"><label>Instructions</label><textarea name="details"></textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Post</button></form>`); modal.querySelector("#homeworkForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.post("/homework", Object.assign(Object.fromEntries(new FormData(e.target)), { kind: route.endsWith("lessons") ? "lesson" : "assignment" })); toast(`${label.slice(0, -1)} posted.`, "success"); closeModal(); pageHomework(content, route); } catch (err) { toast(err.message || "Could not post work.", "error"); } }); });
+    content.querySelectorAll("[data-delete-homework]").forEach((b) => b.addEventListener("click", async () => { if (!window.confirm("Remove this item?")) return; try { await window.API.del(`/homework/${b.dataset.deleteHomework}`); toast("Item removed.", "success"); pageHomework(content, route); } catch (err) { toast(err.message || "Could not remove item.", "error"); } }));
+  }
+
+  async function pageGrading(content) {
+    const data = await window.API.get("/grading"); const bands = data.bands || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>Examinations & Grading</h2><p>Configure CA, examination scores, pass mark, grade bands and promotion rules.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="gradingForm"><div class="dash-form-grid"><div class="dash-field"><label>CA maximum</label><input name="ca_max" type="number" min="1" max="100" value="${esc(data.caMax)}"></div><div class="dash-field"><label>Exam maximum</label><input name="exam_max" type="number" min="1" max="100" value="${esc(data.examMax)}"></div><div class="dash-field"><label>Pass mark (%)</label><input name="pass_mark" type="number" min="0" max="100" value="${esc(data.passMark)}"></div><div class="dash-field"><label>Promotion minimum average (%)</label><input name="promotion_min_average" type="number" min="0" max="100" value="${data.promotionMinAverage == null ? "" : esc(data.promotionMinAverage)}"></div><div class="dash-field"><label>Promotion requires passing every subject</label><select name="promotion_require_pass"><option value="true" ${data.promotionRequirePass ? "selected" : ""}>Yes</option><option value="false" ${!data.promotionRequirePass ? "selected" : ""}>No</option></select></div></div><h3 style="margin:22px 0 10px">Grade bands</h3><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Minimum %</th><th>Grade</th><th>Remark</th><th>Arabic Remark</th></tr></thead><tbody id="gradeBandRows">${bands.map((b) => `<tr><td><input type="number" class="band-min" min="0" max="100" value="${esc(b.min)}"></td><td><input class="band-grade" maxlength="5" value="${esc(b.grade)}"></td><td><input class="band-remark" value="${esc(b.remark)}"></td><td><input class="band-remark-ar" dir="rtl" value="${esc(b.remark_ar)}"></td></tr>`).join("")}</tbody></table></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save grading configuration</button></form></div></div>`;
+    content.querySelector("#gradingForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); const bandsOut = [...content.querySelectorAll("#gradeBandRows tr")].map((tr) => ({ min: tr.querySelector(".band-min").value, grade: tr.querySelector(".band-grade").value, remark: tr.querySelector(".band-remark").value, remark_ar: tr.querySelector(".band-remark-ar").value })).filter((x) => x.grade); try { await window.API.put("/grading", { ca_max: fd.get("ca_max"), exam_max: fd.get("exam_max"), pass_mark: fd.get("pass_mark"), promotion_min_average: fd.get("promotion_min_average"), promotion_require_pass: fd.get("promotion_require_pass") === "true", bands: bandsOut }); toast("Grading configuration saved.", "success"); } catch (err) { toast(err.message || "Could not save grading configuration.", "error"); } });
+  }
+
+  async function pageResultsWorkbook(content) {
+    const base = await catalogue(); const terms = allTerms(base.sessions);
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>Results</h2><p>Enter scores, calculate class summaries, then publish results when they are ready.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Class</label><select id="resultClass"><option value="">Select class</option>${options(base.classes)}</select></div><div class="dash-field"><label>Term</label><select id="resultTerm"><option value="">Select term</option>${options(terms, "", (t) => `${t.session_label} — ${t.name_en}`)}</select></div><div class="dash-field"><label>Subject</label><select id="resultSubject"><option value="">Select subject</option>${options(base.subjects)}</select></div></div><div id="resultWorkbook" style="margin-top:18px"></div></div></div>`;
+    const load = async () => { const classId = content.querySelector("#resultClass").value; const termId = content.querySelector("#resultTerm").value; const subjectId = content.querySelector("#resultSubject").value; const out = content.querySelector("#resultWorkbook"); if (!classId || !termId || !subjectId) return out.innerHTML = `<p class="hint">Choose a class, term and subject to open its gradebook.</p>`; try { const data = await window.API.get(`/results/roster?classId=${classId}&termId=${termId}&subjectId=${subjectId}`); out.innerHTML = `<div class="dash-info-line">CA max: <b>${data.config.caMax}</b> · Exam max: <b>${data.config.examMax}</b> · Pass mark: <b>${data.config.passMark}%</b></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Admission No.</th><th>Student</th><th>CA</th><th>Exam</th><th>Total</th></tr></thead><tbody>${data.students.length ? data.students.map((s) => `<tr data-result-student="${s.student_id}"><td>${esc(s.admission_no)}</td><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td><input class="score-ca" type="number" min="0" max="${data.config.caMax}" step="0.5" value="${esc(s.ca)}"></td><td><input class="score-exam" type="number" min="0" max="${data.config.examMax}" step="0.5" value="${esc(s.exam)}"></td><td class="score-total">${s.total === "" ? "—" : esc(s.total)}</td></tr>`).join("") : emptyRow(5, "No active students in this class.")}</tbody></table></div><div class="dash-actions" style="margin-top:16px"><button id="saveResults" class="dash-btn dash-btn-primary">${I.check} Save Scores</button><button id="computeResults" class="dash-btn dash-btn-ghost">${I.refresh} Calculate summaries</button><button id="publishResults" class="dash-btn dash-btn-ghost">Publish results</button><a class="dash-btn dash-btn-ghost" href="${window.API.url(`/exports/results.csv?classId=${classId}&termId=${termId}`)}" target="_blank" rel="noopener">${I.download} Export</a></div>`; const updateTotals = () => out.querySelectorAll("[data-result-student]").forEach((r) => { const ca = Number(r.querySelector(".score-ca").value || 0), ex = Number(r.querySelector(".score-exam").value || 0); r.querySelector(".score-total").textContent = ca || ex ? String(ca + ex) : "—"; }); out.querySelectorAll(".score-ca,.score-exam").forEach((i) => i.addEventListener("input", updateTotals)); out.querySelector("#saveResults").addEventListener("click", async () => { const entries = [...out.querySelectorAll("[data-result-student]")].map((r) => ({ studentId: Number(r.dataset.resultStudent), ca: r.querySelector(".score-ca").value || 0, exam: r.querySelector(".score-exam").value || 0 })); try { await window.API.put("/results", { classId: Number(classId), termId: Number(termId), subjectId: Number(subjectId), entries }); toast("Scores saved.", "success"); } catch (err) { toast(err.message || "Could not save scores.", "error"); } }); out.querySelector("#computeResults").addEventListener("click", async () => { try { const r = await window.API.post("/results/compute", { classId: Number(classId), termId: Number(termId) }); toast(`${r.computed || r.count || "Class"} summaries calculated.`, "success"); } catch (err) { toast(err.message || "Could not calculate summaries.", "error"); } }); out.querySelector("#publishResults").addEventListener("click", async () => { if (!window.confirm("Publish this class’s calculated results? Students and parents will be able to view them.")) return; try { const r = await window.API.put("/results/summaries/publish", { classId: Number(classId), termId: Number(termId), publish: true }); toast(`${r.count} result(s) published.`, "success"); } catch (err) { toast(err.message || "Could not publish results.", "error"); } }); } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not load gradebook.")}</p>`; } };
+    ["#resultClass", "#resultTerm", "#resultSubject"].forEach((id) => content.querySelector(id).addEventListener("change", load));
+  }
+
+
+  async function pageReportCards(content) {
+    const base = await catalogue(); const terms = allTerms(base.sessions);
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>Report Cards</h2><p>Review calculated term summaries, add comments and open printable report cards.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Class</label><select id="reportClass"><option value="">Select class</option>${options(base.classes)}</select></div><div class="dash-field"><label>Term</label><select id="reportTerm"><option value="">Select term</option>${options(terms, "", (t) => `${t.session_label} — ${t.name_en}`)}</select></div></div><div id="reportCardsList" style="margin-top:18px"></div></div></div>`;
+    const load = async () => { const cls = content.querySelector("#reportClass").value, term = content.querySelector("#reportTerm").value, out = content.querySelector("#reportCardsList"); if (!cls || !term) return out.innerHTML = `<p class="hint">Select class and term to see calculated report cards.</p>`; try { const r = await window.API.get(`/results/summary?classId=${cls}&termId=${term}`); out.innerHTML = `<div class="dash-actions" style="margin-bottom:10px"><button id="calculateReportCards" class="dash-btn dash-btn-ghost dash-btn-sm">${I.refresh} Recalculate all</button><button id="publishReportCards" class="dash-btn dash-btn-primary dash-btn-sm">Publish class results</button><a class="dash-btn dash-btn-ghost dash-btn-sm" target="_blank" rel="noopener" href="${window.API.url(`/exports/summary.csv?classId=${cls}&termId=${term}`)}">${I.download} Export CSV</a></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Average</th><th>Grade</th><th>Position</th><th>Promotion</th><th>Publication</th><th></th></tr></thead><tbody>${r.students.length ? r.students.map((s) => `<tr><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td>${esc(s.average)}%</td><td>${esc(s.overall_grade)}</td><td>${esc(s.position || "—")}</td><td>${esc(s.promotion_status)}</td><td><span class="dash-pill ${s.published_at ? "ok" : "warn"}">${s.published_at ? "published" : "draft"}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-summary-student="${s.student_id}">Comments</button> <a class="dash-btn dash-btn-ghost dash-btn-sm" target="_blank" rel="noopener" href="${window.API.reportCardUrl(s.student_id, term)}">${I.external} Card</a></td></tr>`).join("") : emptyRow(7, "No calculated summaries. Enter subject scores, then calculate the class term.")}</tbody></table></div>`; out.querySelector("#calculateReportCards").addEventListener("click", async () => { try { await window.API.post("/results/compute", { classId: Number(cls), termId: Number(term) }); toast("Term summaries calculated.", "success"); load(); } catch (err) { toast(err.message || "Could not calculate summaries.", "error"); } }); out.querySelector("#publishReportCards").addEventListener("click", async () => { if (!window.confirm("Publish all calculated report cards in this class?")) return; try { const x = await window.API.put("/results/summaries/publish", { classId: Number(cls), termId: Number(term), publish: true }); toast(`${x.count} report card(s) published.`, "success"); load(); } catch (err) { toast(err.message || "Could not publish report cards.", "error"); } }); out.querySelectorAll("[data-summary-student]").forEach((b) => b.addEventListener("click", () => { const s = r.students.find((x) => Number(x.student_id) === Number(b.dataset.summaryStudent)); openSummaryModal(s, Number(term), load); })); } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not load report cards.")}</p>`; } };
+    content.querySelector("#reportClass").addEventListener("change", load); content.querySelector("#reportTerm").addEventListener("change", load);
+  }
+  function openSummaryModal(summary, termId, done) {
+    const modal = openModal(`Report comments — ${summary.first_name} ${summary.last_name}`, `<form id="summaryForm"><div class="dash-form-grid"><div class="dash-field"><label>Teacher Comment</label><textarea name="teacher_comment">${esc(summary.teacher_comment || "")}</textarea></div><div class="dash-field"><label>Head / Administrator Comment</label><textarea name="head_comment">${esc(summary.head_comment || "")}</textarea></div><div class="dash-field"><label>Attendance days</label><input name="attendance_days" type="number" min="0" value="${esc(summary.attendance_days || 0)}"></div><div class="dash-field"><label>Promotion decision</label><select name="promotion_status">${["pending", "promoted", "repeating", "graduated"].map((x) => `<option value="${x}" ${summary.promotion_status === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save comments</button></form>`);
+    modal.querySelector("#summaryForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.put(`/results/summary/${summary.student_id}`, { termId, teacher_comment: fd.get("teacher_comment"), head_comment: fd.get("head_comment"), attendance_days: fd.get("attendance_days"), promotion_status: fd.get("promotion_status") }); toast("Report card comments saved.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not save report comments.", "error"); } });
+  }
+
+  async function pageSessionsManager(content, route) {
+    const data = await window.API.get("/sessions"); const sessions = data.sessions || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>${route.endsWith("terms") ? "Terms" : "Academic Sessions"}</h2><p>Make one session current before entering attendance and results. Each session can have its own terms.</p></div><button class="dash-btn dash-btn-primary" id="addSession">${I.plus} Add Session</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Session</th><th>Dates</th><th>Terms</th><th>Current</th><th></th></tr></thead><tbody>${sessions.length ? sessions.map((s) => `<tr><td><strong>${esc(s.label)}</strong></td><td>${fmtDate(s.start_date)} — ${fmtDate(s.end_date)}</td><td>${esc((s.terms || []).map((t) => t.name_en).join(", ") || "No terms")}</td><td>${s.is_current ? `<span class="dash-pill ok">Current</span>` : "—"}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-session="${s.id}">Manage terms</button>${s.is_current ? "" : ` <button class="dash-btn dash-btn-ghost dash-btn-sm" data-current-session="${s.id}">Set current</button>`}</td></tr>`).join("") : emptyRow(5, "No academic sessions yet.")}</tbody></table></div></div>`;
+    content.querySelector("#addSession").addEventListener("click", () => { const modal = openModal("Add academic session", `<form id="newSessionForm"><div class="dash-form-grid"><div class="dash-field"><label>Session label</label><input name="label" required placeholder="2026/2027" pattern="[0-9]{4}([/ -]?[0-9]{0,4})?"></div><div class="dash-field"><label>Start date</label><input name="start_date" type="date"></div><div class="dash-field"><label>End date</label><input name="end_date" type="date"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Create session with 3 terms</button></form>`); modal.querySelector("#newSessionForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.post("/sessions", Object.fromEntries(new FormData(e.target))); toast("Session and its standard terms created.", "success"); closeModal(); pageSessionsManager(content, route); } catch (err) { toast(err.message || "Could not create session.", "error"); } }); });
+    content.querySelectorAll("[data-current-session]").forEach((b) => b.addEventListener("click", async () => { try { await window.API.patch(`/sessions/${b.dataset.currentSession}`, { is_current: true }); toast("Current session updated.", "success"); pageSessionsManager(content, route); } catch (err) { toast(err.message || "Could not change current session.", "error"); } }));
+    content.querySelectorAll("[data-session]").forEach((b) => b.addEventListener("click", () => openSessionTermsModal(sessions.find((x) => Number(x.id) === Number(b.dataset.session)), () => pageSessionsManager(content, route))));
+  }
+  function openSessionTermsModal(session, done) {
+    const renderTerms = () => (session.terms || []).map((t) => `<tr><td>${t.position}</td><td>${esc(t.name_en)}</td><td>${esc(t.name_ar || "")}</td><td>${fmtDate(t.start_date)} — ${fmtDate(t.end_date)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-edit-term="${t.id}">${I.edit}</button></td></tr>`).join("") || emptyRow(5, "No terms yet.");
+    const modal = openModal(`${session.label} — terms`, `<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>#</th><th>English</th><th>Arabic</th><th>Dates</th><th></th></tr></thead><tbody>${renderTerms()}</tbody></table></div><hr class="dash-rule"><form id="newTermForm"><div class="dash-form-grid"><div class="dash-field"><label>Position</label><input name="position" type="number" min="1" required value="${(session.terms || []).length + 1}"></div><div class="dash-field"><label>English name</label><input name="name_en" required></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl"></div><div class="dash-field"><label>Start date</label><input name="start_date" type="date"></div><div class="dash-field"><label>End date</label><input name="end_date" type="date"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.plus} Add term</button></form>`);
+    modal.querySelector("#newTermForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.post(`/sessions/${session.id}/terms`, Object.fromEntries(new FormData(e.target))); toast("Term added.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not add term.", "error"); } });
+    modal.querySelectorAll("[data-edit-term]").forEach((b) => b.addEventListener("click", () => { const t = session.terms.find((x) => Number(x.id) === Number(b.dataset.editTerm)); const edit = openModal(`Edit ${t.name_en}`, `<form id="editTermForm"><div class="dash-form-grid"><div class="dash-field"><label>English name</label><input name="name_en" value="${esc(t.name_en)}"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" value="${esc(t.name_ar)}"></div><div class="dash-field"><label>Start date</label><input name="start_date" type="date" value="${esc(t.start_date || "")}"></div><div class="dash-field"><label>End date</label><input name="end_date" type="date" value="${esc(t.end_date || "")}"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save term</button></form>`); edit.querySelector("#editTermForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.patch(`/terms/${t.id}`, Object.fromEntries(new FormData(e.target))); toast("Term saved.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not save term.", "error"); } }); }));
+  }
+
+  /* ============================ ADMISSIONS ============================== */
+  async function pageAdmissionApplications(content) {
+    const [data, base] = await Promise.all([window.API.get("/admissions"), catalogue()]); const rows = data.requests || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Admissions</div><h2>Applications</h2><p>Review online admission requests, then admit, hold or reject with an audit note.</p></div><a class="dash-btn dash-btn-ghost" target="_blank" rel="noopener" href="${window.API.url("/exports/admissions.csv")}">${I.download} Export</a></div><div class="dash-stats-grid">${statCard("admissions", data.byStatus ? data.byStatus.pending : 0, "Pending")}${statCard("check", data.byStatus ? data.byStatus.approved : 0, "Approved")}${statCard("clock", data.byStatus ? data.byStatus.on_hold : 0, "On Hold")}${statCard("close", data.byStatus ? data.byStatus.rejected : 0, "Rejected")}</div><div class="dash-card" style="margin-top:18px"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Reference</th><th>Applicant</th><th>Requested class</th><th>Submitted</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map((r) => `<tr><td>${esc(r.reference)}</td><td><strong>${esc(r.first_name)} ${esc(r.last_name)}</strong><small>${esc(r.parent_name || "")}</small></td><td>${esc(r.class_name || "—")}</td><td>${fmtDate(r.created_at)}</td><td><span class="dash-pill ${pillFor(r.status)}">${esc(r.status)}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-admission="${r.id}">Review</button></td></tr>`).join("") : emptyRow(6, "No applications have arrived yet.")}</tbody></table></div></div>`;
+    content.querySelectorAll("[data-admission]").forEach((b) => b.addEventListener("click", () => openAdmissionModal(Number(b.dataset.admission), base.classes, () => pageAdmissionApplications(content))));
+  }
+  async function openAdmissionModal(id, classes, done) {
+    const data = await window.API.get(`/admissions/${id}`); const r = data.request; const modal = openModal(`Admission — ${r.first_name} ${r.last_name}`, `<div class="dash-info-grid"><div><b>Reference</b><br>${esc(r.reference)}</div><div><b>Current status</b><br>${esc(r.status)}</div><div><b>Guardian</b><br>${esc(r.parent_name || "—")}<br>${esc(r.parent_phone || "")}</div><div><b>Applicant note</b><br>${esc(r.message || "—")}</div></div>${r.status !== "approved" ? `<hr class="dash-rule"><form id="admissionReview"><div class="dash-form-grid"><div class="dash-field"><label>Admit to class</label><select name="class_id"><option value="">Unassigned</option>${options(classes, r.class_id)}</select></div><div class="dash-field"><label>Admission number (optional)</label><input name="admission_no" placeholder="Generated automatically"></div><div class="dash-field" style="grid-column:1/-1"><label>Review note</label><textarea name="note">${esc(r.review_note || "")}</textarea></div></div><label class="dash-checkbox"><input name="create_student_account" type="checkbox"> Create student portal account</label><label class="dash-checkbox"><input name="create_parent_account" type="checkbox"> Create parent portal account</label><div class="dash-field" style="margin-top:10px"><label>Portal temporary password (required if an account is created)</label><input name="password" type="password" minlength="8"></div><div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" data-admission-action="approve" type="submit">${I.check} Approve & admit</button><button class="dash-btn dash-btn-ghost" data-admission-action="hold" type="submit">Put on hold</button><button class="dash-btn dash-btn-danger" data-admission-action="reject" type="submit">Reject</button></div></form>` : `<p class="dash-info-line">This application was admitted${data.student ? ` as ${esc(data.student.admission_no)}` : ""}.</p>`}`);
+    const form = modal.querySelector("#admissionReview"); if (form) form.addEventListener("submit", async (e) => { e.preventDefault(); const action = e.submitter.dataset.admissionAction; const fd = new FormData(form); const body = Object.fromEntries(fd); body.create_student_account = fd.get("create_student_account") === "on"; body.create_parent_account = fd.get("create_parent_account") === "on"; try { await window.API.post(`/admissions/${id}/${action}`, body); toast(action === "approve" ? "Applicant admitted." : `Application ${action === "hold" ? "put on hold" : "rejected"}.`, "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not review application.", "error"); } });
+  }
+  async function pageAdmissionRequirements(content) { return pageWebsiteContent(content, "website/admissions"); }
+  async function pageAdmissionSettings(content) {
+    const [site, profile] = await Promise.all([window.API.get("/madrasa/public-site"), window.API.get("/madrasa/profile")]); const s = site.settings || {}; const slug = profile.madrasa.slug;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Admissions</div><h2>Admission Settings</h2><p>Control which parts of your online admission journey are visible to the public.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="admissionSettingsForm"><label class="dash-toggle"><input name="public_listing" type="checkbox" ${s.public_listing ? "checked" : ""}><span>Show this institution in the BELLO directory</span></label><label class="dash-toggle"><input name="public_admissions" type="checkbox" ${s.public_admissions ? "checked" : ""}><span>Accept online applications</span></label><label class="dash-toggle"><input name="public_results" type="checkbox" ${s.public_results ? "checked" : ""}><span>Enable public result checking for published results</span></label><div class="dash-form-grid" style="margin-top:16px"><div class="dash-field"><label>Founded year</label><input name="founded_year" pattern="[0-9]{4}" value="${esc(s.founded_year || "")}"></div><div class="dash-field"><label>Public website URL</label><input name="website" type="url" value="${esc(s.website || "")}"></div><div class="dash-field" style="grid-column:1/-1"><label>Public introduction</label><textarea name="description_en">${esc(s.description_en || "")}</textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save admission settings</button></form><p class="dash-info-line" style="margin-top:16px">Your public application link: <a href="/s/${esc(slug)}" target="_blank" rel="noopener">/s/${esc(slug)}</a></p></div></div>`;
+    content.querySelector("#admissionSettingsForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.put("/madrasa/public-site", { public_listing: fd.get("public_listing") === "on", public_admissions: fd.get("public_admissions") === "on", public_results: fd.get("public_results") === "on", founded_year: fd.get("founded_year"), website: fd.get("website"), description_en: fd.get("description_en") }); toast("Admission settings saved.", "success"); } catch (err) { toast(err.message || "Could not save admission settings.", "error"); } });
+  }
+
+
+  /* ========================== COMMUNICATION ============================ */
+  async function pageAnnouncements(content) {
+    const data = await window.API.get("/announcements"); const rows = data.announcements || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Communication</div><h2>Announcements</h2><p>Create notices for everyone, students or parents; choose which ones are public.</p></div><button class="dash-btn dash-btn-primary" id="newAnnouncement">${I.plus} New Announcement</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Announcement</th><th>Audience</th><th>Public</th><th>Status</th><th>Published</th><th></th></tr></thead><tbody>${rows.length ? rows.map((a) => `<tr><td><strong>${esc(a.title)}</strong><small>${esc((a.body || "").slice(0, 130))}</small></td><td>${esc(a.audience)}</td><td>${a.publish_public ? "Yes" : "No"}</td><td><span class="dash-pill ${a.is_active ? "ok" : "danger"}">${a.is_active ? "active" : "archived"}</span></td><td>${fmtDate(a.created_at)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-announcement="${a.id}">${I.edit}</button></td></tr>`).join("") : emptyRow(6, "No announcements yet.")}</tbody></table></div></div>`;
+    const open = (a) => openAnnouncementModal(a, () => pageAnnouncements(content)); content.querySelector("#newAnnouncement").addEventListener("click", () => open(null)); content.querySelectorAll("[data-announcement]").forEach((b) => b.addEventListener("click", () => open(rows.find((a) => Number(a.id) === Number(b.dataset.announcement)))));
+  }
+  function openAnnouncementModal(a, done) {
+    const isNew = !a; const modal = openModal(isNew ? "New announcement" : "Edit announcement", `<form id="announcementForm"><div class="dash-form-grid"><div class="dash-field" style="grid-column:1/-1"><label>Title</label><input name="title" required maxlength="200" value="${esc(a && a.title)}"></div><div class="dash-field" style="grid-column:1/-1"><label>Message</label><textarea name="body" required maxlength="5000">${esc(a && a.body)}</textarea></div><div class="dash-field"><label>Audience</label><select name="audience">${["all", "students", "parents"].map((x) => `<option value="${x}" ${a && a.audience === x ? "selected" : ""}>${x}</option>`).join("")}</select></div><div class="dash-field"><label>Public website expiry (optional)</label><input name="publish_until" type="date" value="${esc(a && a.publish_until || "")}"></div></div><label class="dash-checkbox"><input name="publish_public" type="checkbox" ${a && a.publish_public ? "checked" : ""}> Publish on public website</label>${!isNew ? `<label class="dash-checkbox"><input name="is_active" type="checkbox" ${a.is_active ? "checked" : ""}> Active</label>` : ""}<div class="dash-actions" style="margin-top:16px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} ${isNew ? "Post" : "Save"}</button>${!isNew ? `<button class="dash-btn dash-btn-danger" type="button" id="archiveAnnouncement">Archive</button>` : ""}</div></form>`);
+    const form = modal.querySelector("#announcementForm"); form.addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(form); const body = { title: fd.get("title"), body: fd.get("body"), audience: fd.get("audience"), publish_public: fd.get("publish_public") === "on", publish_until: fd.get("publish_until") }; if (!isNew) body.is_active = fd.get("is_active") === "on"; try { if (isNew) await window.API.post("/announcements", body); else await window.API.patch(`/announcements/${a.id}`, body); toast(isNew ? "Announcement posted." : "Announcement saved.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not save announcement.", "error"); } });
+    const archive = modal.querySelector("#archiveAnnouncement"); if (archive) archive.addEventListener("click", async () => { if (!window.confirm("Archive this announcement?")) return; try { await window.API.del(`/announcements/${a.id}`); toast("Announcement archived.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not archive announcement.", "error"); } });
+  }
+  async function pageMessages(content) {
+    const data = await window.API.get("/chat?scope=general"); const rows = data.messages || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Communication</div><h2>Messages</h2><p>General school conversation. Messages are visible to signed-in members of your institution.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-message-list">${rows.length ? rows.map((m) => `<div class="dash-message ${m.mine ? "mine" : ""}"><div><strong>${esc(m.author)}</strong><small>${fmtDate(m.createdAt)}</small></div><p>${esc(m.body)}</p>${m.mine ? `<button class="dash-link-btn" data-delete-message="${m.id}">Delete</button>` : ""}</div>`).join("") : `<p class="hint">No messages yet.</p>`}</div><form id="messageForm" style="margin-top:16px"><div class="dash-field"><label>New message</label><textarea name="body" required maxlength="2000" placeholder="Write a message to your school community…"></textarea></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:10px">${I.check} Send message</button></form></div></div>`;
+    content.querySelector("#messageForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.post("/chat", { scope: "general", body: fd.get("body") }); pageMessages(content); } catch (err) { toast(err.message || "Could not send message.", "error"); } }); content.querySelectorAll("[data-delete-message]").forEach((b) => b.addEventListener("click", async () => { try { await window.API.del(`/chat/${b.dataset.deleteMessage}`); pageMessages(content); } catch (err) { toast(err.message || "Could not delete message.", "error"); } }));
+  }
+  async function pageNotifications(content) {
+    const data = await window.API.get("/notifications"); const counts = data.counts || {};
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Communication</div><h2>Notifications</h2><p>Current alerts and recent active announcements for this institution.</p></div></div><div class="dash-stats-grid">${statCard("admissions", counts.pendingAdmissions || 0, "Pending admissions")}${statCard("academic", counts.unpublishedSummaries || 0, "Unpublished summaries")}${statCard("book", counts.homework || 0, "Assignments posted")}</div><div class="dash-card" style="margin-top:18px"><div class="dash-card-head"><h3>Active announcements</h3></div><div class="dash-card-pad">${(data.announcements || []).length ? data.announcements.map((a) => `<article class="dash-note"><strong>${esc(a.title)}</strong><p>${esc(a.body)}</p><small>${esc(a.audience)} · ${fmtDate(a.created_at)}</small></article>`).join("") : `<p class="hint">There are no active announcements.</p>`}</div></div>`;
+  }
+  async function pageParentCommunication(content) {
+    const [users, students] = await Promise.all([window.API.get("/users"), window.API.get("/students?perPage=200")]); const parents = (users.users || []).filter((u) => u.role === "parent");
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Communication</div><h2>Parent Communication</h2><p>Review parent portal accounts and send parent-only announcements.</p></div><button class="dash-btn dash-btn-primary" id="messageParents">${I.plus} Notify Parents</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Parent Account</th><th>Contact</th><th>Status</th></tr></thead><tbody>${parents.length ? parents.map((p) => `<tr><td>${esc(p.full_name || p.username)}<small>@${esc(p.username)}</small></td><td>${esc(p.phone || p.email || "—")}</td><td><span class="dash-pill ${p.is_active ? "ok" : "danger"}">${p.is_active ? "active" : "inactive"}</span></td></tr>`).join("") : emptyRow(3, "No parent portal accounts yet. Create one from a student profile.")}</tbody></table></div></div><p class="hint" style="margin-top:12px">${students.total || 0} student record(s) are available for parent linking.</p>`;
+    content.querySelector("#messageParents").addEventListener("click", () => openAnnouncementModal({ title: "", body: "", audience: "parents", publish_public: 0, is_active: 1 }, () => pageParentCommunication(content)));
+  }
+
+  /* ============================== FINANCE =============================== */
+  async function pageFees(content) {
+    const [data, base] = await Promise.all([window.API.get("/fees/items"), catalogue()]); const items = data.items || []; const terms = allTerms(base.sessions);
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>${state.category === "western" ? "Academy" : "School"} Fees</h2><p>Set amounts billed to each active student for a term.</p></div><button id="addFeeItem" class="dash-btn dash-btn-primary">${I.plus} Add Fee</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Fee</th><th>Term</th><th>Amount</th><th></th></tr></thead><tbody>${items.length ? items.map((f) => `<tr><td>${esc(f.name_en)}${f.name_ar ? `<small class="dash-ar">${esc(f.name_ar)}</small>` : ""}</td><td>${esc((terms.find((t) => Number(t.id) === Number(f.term_id)) || {}).name_en || "All terms")}</td><td>${fmtMoney(f.amount_ngn)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-fee-item="${f.id}">${I.edit}</button></td></tr>`).join("") : emptyRow(4, "No fee items yet.")}</tbody></table></div></div>`;
+    const open = (f) => openFeeItemModal(f, terms, () => pageFees(content)); content.querySelector("#addFeeItem").addEventListener("click", () => open(null)); content.querySelectorAll("[data-fee-item]").forEach((b) => b.addEventListener("click", () => open(items.find((x) => Number(x.id) === Number(b.dataset.feeItem)))));
+  }
+  function openFeeItemModal(item, terms, done) { const modal = openModal(item ? "Edit fee item" : "Add fee item", `<form id="feeItemForm"><div class="dash-form-grid"><div class="dash-field"><label>Fee name</label><input name="name_en" required value="${esc(item && item.name_en)}"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" value="${esc(item && item.name_ar)}"></div><div class="dash-field"><label>Term</label><select name="term_id"><option value="">All / no term</option>${options(terms, item && item.term_id, (t) => `${t.session_label} — ${t.name_en}`)}</select></div><div class="dash-field"><label>Amount (₦)</label><input name="amount_ngn" type="number" min="0" step="0.01" required value="${esc(item && item.amount_ngn || 0)}"></div></div><div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} Save fee</button>${item ? `<button id="deleteFeeItem" type="button" class="dash-btn dash-btn-danger">${I.trash}</button>` : ""}</div></form>`); const form = modal.querySelector("#feeItemForm"); form.addEventListener("submit", async (e) => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(form)); if (item) await window.API.patch(`/fees/items/${item.id}`, body); else await window.API.post("/fees/items", body); toast("Fee item saved.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not save fee item.", "error"); } }); const del = modal.querySelector("#deleteFeeItem"); if (del) del.addEventListener("click", async () => { if (!window.confirm("Delete this fee item?")) return; try { await window.API.del(`/fees/items/${item.id}`); toast("Fee item deleted.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not delete fee item.", "error"); } }); }
+  async function pagePayments(content) {
+    const [data, students, items] = await Promise.all([window.API.get("/fees/payments"), window.API.get("/students?perPage=200"), window.API.get("/fees/items")]); const payments = data.payments || [];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>Payments & Fee Records</h2><p>Record verified payments; this dashboard does not process public payments.</p></div><button id="recordPayment" class="dash-btn dash-btn-primary">${I.plus} Record Payment</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Date</th><th>Student</th><th>Fee</th><th>Amount</th><th>Method</th><th>Reference</th><th></th></tr></thead><tbody>${payments.length ? payments.map((p) => `<tr><td>${fmtDate(p.payment_date)}</td><td>${esc(p.first_name)} ${esc(p.last_name)}<small>${esc(p.admission_no)}</small></td><td>${esc(p.item_en || "General payment")}</td><td>${fmtMoney(p.amount_ngn)}</td><td>${esc(p.method)}</td><td>${esc(p.reference || "—")}</td><td><button class="dash-btn dash-btn-danger dash-btn-sm" data-delete-payment="${p.id}">${I.trash}</button></td></tr>`).join("") : emptyRow(7, "No payments recorded yet.")}</tbody></table></div></div>`;
+    content.querySelector("#recordPayment").addEventListener("click", () => { const modal = openModal("Record payment", `<form id="paymentForm"><div class="dash-form-grid"><div class="dash-field"><label>Student</label><select name="student_id" required><option value="">Select student</option>${options(students.students || [], null, (s) => `${s.admission_no} — ${s.first_name} ${s.last_name}`)}</select></div><div class="dash-field"><label>Fee item</label><select name="fee_item_id"><option value="">General payment</option>${options(items.items || [], null, (x) => x.name_en)}</select></div><div class="dash-field"><label>Amount (₦)</label><input name="amount_ngn" type="number" min="1" step="0.01" required></div><div class="dash-field"><label>Payment date</label><input name="payment_date" type="date" required value="${todayIso()}"></div><div class="dash-field"><label>Method</label><select name="method"><option value="cash">Cash</option><option value="transfer">Bank transfer</option><option value="pos">POS</option><option value="other">Other</option></select></div><div class="dash-field"><label>Reference</label><input name="reference"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Record Payment</button></form>`); modal.querySelector("#paymentForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.post("/fees/payments", Object.fromEntries(new FormData(e.target))); toast("Payment recorded.", "success"); closeModal(); pagePayments(content); } catch (err) { toast(err.message || "Could not record payment.", "error"); } }); });
+    content.querySelectorAll("[data-delete-payment]").forEach((b) => b.addEventListener("click", async () => { if (!window.confirm("Delete this payment record?")) return; try { await window.API.del(`/fees/payments/${b.dataset.deletePayment}`); toast("Payment removed.", "success"); pagePayments(content); } catch (err) { toast(err.message || "Could not delete payment.", "error"); } }));
+  }
+
+
+  async function pageOutstandingFees(content) {
+    const base = await catalogue(); const terms = allTerms(base.sessions); const selected = state.cache.feeTermId || (terms[0] && terms[0].id) || "";
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>Outstanding Fees</h2><p>Balances compare the active students’ term fees with payments allocated to those fee items.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-field" style="max-width:420px"><label>Term</label><select id="outstandingTerm"><option value="">Select a term</option>${options(terms, selected, (t) => `${t.session_label} — ${t.name_en}`)}</select></div><div id="outstandingRows" style="margin-top:18px"></div></div></div>`;
+    const load = async () => { const term = content.querySelector("#outstandingTerm").value; const out = content.querySelector("#outstandingRows"); if (!term) return out.innerHTML = ""; state.cache.feeTermId = Number(term); try { const r = await window.API.get(`/fees/balance?termId=${term}`); out.innerHTML = `<div class="dash-info-line">Billed per active student: <b>${fmtMoney(r.billed)}</b></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Billed</th><th>Paid</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>${r.students.length ? r.students.map((s) => `<tr><td>${esc(s.admission_no)} — ${esc(s.first_name)} ${esc(s.last_name)}</td><td>${fmtMoney(s.billed)}</td><td>${fmtMoney(s.paid)}</td><td>${fmtMoney(s.balance)}</td><td><span class="dash-pill ${s.settled ? "ok" : "warn"}">${s.settled ? "settled" : "outstanding"}</span></td></tr>`).join("") : emptyRow(5, "No active students.")}</tbody></table></div>`; } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not calculate balances.")}</p>`; } };
+    content.querySelector("#outstandingTerm").addEventListener("change", load); if (selected) load();
+  }
+  async function pageFinanceReport(content) {
+    const data = await window.API.get("/madrasa/analytics?months=12&attendanceDays=30"); const a = data.analytics || {};
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>Financial Reports</h2><p>Collection totals are based on recorded payments only.</p></div><a class="dash-btn dash-btn-ghost" href="${window.API.url("/exports/fees.csv")}" target="_blank" rel="noopener">${I.download} Export fee report</a></div><div class="dash-stats-grid">${statCard("money", fmtMoney(a.fees ? a.fees.collected : 0), "Recorded payments (all time)")}${statCard("money", fmtMoney(a.fees ? a.fees.thisMonth : 0), "Collected this month")}${statCard("activity", `${a.fees ? a.fees.collectionRate : 0}%`, "Collection rate")}${statCard("users", fmtMoney(a.fees ? a.fees.outstanding : 0), "Estimated outstanding")}</div><div class="dash-grid-2" style="margin-top:18px"><div class="dash-card"><div class="dash-card-head"><h3>Payment methods</h3></div><div class="dash-card-pad">${(a.fees && a.fees.byMethod || []).length ? `<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Method</th><th>Payments</th><th>Amount</th></tr></thead><tbody>${a.fees.byMethod.map((m) => `<tr><td>${esc(m.key || "Other")}</td><td>${esc(m.payments || 0)}</td><td>${fmtMoney(m.value || 0)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="hint">No payment methods recorded in this window.</p>`}</div></div><div class="dash-card"><div class="dash-card-head"><h3>Students needing attention</h3></div><div class="dash-card-pad"><p class="dash-big-number">${a.fees ? a.fees.studentsInDebt : 0}</p><p class="hint">Active students with unpaid term balances. Use Outstanding Fees for the student-level report.</p><button class="dash-btn dash-btn-ghost" data-nav-route="finance/outstanding">Open outstanding fees</button></div></div></div>`; bindRouteButtons(content);
+  }
+
+  /* ============================== SETTINGS ============================== */
+  async function pageRoles(content) {
+    const rows = [["Madrasa Administrator", "Full control of this institution: staff, students, academics, admissions, finance, public website and tenant settings."], ["Teacher", "Only assigned classes and subjects: class rosters, attendance and results entry."], ["Student", "Own profile, homework, announcements, timetable, published results and report cards."], ["Parent", "Linked children only: profiles, homework, announcements, timetables, published results and report cards."]];
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Roles & Permissions</h2><p>Permissions are enforced by the server; they cannot be changed from the browser.</p></div></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Role</th><th>Access</th></tr></thead><tbody>${rows.map(([role, access]) => `<tr><td><strong>${esc(role)}</strong></td><td>${esc(access)}</td></tr>`).join("")}</tbody></table></div></div><div class="dash-card" style="margin-top:18px"><div class="dash-card-pad"><h3>Manage accounts</h3><p class="hint">Teacher, student and parent logins are created in their respective management screens. You can activate or deactivate existing accounts below.</p><button class="dash-btn dash-btn-primary" data-nav-route="settings/staff">Manage staff accounts</button></div></div>`; bindRouteButtons(content);
+  }
+  async function pageNotificationSettings(content) {
+    const data = await window.API.get("/madrasa/settings"); const s = data.settings || {};
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Notification Settings</h2><p>Choose administrator notification preferences. The system always keeps in-dashboard notices available.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="notificationSettings"><label class="dash-toggle"><input type="checkbox" name="notify_admissions" ${s.notify_admissions === "1" ? "checked" : ""}><span>Show new admission alerts in the dashboard</span></label><label class="dash-toggle"><input type="checkbox" name="notify_results" ${s.notify_results === "1" ? "checked" : ""}><span>Show unpublished-result alerts in the dashboard</span></label><label class="dash-toggle"><input type="checkbox" name="notify_email" ${s.notify_email === "1" ? "checked" : ""}><span>Use the institution email as the notification contact</span></label><div class="dash-field" style="margin-top:16px"><label>Notification contact email</label><input type="email" name="notification_email" value="${esc(s.notification_email || "")}" placeholder="admin@example.org"></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save preferences</button></form><p class="hint" style="margin-top:14px">Email or SMS delivery is not connected until an operator configures a provider. These preferences are saved safely now and do not claim a message was sent.</p></div></div>`;
+    content.querySelector("#notificationSettings").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.put("/madrasa/settings", { notify_admissions: fd.get("notify_admissions") === "on" ? "1" : "0", notify_results: fd.get("notify_results") === "on" ? "1" : "0", notify_email: fd.get("notify_email") === "on" ? "1" : "0", notification_email: fd.get("notification_email") }); toast("Notification preferences saved.", "success"); } catch (err) { toast(err.message || "Could not save notification preferences.", "error"); } });
+  }
+
+
+  async function pageAccountSettings(content) {
+    const data = await window.API.get("/auth/account"); const a = data.account || {};
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Administrator Account & Security</h2><p>Update your own contact details and change your password securely.</p></div></div><div class="dash-grid-2"><div class="dash-card"><div class="dash-card-head"><h3>Account details</h3></div><div class="dash-card-pad"><form id="accountForm"><div class="dash-form-grid"><div class="dash-field"><label>Username</label><input disabled value="${esc(a.username)}"></div><div class="dash-field"><label>Role</label><input disabled value="${esc(a.role)}"></div><div class="dash-field"><label>Full name</label><input name="full_name" value="${esc(a.full_name)}"></div><div class="dash-field"><label>Arabic name</label><input name="full_name_ar" dir="rtl" value="${esc(a.full_name_ar)}"></div><div class="dash-field"><label>Email</label><input name="email" type="email" value="${esc(a.email)}"></div><div class="dash-field"><label>Phone</label><input name="phone" value="${esc(a.phone)}"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save account details</button></form></div></div><div class="dash-card"><div class="dash-card-head"><h3>Change password</h3></div><div class="dash-card-pad"><form id="pwForm"><div class="dash-form-grid"><div class="dash-field" style="grid-column:1/-1"><label>Current Password</label><input name="currentPassword" autocomplete="current-password" type="password" required></div><div class="dash-field" style="grid-column:1/-1"><label>New Password</label><input name="newPassword" autocomplete="new-password" type="password" minlength="8" required></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Update password</button></form><p class="hint" style="margin-top:14px">Use at least eight characters and keep your password private.</p></div></div></div>`;
+    content.querySelector("#accountForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.put("/auth/account", Object.fromEntries(new FormData(e.target))); toast("Account details saved.", "success"); } catch (err) { toast(err.message || "Could not update account.", "error"); } });
+    content.querySelector("#pwForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.post("/auth/change-password", { currentPassword: fd.get("currentPassword"), newPassword: fd.get("newPassword") }); toast("Password updated.", "success"); e.target.reset(); } catch (err) { toast(err.message || "Could not update password.", "error"); } });
   }
 
   /* ============================ SUPER ADMIN ============================== */

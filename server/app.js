@@ -36,6 +36,8 @@ const timetableRouter = require("./routes/timetable").router;
 const exportsRouter = require("./routes/exports");
 const extrasRouter = require("./routes/extras");
 const backupsRouter = require("./routes/backups").router;
+const quranProgressRouter = require("./routes/quran-progress");
+const institution = require("./services/institution");
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
 
@@ -87,7 +89,10 @@ function createApp() {
     res
       .type("application/javascript")
       .set("Cache-Control", "no-store")
-      .send("window.__APP_CONFIG__=" + JSON.stringify({ apiBase: config.EFFECTIVE_API_BASE }) + ";");
+      .send("window.__APP_CONFIG__=" + JSON.stringify({
+        apiBase: config.EFFECTIVE_API_BASE,
+        categoryConfig: institution.clientCategoryConfig(),
+      }) + ";");
   });
 
   // Static frontend + uploads
@@ -193,6 +198,9 @@ function createApp() {
   api.use("/portal", portalRouter);
   api.use("/admissions", admissionsRouter);
   api.use("/timetable", timetableRouter);
+  // Category-specific Islamic academic module. It shares the same session,
+  // tenant and student data engine; the route itself refuses Western tenants.
+  api.use("/quran-progress", quranProgressRouter);
   api.use("/exports", exportsRouter);
   api.use("/", extrasRouter); // /api/chat, /api/homework, /api/notifications, /api/users
   // Backups & storage diagnostics (super admin). Mounted before /platform so

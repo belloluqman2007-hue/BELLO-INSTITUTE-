@@ -69,6 +69,7 @@ test("Islamic institution registers, is approved, and its admin lands in the isl
   assert.equal(m.status, 200);
   assert.equal(m.data.madrasa.category, "islamic");
   assert.equal(m.data.madrasa.status, "active");
+  assert.equal(m.data.madrasa.brand_color, "#200A3D", "approval persists the Islamic category's default brand colour");
 
   // Starter subjects follow the Islamic catalogue.
   const subj = await newAdmin.req("GET", "/api/subjects");

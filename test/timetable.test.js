@@ -120,6 +120,28 @@ test("each madrasa schedules its own week in isolation", async () => {
   assert.equal((await adminA.api("GET", "/api/timetable?classId=" + ctx.classA1)).data.slots[0].day, "Thu");
 });
 
+test("a teacher cannot be scheduled into two classes in the same period", async () => {
+  const first = await adminA.api("PUT", "/api/timetable", {
+    classId: ctx.classA1,
+    slots: [slot("Mon", 1, { subjectId: ctx.subjA1, teacherId: ctx.users.teacherA })],
+  });
+  assert.equal(first.status, 200, JSON.stringify(first.data));
+  const safeWeek = await adminA.api("PUT", "/api/timetable", {
+    classId: ctx.classA2,
+    slots: [slot("Mon", 2, { subjectId: ctx.subjA2, teacherId: ctx.users.teacherA })],
+  });
+  assert.equal(safeWeek.status, 200);
+  const conflict = await adminA.api("PUT", "/api/timetable", {
+    classId: ctx.classA2,
+    slots: [slot("Mon", 1, { subjectId: ctx.subjA2, teacherId: ctx.users.teacherA })],
+  });
+  assert.equal(conflict.status, 400);
+  assert.match(conflict.data.error, /Teacher A.*Class A1.*Mon, period 1/);
+  const retained = await adminA.api("GET", "/api/timetable?classId=" + ctx.classA2);
+  assert.equal(retained.data.slots.length, 1, "a rejected conflicting save never wipes the previous class week");
+  assert.equal(retained.data.slots[0].period, 2);
+});
+
 test("a teacher may plan only the classes assigned to them", async () => {
   const notTheirs = await teacher.api("PUT", "/api/timetable", { classId: ctx.classA2, slots: [slot("Mon", 1)] });
   assert.equal(notTheirs.status, 403, "writing the timetable is the administration's job");
@@ -147,8 +169,11 @@ test("one class's week can be copied onto the others", async () => {
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.inserted, 2);
   assert.equal(r.data.copiedTo, 1);
+  assert.equal(r.data.teacherConflicts, 1, "the copied simultaneous lesson is left without a teacher");
   assert.deepEqual(r.data.rejected, [{ classId: ctx.classB1, reason: "not_in_your_madrasa" }]);
-  assert.equal((await adminA.api("GET", "/api/timetable?classId=" + ctx.classA2)).data.slots.length, 2);
+  const copiedGrid = await adminA.api("GET", "/api/timetable?classId=" + ctx.classA2);
+  assert.equal(copiedGrid.data.slots.length, 2);
+  assert.equal(copiedGrid.data.slots.find((row) => row.day === "Mon" && row.period === 1).teacherId, null);
   assert.equal((await adminB.api("GET", "/api/timetable?classId=" + ctx.classB1)).data.slots.length, 1, "B's own week was not overwritten");
 
   assert.equal((await adminA.api("POST", "/api/timetable/copy", { fromClassId: ctx.classA1, toClassIds: [ctx.classA1] })).status, 400);

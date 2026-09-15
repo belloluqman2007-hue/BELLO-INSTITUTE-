@@ -61,7 +61,12 @@ test("public /api/config serves the runtime API base without auth", async () => 
   assert.equal(r.data.apiBase, "/api");
   const js = await c.req("GET", "/app-config.js");
   assert.equal(js.status, 200);
-  assert.ok((await js.res.text()).includes('window.__APP_CONFIG__={"apiBase":"/api"}'));
+  const script = await js.res.text();
+  assert.match(script, /^window\.__APP_CONFIG__=/);
+  const runtime = JSON.parse(script.replace(/^window\.__APP_CONFIG__=/, "").replace(/;\s*$/, ""));
+  assert.equal(runtime.apiBase, "/api");
+  assert.equal(runtime.categoryConfig.islamic.primaryColor, "#200A3D");
+  assert.equal(runtime.categoryConfig.western.primaryColor, "#0A2342");
 });
 
 test("authenticated /api/auth/me returns user", async () => {

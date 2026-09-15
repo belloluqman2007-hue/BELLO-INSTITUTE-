@@ -517,3 +517,26 @@ body.dash-western .dash-website-card { background: linear-gradient(135deg, var(-
   .dash-message { max-width:100%; }
   .dash-timetable-edit input[type="time"] { width:78px; }
 }
+
+/* Category-specific dashboard insights ----------------------------------- */
+.dash-empty-state { text-align:center; padding:28px 18px; color:var(--d-muted); }
+.dash-empty-state h3 { color:var(--d-text); margin:10px 0 7px; font-size:1rem; }
+.dash-empty-state p { margin:0 auto; max-width:520px; font-size:.86rem; line-height:1.55; }
+.dash-empty-state-icon { width:48px; height:48px; border-radius:14px; display:grid; place-items:center; margin:0 auto; background:var(--d-surface-2); color:var(--d-primary-700); }
+.dash-empty-state-icon svg { width:23px; height:23px; }
+.dash-empty-state--compact { padding:4px 4px 2px; text-align:left; }
+.dash-empty-state--compact .dash-empty-state-icon { margin:0 0 10px; }
+.dash-empty-state--compact p { margin:0; }
+.dash-progress-pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.dash-progress-pair > div { min-width:0; }
+.dash-progress-pair span { display:block; color:var(--d-muted); font-size:.78rem; font-weight:700; }
+.dash-progress-pair strong { display:block; margin:5px 0 9px; color:var(--d-text); font-size:1.55rem; letter-spacing:-.03em; }
+.dash-progress-pair i { display:block; overflow:hidden; height:8px; border-radius:999px; background:var(--d-surface-2); }
+.dash-progress-pair b { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, var(--d-accent), var(--d-accent-dark)); }
+.dash-kpi-line { display:flex; align-items:baseline; justify-content:space-between; gap:14px; padding:9px 0; border-bottom:1px solid var(--d-line-soft); }
+.dash-kpi-line:last-of-type { border-bottom:0; }
+.dash-kpi-line strong { font-size:1.32rem; letter-spacing:-.03em; color:var(--d-text); }
+.dash-kpi-line span { color:var(--d-muted); font-size:.82rem; font-weight:650; text-align:right; }
+body.dash-islamic .dash-islamic-insight { border-color:var(--d-accent-light); }
+body.dash-western .dash-western-insight { border-color:#cdeaff; }
+@media (max-width: 520px) { .dash-progress-pair { grid-template-columns:1fr; gap:12px; } }

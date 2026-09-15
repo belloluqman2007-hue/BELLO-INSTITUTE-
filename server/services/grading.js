@@ -136,7 +136,7 @@ async function computeClassTerm(madrasaId, classId, termId, userId = null) {
 
     // Attendance for this term
     const att = await db.get(
-      "SELECT COUNT(*) AS days FROM attendance WHERE madrasa_id = ? AND student_id = ? AND term_id = ? AND status = 'present'",
+      "SELECT COUNT(*) AS days FROM attendance WHERE madrasa_id = ? AND student_id = ? AND term_id = ? AND status IN ('present','late')",
       [madrasaId, studentId, termId]
     );
     const attendanceDays = Number(att ? att.days : 0);

@@ -105,13 +105,13 @@ test("attendance percentages are computed, not copied from the client", async ()
   const d = await download(adminA, `/api/exports/attendance.csv?classId=${ctx.classA1}`);
   assert.equal(d.status, 200);
   const rows = lines(d.text);
-  assert.match(rows[0], /^Class,Admission No,Student,Days Present,Days Absent,Excused,Sessions Recorded,Attendance %/);
+  assert.match(rows[0], /^Class,Admission No,Student,Days Present,Days Absent,Late,Excused,Sessions Recorded,Attendance %/);
   assert.equal(rows.length, 3, "one row per pupil in the class");
   for (const line of rows.slice(1)) {
     const c = line.split(",");
-    const present = Number(c[3]), absent = Number(c[4]), excused = Number(c[5]), days = Number(c[6]);
-    assert.equal(present + absent + excused, days, "the day counts add up");
-    assert.equal(c[7], (present / days * 100).toFixed(1), "the percentage matches its own columns");
+    const present = Number(c[3]), absent = Number(c[4]), late = Number(c[5]), excused = Number(c[6]), days = Number(c[7]);
+    assert.equal(present + absent + late + excused, days, "the day counts add up");
+    assert.equal(c[8], ((present + late) / days * 100).toFixed(1), "late learners count as attended in the percentage");
   }
   const empty = await download(adminA, "/api/exports/attendance.csv?from=2030-01-01&to=2030-02-01");
   assert.equal(lines(empty.text).length, 1, "a date range with no records exports a header only");

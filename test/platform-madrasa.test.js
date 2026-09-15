@@ -128,6 +128,7 @@ test("super admin creates a Western academy with its category and starter data",
   assert.equal(detail.status, 200);
   assert.equal(detail.data.madrasa.category, "western");
   assert.equal(detail.data.madrasa.institution_type, "Academy");
+  assert.equal(detail.data.madrasa.brand_color, "#0A2342", "the category default brand colour is persisted with the academy");
 
   // Starter academic session + three terms + the Western subject catalogue.
   const sessions = await ctx.db.all("SELECT id FROM academic_sessions WHERE madrasa_id = ?", [r.data.id]);

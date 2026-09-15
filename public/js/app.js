@@ -91,6 +91,7 @@
           <div class="footer-brand">
             ${brandMarkup()}
             <p>A connected education platform helping families discover the right school and helping independent institutions grow with confidence.</p>
+            <p class="footer-ar" lang="ar" dir="rtl">منصة تعليمية متصلة تساعد الأسر على اكتشاف المدرسة المناسبة.</p>
             <div class="socials"><a href="#footer" aria-label="BELLO on Instagram">${icons.instagram}</a><a href="#footer" aria-label="BELLO on LinkedIn">${icons.linkedin}</a><a href="#footer" aria-label="BELLO on Facebook">${icons.facebook}</a></div>
           </div>
           <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
@@ -104,6 +105,7 @@
   function schoolChoiceCard(kind) {
     const islamic = kind === "islamic";
     const title = islamic ? "Islamic School" : "Western Academy";
+    const arabicTitle = islamic ? "مدرسة إسلامية" : "أكاديمية غربية";
     const description = islamic
       ? "Discover madrasas, Arabic schools, Qur'an schools, and Islamic learning institutions."
       : "Discover modern academic schools offering quality education and a wide range of subjects.";
@@ -122,6 +124,7 @@
         <div class="choice-content">
           <div class="choice-icon">${islamic ? icons.book : icons.school}</div>
           <h3>${title}</h3>
+          <p class="choice-ar" lang="ar" dir="rtl">${arabicTitle}</p>
           <p>${description}</p>
           <a class="button choice-button" href="${href}" data-route="${href}">${button} <span>${icons.arrow}</span></a>
         </div>
@@ -142,12 +145,14 @@
             <div class="platform-hero-intro reveal">
               <p class="eyebrow"><span class="eyebrow-dot"></span>One connected education platform</p>
               <h1 id="hero-title">Welcome to <em>BELLO</em></h1>
+              <p class="hero-arabic" lang="ar" dir="rtl">منصة بيلو للتعليم المتصل</p>
               <p class="platform-hero-copy">A smarter way to discover, connect, and manage education.</p>
             </div>
             <div class="choice-heading reveal">
               <span class="choice-heading-line"></span>
               <div class="choice-heading-text">
                 <h2>What type of school are you looking for?</h2>
+                <p class="choice-heading-ar" lang="ar" dir="rtl">ما نوع المؤسسة التعليمية التي تبحث عنها؟</p>
               </div>
               <span class="choice-heading-line"></span>
             </div>
@@ -337,7 +342,7 @@
     document.body.classList.add("western-experience");
     document.title = "Western Academy — BELLO";
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#0a2342";
+    if (themeMeta) themeMeta.content = "#0A2342";
     app.innerHTML = `
       ${westernHeaderMarkup()}
       <main id="main-content" class="western-site">
@@ -531,7 +536,7 @@
     document.body.classList.remove("western-experience", "western-menu-open");
     document.body.classList.toggle("islamic-experience", kind === "islamic");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = kind === "islamic" ? "#064e3b" : "#220b40";
+    if (themeMeta) themeMeta.content = kind === "islamic" ? "#200A3D" : "#0A2342";
     const data = categoryData[kind];
     if (!data) return renderHomepage();
     document.title = `BELLO — ${data.shortName}`;
@@ -654,7 +659,7 @@
     document.body.classList.remove("western-experience", "western-menu-open");
     document.body.classList.add("islamic-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#064e3b";
+    if (themeMeta) themeMeta.content = "#200A3D";
     if (window.BelloRegister && typeof window.BelloRegister.mount === "function") {
       window.BelloRegister.mount();
     }
@@ -668,7 +673,7 @@
     document.body.classList.remove("islamic-experience", "western-menu-open");
     document.body.classList.add("western-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#0a2342";
+    if (themeMeta) themeMeta.content = "#0A2342";
     document.title = "Register Your Academy — BELLO Western Academy";
     if (window.BelloAcademyRegister && typeof window.BelloAcademyRegister.mount === "function") {
       window.BelloAcademyRegister.mount();
@@ -706,7 +711,7 @@
       const programs = publicPageCopy(pages, "programs", m.category === "western" ? "Programs" : "Programs & courses", "");
       const teachers = publicPageCopy(pages, "teachers", "Our teaching team", "");
       const admissions = publicPageCopy(pages, "admissions", "Admissions", "");
-      const brand = /^#[0-9a-fA-F]{3,8}$/.test(m.brandColor || "") ? m.brandColor : (m.category === "western" ? "#0a2342" : "#064e3b");
+      const brand = /^#[0-9a-fA-F]{3,8}$/.test(m.brandColor || "") ? m.brandColor : (m.category === "western" ? "#0A2342" : "#200A3D");
       document.title = `${m.nameEn || "Institution"} — BELLO`;
       app.innerHTML = `
         ${headerMarkup()}

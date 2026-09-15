@@ -2386,33 +2386,33 @@ body.western-menu-open { overflow: hidden; }
 
 /* =========================================================================
    ISLAMIC PUBLIC WEBSITE — premium emerald green & gold identity
-   Palette: Emerald #047857 (brand), Deep Green #064e3b, Bright Green #059669,
-   Gold #D4A72C (accents), Soft Gold #F6E7AD, Soft Mint #F7FBF8 (page bg),
-   White #FFFFFF, Deep Charcoal #12231f, Muted Green-Gray #60756c.
+   Palette: deep royal-purple #200A3D (brand), violet #38146A,
+   Gold #C8952C (accents), Soft Gold #F0D999, Warm Ivory #FAF7EF (page bg),
+   White #FFFFFF, Deep Charcoal #221C2B, Muted Purple-Gray #726D7B.
    Scoped to body.islamic-experience so the BELLO homepage and Western
    Academy experience keep their own colour schemes.
    ========================================================================= */
 body.islamic-experience {
-  /* Brand / structural greens (the final values below keep this scoped) */
-  --forest-950: #03251d;
-  --forest-900: #064e3b;   /* Dark Violet — headings */
-  --forest-850: #065f46;
-  --forest-800: #047857;   /* Emerald — main brand */
-  --forest-700: #059669;   /* Violet — secondary brand */
-  --forest-600: #10b981;
+  /* Brand / structural purple tones (scoped to Islamic pages) */
+  --forest-950: #150628;
+  --forest-900: #200A3D;   /* Deep royal-purple — headings */
+  --forest-850: #2c0f52;
+  --forest-800: #38146a;   /* Primary brand */
+  --forest-700: #451c7d;   /* Secondary brand */
+  --forest-600: #5d2f94;
   /* Text */
-  --ink: #12231f;          /* Deep Charcoal */
-  --ink-soft: #29433a;
-  --muted: #60756c;        /* Muted Purple-Gray */
+  --ink: #221c2b;          /* Deep charcoal */
+  --ink-soft: #443a4e;
+  --muted: #726d7b;        /* Muted purple-gray */
   /* Gold accents */
   --gold-600: #9A7714;     /* deep gold — legible gold text on light bg */
   --gold: #D4A72C;         /* Gold — accents & highlights */
   --gold-light: #F6E7AD;   /* Soft Gold */
   /* Surfaces */
   --paper: #FFFFFF;        /* White */
-  --canvas: #F7FBF8;       /* Warm Ivory — main page background */
-  --surface: #EAF6EF;      /* warm ivory panel */
-  --line: #CFE7D9;         /* warm ivory hairline */
+  --canvas: #faf7ef;       /* Warm ivory — main page background */
+  --surface: #fbf3df;      /* warm ivory panel */
+  --line: #ecdfc0;         /* warm ivory hairline */
   /* Purple-tinted shadows */
   --shadow-sm: 0 10px 25px rgba(49, 7, 94, .07);
   --shadow: 0 20px 50px rgba(41, 6, 78, .12);
@@ -3027,7 +3027,7 @@ body.islamic-experience .modal-icon { background: #e8e2f0; color: var(--forest-8
 }
 
 /* Per-institution public pages — actual data behind /s/<slug> ------------ */
-.school-public { --school-brand:#064e3b; background:#fff; color:#25202c; }
+.school-public { --school-brand:#200A3D; background:#fff; color:#25202c; }
 .school-public-loading, .school-not-found { min-height:48vh; display:grid; place-content:center; text-align:center; padding:64px 20px; color:#625b6c; }
 .school-hero { min-height:470px; background:var(--school-brand); color:#fff; position:relative; display:flex; overflow:hidden; align-items:center; isolation:isolate; }
 .school-hero-image, .school-hero-overlay { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
@@ -3089,54 +3089,54 @@ body.islamic-experience .modal-icon { background: #e8e2f0; color: var(--forest-8
 @media (max-width:800px) { .school-hero { min-height:410px; } .school-hero-inner { margin:0; padding:56px 24px; } .school-stat-grid { grid-template-columns:repeat(2,1fr); } .school-two-col { grid-template-columns:1fr; gap:30px; } .school-news-grid { grid-template-columns:1fr; } .school-section { padding:55px 0; } }
 @media (max-width:520px) { .school-form-grid { grid-template-columns:1fr; } .school-hero h1 { font-size:2.25rem; } }
 
-/* Islamic Schools use a distinct emerald identity. Arabic accents remain
-   intentionally scoped to the Islamic destination and its registration flow. */
+/* Islamic Schools use a distinct royal-purple and gold identity. Arabic
+   accents remain scoped to the Islamic destination and registration flow. */
 body.islamic-experience {
-  --forest-950: #052e25;
-  --forest-900: #064e3b;
-  --forest-850: #065f46;
-  --forest-800: #047857;
-  --forest-700: #059669;
-  --forest-600: #10b981;
-  --ink: #12231f;
-  --ink-soft: #29433a;
-  --muted: #60756c;
-  --gold-600: #a16207;
-  --gold: #d6a62c;
-  --gold-light: #f6e7ad;
-  --canvas: #f7fbf8;
-  --surface: #eaf6ef;
-  --line: #cfe7d9;
-  --shadow-sm: 0 10px 25px rgba(6, 78, 59, .08);
-  --shadow: 0 20px 50px rgba(6, 78, 59, .13);
-  --shadow-deep: 0 30px 70px rgba(4, 78, 59, .25);
+  --forest-950: #150628;
+  --forest-900: #200A3D;
+  --forest-850: #2c0f52;
+  --forest-800: #38146a;
+  --forest-700: #451c7d;
+  --forest-600: #5d2f94;
+  --ink: #221c2b;
+  --ink-soft: #443a4e;
+  --muted: #726d7b;
+  --gold-600: #93690f;
+  --gold: #c8952c;
+  --gold-light: #f0d999;
+  --canvas: #faf7ef;
+  --surface: #fbf3df;
+  --line: #ecdfc0;
+  --shadow-sm: 0 10px 25px rgba(32, 10, 61, .08);
+  --shadow: 0 20px 50px rgba(32, 10, 61, .13);
+  --shadow-deep: 0 30px 70px rgba(21, 6, 40, .25);
   background: var(--canvas);
 }
-body.islamic-experience .site-header { background: rgba(247, 251, 248, .94); }
-body.islamic-experience .site-header.is-scrolled { border-color: rgba(6, 78, 59, .16); }
+body.islamic-experience .site-header { background: rgba(250, 247, 239, .94); }
+body.islamic-experience .site-header.is-scrolled { border-color: rgba(32, 10, 61, .16); }
 body.islamic-experience .desktop-nav a,
-body.islamic-experience .login-link { color: #315247; }
-body.islamic-experience .button { box-shadow: 0 9px 16px rgba(6, 78, 59, .16); }
-body.islamic-experience .button:hover { box-shadow: 0 12px 22px rgba(6, 78, 59, .24); }
-body.islamic-experience .button-secondary { border-color: #b9d8c8; color: var(--forest-800); }
-body.islamic-experience .eyebrow { border-color: rgba(6, 78, 59, .22); }
-body.islamic-experience .site-footer { background: #f7fbf8; border-top-color: var(--line); }
-body.islamic-experience .socials a { border-color: #c5dfd0; }
+body.islamic-experience .login-link { color: #463c53; }
+body.islamic-experience .button { box-shadow: 0 9px 16px rgba(32, 10, 61, .16); }
+body.islamic-experience .button:hover { box-shadow: 0 12px 22px rgba(32, 10, 61, .24); }
+body.islamic-experience .button-secondary { border-color: #d2cbdc; color: var(--forest-800); }
+body.islamic-experience .eyebrow { border-color: rgba(32, 10, 61, .22); }
+body.islamic-experience .site-footer { background: #faf7ef; border-top-color: var(--line); }
+body.islamic-experience .socials a { border-color: #ddd3b8; }
 
-.category-page--islamic .category-hero { background: linear-gradient(122deg, #f7fbf8 0%, #e7f5ed 52%, #dff1e8 100%); }
+.category-page--islamic .category-hero { background: linear-gradient(122deg, #faf7ef 0%, #ebe7f3 52%, #e9e4f0 100%); }
 .category-page--islamic .category-hero-copy .eyebrow,
 .category-page--islamic .breadcrumb { color: var(--forest-700); }
-.category-page--islamic .category-hero-copy .eyebrow { border-color: rgba(6, 78, 59, .22); }
-.category-page--islamic .category-hero-image-shade { background: linear-gradient(145deg, transparent 47%, rgba(3, 54, 40, .5)); }
-.category-page--islamic .category-image-badge { background: rgba(4, 78, 59, .86); border-color: rgba(246, 231, 173, .5); }
-.category-page--islamic .category-feature-card { border-color: #cfe7d9; box-shadow: 0 4px 16px rgba(6, 78, 59, .06); }
-.category-page--islamic .category-feature-card:hover { border-color: #d6a62c; box-shadow: 0 16px 28px rgba(6, 78, 59, .13); }
-.category-page--islamic .category-feature-icon { background: #dff1e8; color: var(--forest-800); }
+.category-page--islamic .category-hero-copy .eyebrow { border-color: rgba(32, 10, 61, .22); }
+.category-page--islamic .category-hero-image-shade { background: linear-gradient(145deg, transparent 47%, rgba(21, 6, 40, .5)); }
+.category-page--islamic .category-image-badge { background: rgba(32, 10, 61, .86); border-color: rgba(240, 217, 153, .5); }
+.category-page--islamic .category-feature-card { border-color: #e7e0cc; box-shadow: 0 4px 16px rgba(32, 10, 61, .06); }
+.category-page--islamic .category-feature-card:hover { border-color: #c8952c; box-shadow: 0 16px 28px rgba(32, 10, 61, .13); }
+.category-page--islamic .category-feature-icon { background: #e8e2f0; color: var(--forest-800); }
 .category-page--islamic .institution-types-section,
 .category-page--islamic .directory-preview-section { background: var(--surface); }
 .category-page--islamic .institution-type-card,
-.category-page--islamic .directory-preview-card { border-color: #cfe7d9; }
-.category-page--islamic .directory-preview-icon { background: #dff1e8; color: var(--forest-800); }
-.category-page--islamic .category-register-section { background: #f7fbf8; }
-.category-page--islamic .category-register-card { background: linear-gradient(120deg, #043c2e 0%, #056b50 55%, #079669 100%); box-shadow: 0 24px 50px rgba(4, 78, 59, .24); border-color: rgba(246, 231, 173, .35); }
-.category-page--islamic .category-register-card p:not(.section-kicker) { color: #d8eee2; }
+.category-page--islamic .directory-preview-card { border-color: #e7e0cc; }
+.category-page--islamic .directory-preview-icon { background: #e8e2f0; color: var(--forest-800); }
+.category-page--islamic .category-register-section { background: #faf7ef; }
+.category-page--islamic .category-register-card { background: linear-gradient(120deg, var(--forest-900) 0%, var(--forest-800) 55%, var(--forest-700) 100%); box-shadow: 0 24px 50px rgba(21, 6, 40, .24); border-color: rgba(240, 217, 153, .35); }
+.category-page--islamic .category-register-card p:not(.section-kicker) { color: #dfd9e7; }

@@ -62,7 +62,7 @@ router.get("/", asyncHandler(async (req, res) => {
 
 /**
  * POST /api/attendance/mark
- * Body: { classId, date, termId?, statuses: { studentId: "present"|"absent"|"excused" } }
+ * Body: { classId, date, termId?, statuses: { studentId: "present"|"absent"|"late"|"excused" } }
  */
 router.post("/mark", asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
@@ -76,7 +76,7 @@ router.post("/mark", asyncHandler(async (req, res) => {
   const termId = b.termId ? toNum(b.termId, 0) : null;
   const statuses = (b.statuses && typeof b.statuses === "object") ? b.statuses : {};
 
-  const valid = new Set(["present", "absent", "excused"]);
+  const valid = new Set(["present", "absent", "late", "excused"]);
   let saved = 0;
   for (const [sid, status] of Object.entries(statuses)) {
     const studentId = toNum(sid, 0);
@@ -117,7 +117,7 @@ router.get("/teachers", requireRole("madrasa_admin"), asyncHandler(async (req, r
 }));
 
 /** POST /api/attendance/teachers/mark
- * Body: { date, statuses: { userId: present|absent|excused } } */
+ * Body: { date, statuses: { userId: present|absent|late|excused } } */
 router.post("/teachers/mark", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
@@ -125,7 +125,7 @@ router.post("/teachers/mark", requireRole("madrasa_admin"), asyncHandler(async (
   const day = validDate(b.date);
   if (!day) return err(res, 400, "date (YYYY-MM-DD) is required.");
   const statuses = b.statuses && typeof b.statuses === "object" ? b.statuses : {};
-  const allowed = new Set(["present", "absent", "excused"]);
+  const allowed = new Set(["present", "absent", "late", "excused"]);
   let saved = 0;
   for (const [rawId, status] of Object.entries(statuses)) {
     const userId = toNum(rawId, 0);
@@ -163,6 +163,7 @@ router.get("/report", requireRole("madrasa_admin"), asyncHandler(async (req, res
     `SELECT s.id, s.admission_no, s.first_name, s.last_name, c.name_en AS class_en,
             SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present,
             SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absent,
+            SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) AS late,
             SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) AS excused,
             COUNT(a.id) AS marked
        FROM attendance a JOIN students s ON s.id = a.student_id
@@ -172,7 +173,7 @@ router.get("/report", requireRole("madrasa_admin"), asyncHandler(async (req, res
       ORDER BY s.admission_no`, params
   );
   ok(res, { from, to, classId, students: rows.map((r) => Object.assign({}, r, {
-    present: Number(r.present || 0), absent: Number(r.absent || 0), excused: Number(r.excused || 0), marked: Number(r.marked || 0),
+    present: Number(r.present || 0), absent: Number(r.absent || 0), late: Number(r.late || 0), excused: Number(r.excused || 0), marked: Number(r.marked || 0),
   })) });
 }));
 

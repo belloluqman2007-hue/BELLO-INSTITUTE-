@@ -717,6 +717,39 @@ const MIGRATIONS = [
       await api.run(`CREATE INDEX idx_homework_kind ON homework (madrasa_id, kind, id)`);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "017_quran_hifz_progress",
+    up: async (api, dialect) => {
+      // An optional, tenant-scoped Islamic academic register. The category
+      // gate is enforced by routes/quran-progress.js; there is intentionally
+      // no category column here, so this remains a single shared data model.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS quran_progress (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          student_id INT NOT NULL,
+          surah VARCHAR(80) NOT NULL DEFAULT '',
+          juz VARCHAR(20) NOT NULL DEFAULT '',
+          ayah_from INT,
+          ayah_to INT,
+          memorization_progress INT NOT NULL DEFAULT 0,
+          revision_progress INT NOT NULL DEFAULT 0,
+          recitation_assessment INT,
+          tajweed_assessment INT,
+          teacher_comments TEXT,
+          progress_date DATE NOT NULL,
+          performance_status VARCHAR(30) NOT NULL DEFAULT 'developing',
+          recorded_by INT,
+          created_at ${D.ts()},
+          updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_quran_progress_student ON quran_progress (madrasa_id, student_id, progress_date)`);
+      await api.run(`CREATE INDEX idx_quran_progress_status ON quran_progress (madrasa_id, performance_status, progress_date)`);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

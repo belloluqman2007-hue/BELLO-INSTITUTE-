@@ -57,144 +57,108 @@
      Sidebar structure. Exactly the sections/items the spec lists. Labels
      that differ by category are resolved via T() at render time.
      -------------------------------------------------------------------- */
-  function sidebarSchema(cat) {
-    const western = cat === "western";
-    const inst = western ? "Academy" : "Institution";
-    return [
+  /* --------------------------------------------------------------------
+     Category configuration
+     --------------------------------------------------------------------
+     The authoritative values are served by server/services/institution.js in
+     /app-config.js. This tiny fallback keeps the dashboard usable if that
+     bootstrap script is unavailable during local static previews.
+     -------------------------------------------------------------------- */
+  const fallbackCategoryConfig = {
+    islamic: {
+      categoryLabel: "Islamic School", institutionLabel: "Institution", institutionNoun: "institution",
+      myInstitutionLabel: "My Institution", feesLabel: "School Fees", subjectsLabel: "Islamic Subjects",
+      aboutLabel: "About Institution", programsLabel: "Programs/Courses", settingsLabel: "Institution Settings",
+      websiteCardTitle: "Your Institution Website", adminLabel: "Islamic School Admin", primaryColor: "#200A3D",
+      hifzEnabledByDefault: true,
+      subjectCatalogue: ["Qur'an", "Qur'an Memorization", "Tajweed", "Hadith", "Fiqh", "Tawheed", "Aqeedah", "Seerah", "Arabic", "Nahw", "Sarf", "Islamic Studies", "Imla'", "Arabic Reading", "Arabic Expression", "Other Subjects"],
+    },
+    western: {
+      categoryLabel: "Western Academy", institutionLabel: "Academy", institutionNoun: "academy",
+      myInstitutionLabel: "My Academy", feesLabel: "Academy Fees", subjectsLabel: "Academic Programs",
+      aboutLabel: "About Academy", programsLabel: "Programs", settingsLabel: "Academy Settings",
+      websiteCardTitle: "Your Academy Website", adminLabel: "Western Academy Admin", primaryColor: "#0A2342",
+      hifzEnabledByDefault: false,
+      subjectCatalogue: ["Mathematics", "English", "Sciences", "Computer Science", "Technology", "Business", "Arts", "Social Sciences", "Languages", "Other Subjects"],
+    },
+  };
+  const categoryConfig = (window.__APP_CONFIG__ && window.__APP_CONFIG__.categoryConfig) || fallbackCategoryConfig;
+
+  function category() {
+    return categoryConfig[state.category] || fallbackCategoryConfig[state.category] || fallbackCategoryConfig.islamic;
+  }
+
+  function sidebarSchema() {
+    const t = category();
+    const subjectItems = (t.subjectCatalogue || []).map((subject) => [subject, `subjects/${subject}`]);
+    const schema = [
       { key: "dashboard", label: "Dashboard", icon: "dashboard", route: "dashboard" },
       {
-        key: "institution", label: western ? "My Academy" : "My Institution", icon: "building",
+        key: "institution", label: t.myInstitutionLabel, icon: "building",
         items: [
-          [`${inst} Profile`, "institution/profile"],
-          [`${inst} Information`, "institution/information"],
+          [`${t.institutionLabel} Profile`, "institution/profile"],
+          [`${t.institutionLabel} Information`, "institution/information"],
           ["Public Website", "institution/website"],
           ["Website Appearance", "institution/appearance"],
           ["Website Pages", "institution/pages"],
           ["Gallery", "institution/gallery"],
           ["Contact Information", "institution/contact"],
-          ["Settings", "institution/settings"],
+          [t.settingsLabel, "institution/settings"],
         ],
       },
       {
         key: "students", label: "Students", icon: "users",
-        items: [
-          ["All Students", "students/all"],
-          ["Add Student", "students/add"],
-          ["Student Applications", "students/applications"],
-          ["Student Groups", "students/groups"],
-          ["Student Profiles", "students/profiles"],
-        ],
+        items: [["All Students", "students/all"], ["Add Student", "students/add"], ["Student Applications", "students/applications"], ["Student Groups", "students/groups"], ["Student Profiles", "students/profiles"]],
       },
       {
         key: "teachers", label: "Teachers", icon: "teacher",
-        items: [
-          ["All Teachers", "teachers/all"],
-          ["Add Teacher", "teachers/add"],
-          ["Teacher Applications", "teachers/applications"],
-          ["Teacher Profiles", "teachers/profiles"],
-        ],
+        items: [["All Teachers", "teachers/all"], ["Add Teacher", "teachers/add"], ["Teacher Applications", "teachers/applications"], ["Teacher Profiles", "teachers/profiles"]],
       },
       {
         key: "classes", label: "Classes", icon: "classes",
-        items: [
-          ["All Classes", "classes/all"],
-          ["Add Class", "classes/add"],
-          ["Class Timetable", "classes/timetable"],
-          ["Class Students", "classes/students"],
-          ["Class Teachers", "classes/teachers"],
-        ],
+        items: [["All Classes", "classes/all"], ["Add Class", "classes/add"], ["Class Timetable", "classes/timetable"], ["Class Students", "classes/students"], ["Class Teachers", "classes/teachers"]],
       },
-      western ? {
-        key: "programs", label: "Academic Programs", icon: "book",
-        items: [
-          ["Mathematics", "subjects/Mathematics"], ["English", "subjects/English"],
-          ["Sciences", "subjects/Sciences"], ["Computer Science", "subjects/Computer Science"],
-          ["Technology", "subjects/Technology"], ["Business", "subjects/Business"],
-          ["Arts", "subjects/Arts"], ["Social Sciences", "subjects/Social Sciences"],
-          ["Languages", "subjects/Languages"], ["Other Subjects", "subjects/Other Subjects"],
-        ],
-      } : {
-        key: "subjects", label: "Islamic Subjects", icon: "book",
-        items: [
-          ["Qur'an", "subjects/Qur'an"], ["Qur'an Memorization", "subjects/Qur'an Memorization"],
-          ["Tajweed", "subjects/Tajweed"], ["Hadith", "subjects/Hadith"], ["Fiqh", "subjects/Fiqh"],
-          ["Tawheed", "subjects/Tawheed"], ["Aqeedah", "subjects/Aqeedah"], ["Seerah", "subjects/Seerah"],
-          ["Arabic", "subjects/Arabic"], ["Nahw", "subjects/Nahw"], ["Sarf", "subjects/Sarf"],
-          ["Islamic Studies", "subjects/Islamic Studies"], ["Other Subjects", "subjects/Other Subjects"],
-        ],
-      },
+      { key: "subjects", label: t.subjectsLabel, icon: "book", items: subjectItems },
       {
         key: "attendance", label: "Attendance", icon: "calendar",
-        items: [
-          ["Student Attendance", "attendance/students"],
-          ["Teacher Attendance", "attendance/teachers"],
-          ["Attendance Reports", "attendance/reports"],
-        ],
+        items: [["Student Attendance", "attendance/students"], ["Teacher Attendance", "attendance/teachers"], ["Attendance Reports", "attendance/reports"]],
       },
       {
         key: "academic", label: "Academic", icon: "academic",
-        items: [
-          ["Lessons", "academic/lessons"], ["Assignments", "academic/assignments"],
-          ["Examinations", "academic/examinations"], ["Results", "academic/results"],
-          ["Report Cards", "academic/report-cards"], ["Academic Sessions", "academic/sessions"],
-          ["Terms", "academic/terms"],
-        ],
+        items: [["Lessons", "academic/lessons"], ["Assignments", "academic/assignments"], ["Examinations", "academic/examinations"], ["Results", "academic/results"], ["Report Cards", "academic/report-cards"], ["Academic Sessions", "academic/sessions"], ["Terms", "academic/terms"]],
       },
       {
         key: "admissions", label: "Admissions", icon: "admissions",
-        items: [
-          ["Applications", "admissions/applications"],
-          ["Admission Status", "admissions/status"],
-          ["Admission Requirements", "admissions/requirements"],
-          ["Admission Settings", "admissions/settings"],
-        ],
+        items: [["Applications", "admissions/applications"], ["Admission Status", "admissions/status"], ["Admission Requirements", "admissions/requirements"], ["Admission Settings", "admissions/settings"]],
       },
       {
         key: "communication", label: "Communication", icon: "chat",
-        items: [
-          ["Announcements", "communication/announcements"],
-          ["Messages", "communication/messages"],
-          ["Notifications", "communication/notifications"],
-          ["Parent Communication", "communication/parents"],
-        ],
+        items: [["Announcements", "communication/announcements"], ["Messages", "communication/messages"], ["Notifications", "communication/notifications"], ["Parent Communication", "communication/parents"]],
       },
       {
         key: "finance", label: "Finance", icon: "money",
-        items: [
-          [western ? "Academy Fees" : "School Fees", "finance/fees"],
-          ["Payments", "finance/payments"],
-          ["Outstanding Fees", "finance/outstanding"],
-          ["Fee Records", "finance/records"],
-          ["Financial Reports", "finance/reports"],
-        ],
+        items: [[t.feesLabel, "finance/fees"], ["Payments", "finance/payments"], ["Outstanding Fees", "finance/outstanding"], ["Fee Records", "finance/records"], ["Financial Reports", "finance/reports"]],
       },
       {
         key: "website", label: "Website", icon: "globe",
-        items: [
-          ["Public Website", "website/public"],
-          ["Edit Homepage", "website/homepage"],
-          [western ? "About Academy" : "About Institution", "website/about"],
-          [western ? "Programs" : "Programs/Courses", "website/programs"],
-          ["Teachers", "website/teachers"],
-          ["Admissions", "website/admissions"],
-          ["Gallery", "website/gallery"],
-          ["News & Announcements", "website/news"],
-          ["Contact Page", "website/contact"],
-          ["Website Appearance", "website/appearance"],
-        ],
+        items: [["Public Website", "website/public"], ["Edit Homepage", "website/homepage"], [t.aboutLabel, "website/about"], [t.programsLabel, "website/programs"], ["Teachers", "website/teachers"], ["Admissions", "website/admissions"], ["Gallery", "website/gallery"], ["News & Announcements", "website/news"], ["Contact Page", "website/contact"], ["Website Appearance", "website/appearance"]],
       },
       {
         key: "settings", label: "Settings", icon: "settings",
-        items: [
-          [western ? "Academy Settings" : "Institution Settings", "settings/institution"],
-          ["Administrator Account", "settings/account"],
-          ["Staff Accounts", "settings/staff"],
-          ["Roles & Permissions", "settings/roles"],
-          ["Password & Security", "settings/security"],
-          ["Notifications", "settings/notifications"],
-        ],
+        items: [[t.settingsLabel, "settings/institution"], ["Administrator Account", "settings/account"], ["Staff Accounts", "settings/staff"], ["Roles & Permissions", "settings/roles"], ["Password & Security", "settings/security"], ["Notifications", "settings/notifications"]],
       },
     ];
+
+    // This module is part of the Islamic product, but is never included in
+    // the Western schema. The Hifz settings screen lets an Islamic school opt
+    // out without affecting the shared academic engine.
+    if (t.hifzEnabledByDefault) {
+      schema.splice(7, 0, {
+        key: "quran", label: "Qur'an / Islamic Education", icon: "book",
+        items: [["Qur'an Progress", "quran/progress"], ["Memorization", "quran/memorization"], ["Revision", "quran/revision"], ["Tajweed", "quran/tajweed"], ["Islamic Academic Reports", "quran/reports"]],
+      });
+    }
+    return schema;
   }
 
   /* --------------------------------------------------------------------
@@ -246,14 +210,13 @@
     return "₦" + v.toLocaleString("en-NG", { maximumFractionDigits: 2 });
   }
 
+  /** Backward-compatible shorthand for the central category configuration. */
   function T() {
-    const w = state.category === "western";
-    return {
-      institutionLabel: w ? "Academy" : "Institution",
-      instNoun: w ? "academy" : "institution",
-      websiteCardTitle: w ? "Your Academy Website" : "Your Institution Website",
-      addBtnHint: w ? "academy" : "institution",
-    };
+    const config = category();
+    return Object.assign({}, config, {
+      instNoun: config.institutionNoun,
+      addBtnHint: config.institutionNoun,
+    });
   }
 
   /* --------------------------------------------------------------------
@@ -441,7 +404,7 @@
           <div class="dash-login-session">
             <div class="dash-login-session-copy">
               <strong>You are already signed in as ${esc(session.user.fullName || session.user.username)}.</strong>
-              <small>${session.role === "super_admin" ? "Platform Super Admin" : (session.category === "western" ? "Western Academy Admin" : "Islamic School Admin")}${session.institutionName ? " — " + esc(session.institutionName) : ""}</small>
+              <small>${session.role === "super_admin" ? "Platform Super Admin" : ((categoryConfig[session.category] || fallbackCategoryConfig.islamic).adminLabel)}${session.institutionName ? " — " + esc(session.institutionName) : ""}</small>
             </div>
             <div class="dash-login-session-actions">
               <button type="button" id="dashContinueBtn">Continue to dashboard</button>
@@ -585,11 +548,12 @@
       return "Super Admin";
     }
     const top = route.split("/")[0];
+    const t = category();
     const map = {
-      dashboard: "Dashboard", institution: "My Institution", students: "Students",
-      teachers: "Teachers", classes: "Classes", subjects: "Subjects", attendance: "Attendance",
-      academic: "Academic", admissions: "Admissions", communication: "Communication",
-      finance: "Finance", website: "Website", settings: "Settings",
+      dashboard: "Dashboard", institution: t.myInstitutionLabel, students: "Students",
+      teachers: "Teachers", classes: "Classes", subjects: t.subjectsLabel, attendance: "Attendance",
+      academic: "Academic", quran: "Qur'an / Islamic Education", admissions: "Admissions",
+      communication: "Communication", finance: "Finance", website: "Website", settings: "Settings",
     };
     return map[top] || "Dashboard";
   }
@@ -614,7 +578,7 @@
               <span class="dash-brand-logo"><img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO"></span>
               <span class="dash-brand-words">
                 <strong>${state.superAdmin ? "BELLO" : esc(m.name_en || "BELLO")}</strong>
-                <small>${state.superAdmin ? "Super Admin" : (cat === "western" ? "Western Academy Admin" : "Islamic School Admin")}</small>
+                <small>${state.superAdmin ? "Super Admin" : esc(category().adminLabel)}</small>
               </span>
             </div>
             <nav class="dash-nav" id="dashNav">${renderNav(schema)}</nav>
@@ -742,6 +706,10 @@
       if (route === "classes/teachers") return await pageClassTeacherRoster(content);
       if (route.startsWith("subjects/")) return await pageSubjectDetail(content, decodeURIComponent(route.slice("subjects/".length)));
 
+      // Islamic education remains a discrete category-specific module; Western
+      // navigation never exposes these routes and the backend enforces it too.
+      if (route.startsWith("quran/")) return await pageQuranProgress(content, route);
+
       // Attendance and academics
       if (route === "attendance/students") return await pageAttendanceStudents(content);
       if (route === "attendance/teachers") return await pageTeacherAttendance(content);
@@ -822,22 +790,30 @@
   }
 
   async function pageDashboard(content) {
-    let data; let analytics;
+    const t = T();
+    let data; let analytics; let hifzOverview = null;
     try {
-      [data, analytics] = await Promise.all([
+      [data, analytics, hifzOverview] = await Promise.all([
         window.API.get("/madrasa/dashboard"),
         window.API.get("/madrasa/analytics?months=6&attendanceDays=30"),
+        t.hifzEnabledByDefault ? window.API.get("/quran-progress/config")
+          .then((config) => config.enabled ? window.API.get("/quran-progress/overview") : config)
+          .catch(() => null) : Promise.resolve(null),
       ]);
     } catch (e) { data = null; analytics = null; }
     state.dashboardData = data;
     const m = (state.profile && state.profile.madrasa) || {};
-    const t = T();
     const slug = m.slug || "your-institution";
     const url = `${slug}.bello.ng`;
-    const s = (data && data.stats) || { totalStudents: 0, totalTeachers: 0, totalClasses: 0, totalSubjects: 0, pendingApplications: 0, attendanceToday: { present: 0, absent: 0, late: 0, unmarked: 0 } };
-    const att = s.attendanceToday;
-    const enrolmentByClass = (analytics && analytics.analytics && analytics.analytics.enrolment && analytics.analytics.enrolment.byClass) || [];
+    const s = (data && data.stats) || { totalStudents: 0, totalTeachers: 0, totalClasses: 0, totalSubjects: 0, pendingApplications: 0, attendanceToday: { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 } };
+    const att = s.attendanceToday || { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 };
+    const reportAnalytics = (analytics && analytics.analytics) || {};
+    const enrolmentByClass = (reportAnalytics.enrolment && reportAnalytics.enrolment.byClass) || [];
+    const academic = reportAnalytics.results || {};
+    const finance = reportAnalytics.fees || {};
     const maxClassCount = Math.max(1, ...enrolmentByClass.map((row) => Number(row.value) || 0));
+    const hifz = (hifzOverview && hifzOverview.totals) || null;
+    const hifzDisabled = !!(hifzOverview && hifzOverview.enabled === false);
 
     content.innerHTML = `
       <div class="dash-website-card" style="margin-bottom:22px;">
@@ -857,8 +833,9 @@
         ${statCard("teacher", s.totalTeachers, "Total Teachers")}
         ${statCard("classes", s.totalClasses, "Total Classes")}
         ${statCard("book", s.totalSubjects, "Total Subjects")}
-        ${statCard("calendar", att.present + "/" + (att.present + att.absent + att.late + att.unmarked), "Attendance Today", true)}
+        ${statCard("calendar", att.present + "/" + (att.present + att.absent + att.late + att.excused + att.unmarked), "Attendance Today", true)}
         ${statCard("admissions", s.pendingApplications, "Pending Applications", true)}
+        ${statCard("money", fmtMoney(finance.outstanding || 0), "Outstanding Fees")}
       </div>
 
       <div class="dash-grid-2" style="margin-bottom:18px;">
@@ -888,6 +865,22 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="dash-grid-2" style="margin-bottom:18px;">
+        ${t.hifzEnabledByDefault ? `<div class="dash-card dash-islamic-insight">
+          <div class="dash-card-head"><h3>Qur'an & Hifz Progress</h3><button class="dash-btn dash-btn-ghost dash-btn-sm" data-nav-route="quran/progress">Open tracker</button></div>
+          <div class="dash-card-pad">
+            ${hifz ? `<div class="dash-progress-pair"><div><span>Memorization</span><strong>${hifz.memorizationAverage || 0}%</strong><i><b style="width:${Math.min(100, Number(hifz.memorizationAverage || 0))}%"></b></i></div><div><span>Revision</span><strong>${hifz.revisionAverage || 0}%</strong><i><b style="width:${Math.min(100, Number(hifz.revisionAverage || 0))}%"></b></i></div></div><p class="hint" style="margin:16px 0 0">${hifz.students || 0} learner(s) tracked across ${hifz.records || 0} progress entry/entries.</p>` : hifzDisabled ? `<div class="dash-empty-state dash-empty-state--compact"><div class="dash-empty-state-icon">${I.settings}</div><h3>Hifz tracking is switched off</h3><p>Existing records are kept safely. Open the tracker to enable this optional Islamic learning module.</p></div>` : `<div class="dash-empty-state dash-empty-state--compact"><div class="dash-empty-state-icon">${I.book}</div><h3>Hifz tracking is ready</h3><p>Record a first Surah, Juz or recitation assessment to start this view.</p></div>`}
+          </div>
+        </div>` : `<div class="dash-card dash-western-insight">
+          <div class="dash-card-head"><h3>Academic Performance</h3><button class="dash-btn dash-btn-ghost dash-btn-sm" data-nav-route="academic/results">Open results</button></div>
+          <div class="dash-card-pad"><div class="dash-kpi-line"><strong>${academic.average == null ? "—" : `${academic.average}%`}</strong><span>Term average</span></div><div class="dash-kpi-line"><strong>${academic.passRate == null ? "—" : `${academic.passRate}%`}</strong><span>Pass rate</span></div><p class="hint" style="margin:14px 0 0">${academic.summaries || 0} calculated student summary/summaries in the current reporting term.</p></div>
+        </div>`}
+        <div class="dash-card">
+          <div class="dash-card-head"><h3>${t.hifzEnabledByDefault ? "Academic Performance" : "Fee Collection"}</h3><button class="dash-btn dash-btn-ghost dash-btn-sm" data-nav-route="${t.hifzEnabledByDefault ? "academic/results" : "finance/reports"}">View details</button></div>
+          <div class="dash-card-pad">${t.hifzEnabledByDefault ? `<div class="dash-kpi-line"><strong>${academic.average == null ? "—" : `${academic.average}%`}</strong><span>Term average</span></div><div class="dash-kpi-line"><strong>${academic.passRate == null ? "—" : `${academic.passRate}%`}</strong><span>Pass rate</span></div><p class="hint" style="margin:14px 0 0">Islamic and general subjects appear together in the shared report-card and gradebook workflow.</p>` : `<div class="dash-kpi-line"><strong>${fmtMoney(finance.thisMonth || 0)}</strong><span>Collected this month</span></div><div class="dash-kpi-line"><strong>${finance.collectionRate || 0}%</strong><span>Collection rate</span></div><p class="hint" style="margin:14px 0 0">${finance.studentsInDebt || 0} student(s) have an outstanding balance in the current term.</p>`}</div>
         </div>
       </div>
 
@@ -1004,7 +997,7 @@
           <form id="appearanceForm">
             <div class="dash-form-grid">
               <div class="dash-field"><label>Tagline</label><input name="tagline" value="${esc(m.tagline || "")}"></div>
-              <div class="dash-field"><label>Brand Color</label><input name="brand_color" type="color" value="${esc(m.brand_color || (state.category === "western" ? "#0a2342" : "#200a3d"))}"></div>
+              <div class="dash-field"><label>Brand Color</label><input name="brand_color" type="color" value="${esc(m.brand_color || T().primaryColor)}"></div>
             </div>
             <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px;">${I.check} Save Appearance</button>
           </form>
@@ -1056,7 +1049,7 @@
               <img src="${esc(img.image_path)}" style="width:100%;height:120px;object-fit:cover;display:block;">
               <button data-del="${img.id}" class="dash-btn dash-btn-danger dash-btn-sm" style="position:absolute;top:6px;right:6px;padding:5px 8px;">${I.trash}</button>
             </div>`).join("")}
-        </div>` : `<div class="dash-coming-soon"><div class="icon">${I.image}</div><h3>No photos yet</h3><p>Add photos of your ${state.category === "western" ? "academy" : "institution"} — classrooms, events, students at work.</p></div>`}
+        </div>` : `<div class="dash-coming-soon"><div class="icon">${I.image}</div><h3>No photos yet</h3><p>Add photos of your ${T().institutionNoun} — classrooms, events, students at work.</p></div>`}
       </div></div>
     `;
     content.querySelector("#galleryInput").addEventListener("change", async (e) => {
@@ -1155,8 +1148,8 @@
     const meta = {
       pages: ["Website pages", "Edit the content sections shown to visitors."],
       homepage: ["Homepage", "Welcome visitors with an accurate introduction and call to action."],
-      about: ["About", "Tell families about your institution’s identity and approach."],
-      programs: [state.category === "western" ? "Programs" : "Programs & Courses", "Explain the learning programmes alongside the live subjects list."],
+      about: [T().aboutLabel, "Tell families about your institution’s identity and approach."],
+      programs: [T().programsLabel, "Explain the learning programmes alongside the live subjects list."],
       teachers: ["Teachers", "Introduce your teaching team without exposing private staff details."],
       admissions: ["Admissions", "Set the admission guidance visible to prospective families."],
       news: ["News & Announcements", "Public news comes from announcements marked for public publication."],
@@ -1345,13 +1338,119 @@
 
   async function pageSubjectDetail(content, name) {
     const data = await window.API.get("/subjects"); const existing = (data.subjects || []).find((s) => s.name_en === name); const all = data.subjects || [];
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">${state.category === "western" ? "Academic Programs" : "Islamic Subjects"}</div><h2>${esc(name)}</h2><p>Subjects are shared across classes; choose class subjects from the Class manager.</p></div></div><div class="dash-card"><div class="dash-card-pad">${existing ? `<form id="subjectForm"><div class="dash-form-grid"><div class="dash-field"><label>English name</label><input name="name_en" value="${esc(existing.name_en)}"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" value="${esc(existing.name_ar)}"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save Subject</button><button class="dash-btn dash-btn-danger" type="button" id="removeSubject" style="margin:14px 0 0 8px">${I.trash} Delete</button></form>` : `<p>This subject is not yet in your catalogue.</p><button class="dash-btn dash-btn-primary" id="addSubject">${I.plus} Add ${esc(name)}</button>`}</div></div><div class="dash-card" style="margin-top:18px"><div class="dash-card-head"><h3>Subject Catalogue</h3></div><div class="dash-card-pad"><div class="dash-chip-list">${all.map((s) => `<button type="button" class="dash-chip" data-subject-route="${esc(s.name_en)}">${esc(s.name_en)}</button>`).join("") || "No subjects in this catalogue yet."}</div></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">${T().subjectsLabel}</div><h2>${esc(name)}</h2><p>Subjects are shared across classes; choose class subjects from the Class manager.</p></div><button id="addCustomSubject" class="dash-btn dash-btn-primary">${I.plus} Add Subject</button></div><div class="dash-card"><div class="dash-card-pad">${existing ? `<form id="subjectForm"><div class="dash-form-grid"><div class="dash-field"><label>English name</label><input name="name_en" value="${esc(existing.name_en)}"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" value="${esc(existing.name_ar)}"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save Subject</button><button class="dash-btn dash-btn-danger" type="button" id="removeSubject" style="margin:14px 0 0 8px">${I.trash} Delete</button></form>` : `<p>This subject is not yet in your catalogue.</p><button class="dash-btn dash-btn-primary" id="addSubject">${I.plus} Add ${esc(name)}</button>`}</div></div><div class="dash-card" style="margin-top:18px"><div class="dash-card-head"><h3>Subject Catalogue</h3></div><div class="dash-card-pad"><div class="dash-chip-list">${all.map((s) => `<button type="button" class="dash-chip" data-subject-route="${esc(s.name_en)}">${esc(s.name_en)}</button>`).join("") || "No subjects in this catalogue yet."}</div></div></div>`;
     const add = content.querySelector("#addSubject"); if (add) add.addEventListener("click", async () => { try { await window.API.post("/subjects", { name_en: name }); toast("Subject added.", "success"); pageSubjectDetail(content, name); } catch (err) { toast(err.message || "Could not add subject.", "error"); } });
+    const custom = content.querySelector("#addCustomSubject"); if (custom) custom.addEventListener("click", () => {
+      const modal = openModal("Add subject", `<form id="customSubjectForm"><div class="dash-form-grid"><div class="dash-field"><label>English name <span class="req">*</span></label><input name="name_en" required maxlength="160" autocomplete="off"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" maxlength="160" autocomplete="off"></div></div><div class="dash-modal-foot" style="margin:18px -22px -20px;border-top:1px solid var(--d-line)"><button type="button" id="cancelCustomSubject" class="dash-btn dash-btn-ghost">Cancel</button><button type="submit" class="dash-btn dash-btn-primary">${I.check} Add subject</button></div></form>`);
+      modal.querySelector("#cancelCustomSubject").addEventListener("click", closeModal);
+      modal.querySelector("#customSubjectForm").addEventListener("submit", async (event) => { event.preventDefault(); const form = new FormData(event.target); try { const created = await window.API.post("/subjects", Object.fromEntries(form)); closeModal(); toast("Subject added to your catalogue.", "success"); go(`subjects/${encodeURIComponent(created.subject?.name_en || form.get("name_en"))}`); } catch (err) { toast(err.message || "Could not add subject.", "error"); } });
+    });
     const form = content.querySelector("#subjectForm"); if (form) form.addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.patch(`/subjects/${existing.id}`, { name_en: fd.get("name_en"), name_ar: fd.get("name_ar") }); toast("Subject saved.", "success"); pageSubjectDetail(content, fd.get("name_en")); } catch (err) { toast(err.message || "Could not save subject.", "error"); } });
     const remove = content.querySelector("#removeSubject"); if (remove) remove.addEventListener("click", async () => { if (!window.confirm("Delete this subject? Subjects with marks cannot be deleted.")) return; try { await window.API.del(`/subjects/${existing.id}`); toast("Subject deleted.", "success"); go("classes/all"); } catch (err) { toast(err.message || "Could not delete subject.", "error"); } });
     content.querySelectorAll("[data-subject-route]").forEach((b) => b.addEventListener("click", () => go(`subjects/${b.dataset.subjectRoute}`)));
   }
 
+
+  /* ===================== QUR'AN / HIFZ PROGRESS ======================= */
+  function quranViewMeta(route) {
+    const view = route.split("/").pop();
+    return {
+      progress: ["Qur'an Progress", "Record recitation, memorization and revision milestones for each learner."],
+      memorization: ["Memorization", "Follow Hifz memorization progress, ayah range and teacher assessment."],
+      revision: ["Revision", "Track revision consistency alongside memorization milestones."],
+      tajweed: ["Tajweed", "Review recitation and Tajweed assessments from the teaching team."],
+      reports: ["Islamic Academic Reports", "A clear overview of active Qur'an and Hifz learning records."],
+    }[view] || ["Qur'an Progress", "Track each learner's Qur'an learning journey."];
+  }
+
+  async function pageQuranProgress(content, route) {
+    const meta = quranViewMeta(route);
+    let config;
+    try { config = await window.API.get("/quran-progress/config"); }
+    catch (err) {
+      content.innerHTML = `<div class="dash-card"><div class="dash-coming-soon"><div class="icon">${I.close}</div><h3>Qur'an progress is unavailable</h3><p>${esc(err.message || "This module is only available to Islamic institutions.")}</p></div></div>`;
+      return;
+    }
+    if (!config.enabled) {
+      content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Qur'an / Islamic Education</div><h2>${esc(meta[0])}</h2><p>Hifz tracking is currently switched off for this institution.</p></div></div>
+        <div class="dash-card"><div class="dash-card-pad"><div class="dash-empty-state"><div class="dash-empty-state-icon">${I.book}</div><h3>Enable Qur'an / Hifz tracking</h3><p>When enabled, administrators and assigned teachers can record Surah, Juz, ayah ranges, memorization, revision, recitation, Tajweed and comments for individual students.</p><button id="enableHifz" class="dash-btn dash-btn-primary">${I.check} Enable Hifz tracking</button></div></div></div>`;
+      content.querySelector("#enableHifz").addEventListener("click", async () => {
+        try { await window.API.put("/quran-progress/config", { enabled: true }); toast("Qur'an / Hifz tracking enabled.", "success"); pageQuranProgress(content, route); }
+        catch (err) { toast(err.message || "Could not enable Hifz tracking.", "error"); }
+      });
+      return;
+    }
+
+    const [studentsData, overview, recordData] = await Promise.all([
+      window.API.get("/students?perPage=200"),
+      window.API.get("/quran-progress/overview"),
+      window.API.get("/quran-progress?limit=250"),
+    ]);
+    const students = studentsData.students || [];
+    const selectedStudent = state.cache.quranStudentId || "";
+    const allRecords = recordData.records || [];
+    const view = route.split("/").pop();
+    const displayRecords = selectedStudent ? allRecords.filter((record) => Number(record.student_id) === Number(selectedStudent)) : allRecords;
+    const total = overview.totals || {};
+    const statusRows = overview.byStatus || [];
+    const statusCopy = statusRows.length ? statusRows.map((row) => `${row.status.replace(/_/g, " ")}: ${row.count}`).join(" · ") : "No assessments recorded yet";
+    const addAllowed = view !== "reports";
+
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Qur'an / Islamic Education</div><h2>${esc(meta[0])}</h2><p>${esc(meta[1])}</p></div>
+        <div class="dash-actions">${addAllowed ? `<button id="addQuranProgress" class="dash-btn dash-btn-primary">${I.plus} Record progress</button>` : ""}<button id="disableHifz" class="dash-btn dash-btn-ghost">${I.settings} Hifz settings</button></div></div>
+      <div class="dash-stats-grid">
+        ${statCard("users", total.students || 0, "Students tracked")}
+        ${statCard("book", total.records || 0, "Progress entries")}
+        ${statCard("activity", `${total.memorizationAverage || 0}%`, "Average memorization", true)}
+        ${statCard("refresh", `${total.revisionAverage || 0}%`, "Average revision")}
+      </div>
+      <div class="dash-card" style="margin-bottom:18px"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Student</label><select id="quranStudent"><option value="">All students</option>${options(students, selectedStudent, (student) => `${student.admission_no} — ${student.first_name} ${student.last_name}`)}</select></div><div class="dash-field"><label>Performance snapshot</label><div class="dash-info-line" style="margin-top:0">${esc(statusCopy)}</div></div></div></div></div>
+      <div class="dash-card"><div class="dash-card-head"><h3>Recent progress</h3><span class="hint">${displayRecords.length} record(s)</span></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Date</th><th>Student</th><th>Surah / Juz</th><th>Ayah</th><th>Memorization</th><th>Revision</th><th>Recitation</th><th>Tajweed</th><th>Status</th><th></th></tr></thead><tbody>
+        ${displayRecords.length ? displayRecords.map((record) => `<tr><td>${fmtDate(record.progress_date)}</td><td><strong>${esc(record.first_name)} ${esc(record.last_name)}</strong><small>${esc(record.class_en || "Unassigned")}</small></td><td>${esc([record.surah, record.juz].filter(Boolean).join(" · ") || "—")}</td><td>${record.ayah_from || record.ayah_to ? `${esc(record.ayah_from || "?")}–${esc(record.ayah_to || "?")}` : "—"}</td><td>${Number(record.memorization_progress || 0)}%</td><td>${Number(record.revision_progress || 0)}%</td><td>${record.recitation_assessment ? `${record.recitation_assessment}/5` : "—"}</td><td>${record.tajweed_assessment ? `${record.tajweed_assessment}/5` : "—"}</td><td><span class="dash-pill ${record.performance_status === "excellent" || record.performance_status === "good" ? "ok" : record.performance_status === "needs_support" || record.performance_status === "needs_revision" ? "warn" : "info"}">${esc((record.performance_status || "developing").replace(/_/g, " "))}</span></td><td><button class="dash-btn dash-btn-danger dash-btn-sm" data-delete-quran="${record.id}" title="Delete progress record">${I.trash}</button></td></tr>`).join("") : emptyRow(10, selectedStudent ? "No Qur'an progress has been recorded for this student." : "No Qur'an / Hifz progress has been recorded yet.")}
+      </tbody></table></div></div>`;
+
+    content.querySelector("#quranStudent").addEventListener("change", () => {
+      state.cache.quranStudentId = content.querySelector("#quranStudent").value ? Number(content.querySelector("#quranStudent").value) : null;
+      pageQuranProgress(content, route);
+    });
+    const settingButton = content.querySelector("#disableHifz");
+    settingButton.addEventListener("click", () => openHifzSettingsModal(content, route));
+    const add = content.querySelector("#addQuranProgress");
+    if (add) add.addEventListener("click", () => openQuranProgressModal(students, selectedStudent, content, route));
+    content.querySelectorAll("[data-delete-quran]").forEach((button) => button.addEventListener("click", async () => {
+      if (!window.confirm("Delete this Qur'an progress record?")) return;
+      try { await window.API.del(`/quran-progress/${button.dataset.deleteQuran}`); toast("Progress record deleted.", "success"); pageQuranProgress(content, route); }
+      catch (err) { toast(err.message || "Could not delete progress record.", "error"); }
+    }));
+  }
+
+  function openHifzSettingsModal(content, route) {
+    const modal = openModal("Qur'an / Hifz tracking settings", `<div class="dash-empty-state"><div class="dash-empty-state-icon">${I.book}</div><h3>Hifz tracking is enabled</h3><p>Disabling it hides the Qur'an progress workspace and prevents new progress entries. Existing records stay safely stored until it is enabled again.</p><button id="confirmDisableHifz" class="dash-btn dash-btn-danger">Disable Hifz tracking</button></div>`);
+    modal.querySelector("#confirmDisableHifz").addEventListener("click", async () => {
+      try { await window.API.put("/quran-progress/config", { enabled: false }); closeModal(); toast("Hifz tracking disabled. Existing records were kept.", "success"); pageQuranProgress(content, route); }
+      catch (err) { toast(err.message || "Could not update Hifz tracking.", "error"); }
+    });
+  }
+
+  function openQuranProgressModal(students, selectedStudent, content, route) {
+    const modal = openModal("Record Qur'an / Hifz progress", `<form id="quranProgressForm"><div class="dash-form-grid">
+      <div class="dash-field" style="grid-column:1/-1"><label>Student <span class="req">*</span></label><select name="student_id" required><option value="">Select student</option>${options(students, selectedStudent, (student) => `${student.admission_no} — ${student.first_name} ${student.last_name}`)}</select></div>
+      <div class="dash-field"><label>Date</label><input name="progress_date" type="date" value="${todayIso()}" required></div><div class="dash-field"><label>Performance status</label><select name="performance_status"><option value="excellent">Excellent</option><option value="good" selected>Good</option><option value="developing">Developing</option><option value="needs_support">Needs support</option><option value="needs_revision">Needs revision</option></select></div>
+      <div class="dash-field"><label>Surah</label><input name="surah" placeholder="e.g. Al-Baqarah"></div><div class="dash-field"><label>Juz</label><input name="juz" placeholder="e.g. Juz 1"></div>
+      <div class="dash-field"><label>Ayah from</label><input name="ayah_from" type="number" min="1" max="286"></div><div class="dash-field"><label>Ayah to</label><input name="ayah_to" type="number" min="1" max="286"></div>
+      <div class="dash-field"><label>Memorization progress (%)</label><input name="memorization_progress" type="number" min="0" max="100" value="0"></div><div class="dash-field"><label>Revision progress (%)</label><input name="revision_progress" type="number" min="0" max="100" value="0"></div>
+      <div class="dash-field"><label>Recitation assessment</label><select name="recitation_assessment"><option value="">Not assessed</option>${[1,2,3,4,5].map((n) => `<option value="${n}">${n}/5</option>`).join("")}</select></div><div class="dash-field"><label>Tajweed assessment</label><select name="tajweed_assessment"><option value="">Not assessed</option>${[1,2,3,4,5].map((n) => `<option value="${n}">${n}/5</option>`).join("")}</select></div>
+      <div class="dash-field" style="grid-column:1/-1"><label>Teacher comments</label><textarea name="teacher_comments" maxlength="3000" placeholder="Specific feedback, next revision target or recitation notes…"></textarea></div>
+    </div><div class="dash-modal-foot" style="margin:18px -22px -20px;border-top:1px solid var(--d-line)"><button class="dash-btn dash-btn-ghost" type="button" id="cancelQuranProgress">Cancel</button><button class="dash-btn dash-btn-primary" type="submit">${I.check} Save progress</button></div></form>`);
+    modal.querySelector("#cancelQuranProgress").addEventListener("click", closeModal);
+    modal.querySelector("#quranProgressForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      try { await window.API.post("/quran-progress", Object.fromEntries(form)); closeModal(); toast("Qur'an progress recorded.", "success"); pageQuranProgress(content, route); }
+      catch (err) { toast(err.message || "Could not save Qur'an progress.", "error"); }
+    });
+  }
 
   /* ============================ TIMETABLE ============================== */
   async function pageTimetableManager(content) {
@@ -1370,15 +1469,48 @@
   }
 
   /* =========================== ATTENDANCE ============================== */
+  async function pageAttendanceStudents(content) {
+    const data = await window.API.get("/classes");
+    const classes = data.classes || [];
+    const selected = state.cache.attendanceClassId || (classes[0] && classes[0].id) || "";
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Attendance</div><h2>Student Attendance</h2><p>Mark each learner present, absent, late or excused for a class day.</p></div></div>
+      <div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Class</label><select id="attendanceClass"><option value="">Select class</option>${options(classes, selected)}</select></div><div class="dash-field"><label>Date</label><input id="attendanceDate" type="date" value="${todayIso()}"></div></div><div id="studentAttendanceBody" style="margin-top:18px"></div></div></div>`;
+    const load = async () => {
+      const classId = content.querySelector("#attendanceClass").value;
+      const date = content.querySelector("#attendanceDate").value;
+      const out = content.querySelector("#studentAttendanceBody");
+      if (!classId || !date) { out.innerHTML = `<p class="hint">Choose a class and date to open the attendance register.</p>`; return; }
+      state.cache.attendanceClassId = Number(classId);
+      try {
+        const register = await window.API.get(`/attendance?classId=${encodeURIComponent(classId)}&date=${encodeURIComponent(date)}`);
+        const statuses = ["present", "absent", "late", "excused"];
+        out.innerHTML = `<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Admission No.</th><th>Student</th><th>Attendance status</th></tr></thead><tbody>${register.students.length ? register.students.map((student) => `<tr><td>${esc(student.admission_no)}</td><td><strong>${esc(student.first_name)} ${esc(student.last_name)}</strong>${student.name_ar ? `<small class="dash-ar">${esc(student.name_ar)}</small>` : ""}</td><td><select data-attendance-student="${student.id}"><option value="">— Not marked —</option>${statuses.map((status) => `<option value="${status}" ${student.status === status ? "selected" : ""}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`).join("")}</select></td></tr>`).join("") : emptyRow(3, "No active students are assigned to this class.")}</tbody></table></div><div class="dash-actions" style="margin-top:16px"><button id="markAllPresent" class="dash-btn dash-btn-ghost">Mark all present</button><button id="saveStudentAttendance" class="dash-btn dash-btn-primary">${I.check} Save attendance</button></div>`;
+        const applyAll = () => out.querySelectorAll("[data-attendance-student]").forEach((select) => { select.value = "present"; });
+        out.querySelector("#markAllPresent").addEventListener("click", applyAll);
+        out.querySelector("#saveStudentAttendance").addEventListener("click", async () => {
+          const values = {};
+          out.querySelectorAll("[data-attendance-student]").forEach((select) => { if (select.value) values[select.dataset.attendanceStudent] = select.value; });
+          try {
+            const result = await window.API.post("/attendance/mark", { classId: Number(classId), date, termId: register.termId || undefined, statuses: values });
+            toast(`${result.saved} attendance record(s) saved.`, "success");
+          } catch (err) { toast(err.message || "Could not save attendance.", "error"); }
+        });
+      } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not load the attendance register.")}</p>`; }
+    };
+    content.querySelector("#attendanceClass").addEventListener("change", load);
+    content.querySelector("#attendanceDate").addEventListener("change", load);
+    if (selected) load();
+  }
+
   async function pageTeacherAttendance(content) {
     content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Attendance</div><h2>Teacher Attendance</h2><p>Record staff attendance in its separate register.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-field" style="max-width:320px"><label>Date</label><input id="teacherAttendanceDate" type="date" value="${todayIso()}"></div><div id="teacherAttendanceBody" style="margin-top:16px"></div></div></div>`;
-    const load = async () => { const date = content.querySelector("#teacherAttendanceDate").value; const out = content.querySelector("#teacherAttendanceBody"); if (!date) return; const data = await window.API.get(`/attendance/teachers?date=${encodeURIComponent(date)}`); out.innerHTML = `<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Teacher</th><th>Contact</th><th>Status</th></tr></thead><tbody>${data.teachers.length ? data.teachers.map((t) => `<tr><td>${esc(t.full_name)}</td><td>${esc(t.phone || t.email || "—")}</td><td><select data-teacher-status="${t.id}"><option value="">— Not marked —</option>${["present", "absent", "excused"].map((x) => `<option value="${x}" ${t.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("") : emptyRow(3, "No teacher accounts yet.")}</tbody></table></div><button id="saveTeacherAttendance" class="dash-btn dash-btn-primary" style="margin-top:16px">${I.check} Save attendance</button>`; out.querySelector("#saveTeacherAttendance").addEventListener("click", async () => { const statuses = {}; out.querySelectorAll("[data-teacher-status]").forEach((el) => { if (el.value) statuses[el.dataset.teacherStatus] = el.value; }); try { const r = await window.API.post("/attendance/teachers/mark", { date, statuses }); toast(`${r.saved} staff attendance record(s) saved.`, "success"); } catch (err) { toast(err.message || "Could not save staff attendance.", "error"); } }); };
+    const load = async () => { const date = content.querySelector("#teacherAttendanceDate").value; const out = content.querySelector("#teacherAttendanceBody"); if (!date) return; const data = await window.API.get(`/attendance/teachers?date=${encodeURIComponent(date)}`); out.innerHTML = `<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Teacher</th><th>Contact</th><th>Status</th></tr></thead><tbody>${data.teachers.length ? data.teachers.map((t) => `<tr><td>${esc(t.full_name)}</td><td>${esc(t.phone || t.email || "—")}</td><td><select data-teacher-status="${t.id}"><option value="">— Not marked —</option>${["present", "absent", "late", "excused"].map((x) => `<option value="${x}" ${t.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></td></tr>`).join("") : emptyRow(3, "No teacher accounts yet.")}</tbody></table></div><button id="saveTeacherAttendance" class="dash-btn dash-btn-primary" style="margin-top:16px">${I.check} Save attendance</button>`; out.querySelector("#saveTeacherAttendance").addEventListener("click", async () => { const statuses = {}; out.querySelectorAll("[data-teacher-status]").forEach((el) => { if (el.value) statuses[el.dataset.teacherStatus] = el.value; }); try { const r = await window.API.post("/attendance/teachers/mark", { date, statuses }); toast(`${r.saved} staff attendance record(s) saved.`, "success"); } catch (err) { toast(err.message || "Could not save staff attendance.", "error"); } }); };
     content.querySelector("#teacherAttendanceDate").addEventListener("change", load); load();
   }
   async function pageAttendanceReport(content) {
     const data = await window.API.get("/classes"); const now = new Date(); const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Attendance</div><h2>Attendance Reports</h2><p>Review marked pupil attendance over any date range and export a spreadsheet.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Class</label><select id="reportAttendanceClass"><option value="">All classes</option>${options(data.classes || [])}</select></div><div class="dash-field"><label>From</label><input id="reportAttendanceFrom" type="date" value="${monthStart}"></div><div class="dash-field"><label>To</label><input id="reportAttendanceTo" type="date" value="${todayIso()}"></div></div><button id="loadAttendanceReport" class="dash-btn dash-btn-primary" style="margin-top:14px">Generate report</button><div id="attendanceReportResult" style="margin-top:18px"></div></div></div>`;
-    content.querySelector("#loadAttendanceReport").addEventListener("click", async () => { const cls = content.querySelector("#reportAttendanceClass").value; const from = content.querySelector("#reportAttendanceFrom").value; const to = content.querySelector("#reportAttendanceTo").value; const out = content.querySelector("#attendanceReportResult"); try { const r = await window.API.get(`/attendance/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cls ? `&classId=${encodeURIComponent(cls)}` : ""}`); out.innerHTML = `<div class="dash-actions" style="margin-bottom:10px"><a class="dash-btn dash-btn-ghost dash-btn-sm" href="${window.API.url(`/exports/attendance.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cls ? `&classId=${encodeURIComponent(cls)}` : ""}`)}" target="_blank" rel="noopener">${I.download} Export CSV</a></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Class</th><th>Present</th><th>Absent</th><th>Excused</th><th>Rate</th></tr></thead><tbody>${r.students.length ? r.students.map((s) => `<tr><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td>${esc(s.class_en || "—")}</td><td>${s.present}</td><td>${s.absent}</td><td>${s.excused}</td><td>${s.marked ? Math.round((s.present / s.marked) * 100) : 0}%</td></tr>`).join("") : emptyRow(6, "No attendance marks in this date range.")}</tbody></table></div>`; } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not generate report.")}</p>`; } });
+    content.querySelector("#loadAttendanceReport").addEventListener("click", async () => { const cls = content.querySelector("#reportAttendanceClass").value; const from = content.querySelector("#reportAttendanceFrom").value; const to = content.querySelector("#reportAttendanceTo").value; const out = content.querySelector("#attendanceReportResult"); try { const r = await window.API.get(`/attendance/report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cls ? `&classId=${encodeURIComponent(cls)}` : ""}`); out.innerHTML = `<div class="dash-actions" style="margin-bottom:10px"><a class="dash-btn dash-btn-ghost dash-btn-sm" href="${window.API.url(`/exports/attendance.csv?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${cls ? `&classId=${encodeURIComponent(cls)}` : ""}`)}" target="_blank" rel="noopener">${I.download} Export CSV</a></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Class</th><th>Present</th><th>Absent</th><th>Late</th><th>Excused</th><th>Rate</th></tr></thead><tbody>${r.students.length ? r.students.map((s) => `<tr><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td>${esc(s.class_en || "—")}</td><td>${s.present}</td><td>${s.absent}</td><td>${s.late || 0}</td><td>${s.excused}</td><td>${s.marked ? Math.round(((s.present + (s.late || 0)) / s.marked) * 100) : 0}%</td></tr>`).join("") : emptyRow(7, "No attendance marks in this date range.")}</tbody></table></div>`; } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not generate report.")}</p>`; } });
   }
 
   /* ============================= ACADEMIC ============================== */
@@ -1475,7 +1607,7 @@
   /* ============================== FINANCE =============================== */
   async function pageFees(content) {
     const [data, base] = await Promise.all([window.API.get("/fees/items"), catalogue()]); const items = data.items || []; const terms = allTerms(base.sessions);
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>${state.category === "western" ? "Academy" : "School"} Fees</h2><p>Set amounts billed to each active student for a term.</p></div><button id="addFeeItem" class="dash-btn dash-btn-primary">${I.plus} Add Fee</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Fee</th><th>Term</th><th>Amount</th><th></th></tr></thead><tbody>${items.length ? items.map((f) => `<tr><td>${esc(f.name_en)}${f.name_ar ? `<small class="dash-ar">${esc(f.name_ar)}</small>` : ""}</td><td>${esc((terms.find((t) => Number(t.id) === Number(f.term_id)) || {}).name_en || "All terms")}</td><td>${fmtMoney(f.amount_ngn)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-fee-item="${f.id}">${I.edit}</button></td></tr>`).join("") : emptyRow(4, "No fee items yet.")}</tbody></table></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>${T().feesLabel}</h2><p>Set amounts billed to each active student for a term.</p></div><button id="addFeeItem" class="dash-btn dash-btn-primary">${I.plus} Add Fee</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Fee</th><th>Term</th><th>Amount</th><th></th></tr></thead><tbody>${items.length ? items.map((f) => `<tr><td>${esc(f.name_en)}${f.name_ar ? `<small class="dash-ar">${esc(f.name_ar)}</small>` : ""}</td><td>${esc((terms.find((t) => Number(t.id) === Number(f.term_id)) || {}).name_en || "All terms")}</td><td>${fmtMoney(f.amount_ngn)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-fee-item="${f.id}">${I.edit}</button></td></tr>`).join("") : emptyRow(4, "No fee items yet.")}</tbody></table></div></div>`;
     const open = (f) => openFeeItemModal(f, terms, () => pageFees(content)); content.querySelector("#addFeeItem").addEventListener("click", () => open(null)); content.querySelectorAll("[data-fee-item]").forEach((b) => b.addEventListener("click", () => open(items.find((x) => Number(x.id) === Number(b.dataset.feeItem)))));
   }
   function openFeeItemModal(item, terms, done) { const modal = openModal(item ? "Edit fee item" : "Add fee item", `<form id="feeItemForm"><div class="dash-form-grid"><div class="dash-field"><label>Fee name</label><input name="name_en" required value="${esc(item && item.name_en)}"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" value="${esc(item && item.name_ar)}"></div><div class="dash-field"><label>Term</label><select name="term_id"><option value="">All / no term</option>${options(terms, item && item.term_id, (t) => `${t.session_label} — ${t.name_en}`)}</select></div><div class="dash-field"><label>Amount (₦)</label><input name="amount_ngn" type="number" min="0" step="0.01" required value="${esc(item && item.amount_ngn || 0)}"></div></div><div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} Save fee</button>${item ? `<button id="deleteFeeItem" type="button" class="dash-btn dash-btn-danger">${I.trash}</button>` : ""}</div></form>`); const form = modal.querySelector("#feeItemForm"); form.addEventListener("submit", async (e) => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(form)); if (item) await window.API.patch(`/fees/items/${item.id}`, body); else await window.API.post("/fees/items", body); toast("Fee item saved.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not save fee item.", "error"); } }); const del = modal.querySelector("#deleteFeeItem"); if (del) del.addEventListener("click", async () => { if (!window.confirm("Delete this fee item?")) return; try { await window.API.del(`/fees/items/${item.id}`); toast("Fee item deleted.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not delete fee item.", "error"); } }); }

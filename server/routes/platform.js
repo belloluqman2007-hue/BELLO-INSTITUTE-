@@ -112,6 +112,8 @@ router.post("/madaris", asyncHandler(async (req, res) => {
   const category = institution.normalizeCategory(b.category, b.institution_type);
   const institutionType = cleanStr(b.institution_type, 60)
     || (category === "western" ? "Academy" : "Madrasa");
+  const brandColor = cleanStr(b.brand_color, 20);
+  if (brandColor && !/^#[0-9a-fA-F]{3,8}$/.test(brandColor)) return err(res, 400, "brand_color must be a hex color like #200A3D.");
 
   // Create the madrasa and its first administrator as ONE unit: if any
   // statement fails the whole thing rolls back, so a madrasa can never exist
@@ -123,12 +125,13 @@ router.post("/madaris", asyncHandler(async (req, res) => {
   const adminHash = adminGiven ? bcrypt.hashSync(adminPass, 10) : "";
   try {
     const created = await db.transaction(async (tx) => {
-      const cols = ["slug", "name_en", "name_ar", "category", "institution_type",
+      const cols = ["slug", "name_en", "name_ar", "category", "institution_type", "brand_color",
                     "motto_en", "motto_ar", "address", "city", "state_name",
                     "phone", "email", "plan_id", "status", "description_en", "description_ar",
                     "founded_year", "website", "public_listing", "public_results", "public_admissions"];
       const vals = [
         slug, nameEn, cleanStr(b.name_ar, 160), category, institutionType,
+        brandColor || institution.categoryConfig(category).primaryColor,
         cleanStr(b.motto_en, 160), cleanStr(b.motto_ar, 160),
         cleanStr(b.address, 255), cleanStr(b.city, 80), cleanStr(b.state_name, 80),
         cleanStr(b.phone, 60), cleanStr(b.email, 120), plan.id, "active",
@@ -374,13 +377,14 @@ router.post("/registrations/:id/approve", asyncHandler(async (req, res) => {
       const r = await tx.run(
         `INSERT INTO madaris
           (slug, name_en, address, city, state_name, phone, email, plan_id, status,
-           description_en, founded_year, website, category, institution_type, verified,
+           description_en, founded_year, website, category, institution_type, verified, brand_color,
            tagline, whatsapp, facebook, instagram, maps_link, admin_full_name, admin_position,
            public_listing)
-         VALUES (?,?,?,?,?,?,?,?, 'active', ?,?,?,?,?,1, ?,?,?,?,?,?,?, 1)`,
+         VALUES (?,?,?,?,?,?,?,?, 'active', ?,?,?,?,?,1, ?, ?,?,?,?,?,?,?, 1)`,
         [
           slug, reg.name, reg.address, reg.city, reg.state_name, reg.phone, reg.email, plan.id,
           reg.description, reg.year_established, reg.website, category, reg.institution_type,
+          institution.categoryConfig(category).primaryColor,
           reg.official_name, reg.whatsapp, reg.facebook, reg.instagram, reg.maps_link,
           reg.admin_full_name, reg.admin_position,
         ]

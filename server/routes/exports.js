@@ -189,6 +189,7 @@ router.get("/attendance.csv", STAFF, asyncHandler(async (req, res) => {
   const rows = await db.all(
     `SELECT a.student_id, s.admission_no, s.first_name, s.last_name, c.name_en AS class_en,
             SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present,
+            SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) AS late,
             SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absent,
             SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) AS excused,
             COUNT(*) AS days
@@ -205,9 +206,10 @@ router.get("/attendance.csv", STAFF, asyncHandler(async (req, res) => {
     { label: "Student", value: (r) => `${r.first_name} ${r.last_name}`.trim() },
     { label: "Days Present", value: (r) => Number(r.present) },
     { label: "Days Absent", value: (r) => Number(r.absent) },
+    { label: "Late", value: (r) => Number(r.late) },
     { label: "Excused", value: (r) => Number(r.excused) },
     { label: "Sessions Recorded", value: (r) => Number(r.days) },
-    { label: "Attendance %", value: (r) => (Number(r.days) ? csv.num((Number(r.present) / Number(r.days)) * 100, 1) : "") },
+    { label: "Attendance %", value: (r) => (Number(r.days) ? csv.num(((Number(r.present) + Number(r.late)) / Number(r.days)) * 100, 1) : "") },
   ]));
 }));
 

@@ -146,7 +146,7 @@ test("the Islamic Schools page renders its Arabic identity and the royal-purple 
 
   assert.ok(sa.$(".category-quote-ar"), "the Arabic knowledge quote is displayed");
   assert.equal(sa.$$(".type-ar").length, 4, "every institution-type card is labelled in Arabic");
-  assert.equal(sa.themeColor(), "#31075e", "the Islamic experience uses the deep royal-purple brand colour");
+  assert.equal(sa.themeColor(), "#200A3D", "the Islamic experience uses the specified deep royal-purple brand colour");
   assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
 });
 
@@ -162,6 +162,6 @@ test("removed platform routes fall back to the homepage instead of throwing", { 
 test("the Western Academies page keeps its own navy identity", { skip }, async () => {
   await sa.go("western-schools");
   assert.ok(sa.$("#western-top"), "the western experience rendered");
-  assert.notEqual(sa.themeColor(), "#31075e", "the western experience does not use the Islamic purple");
+  assert.equal(sa.themeColor(), "#0A2342", "the Western experience uses its specified navy primary colour");
   assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
 });

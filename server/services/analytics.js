@@ -276,19 +276,19 @@ async function tenantAnalytics(madrasaId, opts = {}) {
     db.all(
       `SELECT ${dayExpr("day", dialect)} AS d,
               COUNT(*) AS n,
-              SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present
+              SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) AS attended
          FROM attendance WHERE madrasa_id = ? AND day >= ? AND day <= ?
         GROUP BY ${dayExpr("day", dialect)}`,
       [tid, since, today]
     ),
   ]);
 
-  const attCounts = { present: 0, absent: 0, excused: 0 };
+  const attCounts = { present: 0, absent: 0, late: 0, excused: 0 };
   for (const r of attStatusRows) {
     const k = String(r.status || "").toLowerCase();
     if (k in attCounts) attCounts[k] = num(r.n);
   }
-  const attMarked = attCounts.present + attCounts.absent + attCounts.excused;
+  const attMarked = attCounts.present + attCounts.absent + attCounts.late + attCounts.excused;
 
   const dailyMap = new Map(attDailyRows.map((r) => [String(r.d).slice(0, 10), r]));
   const attendanceDaily = dayLabels.map((label) => {
@@ -297,7 +297,7 @@ async function tenantAnalytics(madrasaId, opts = {}) {
     return {
       label,
       marked,
-      value: marked > 0 ? pct(r.present, marked) : null, // null = nothing recorded
+      value: marked > 0 ? pct(r.attended, marked) : null, // null = nothing recorded
     };
   });
 
@@ -428,12 +428,12 @@ async function tenantAnalytics(madrasaId, opts = {}) {
   // the reporting window. Attendance is only judged when enough days exist.
   const perStudentAtt = await db.all(
     `SELECT student_id, COUNT(*) AS marked,
-            SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present
+            SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) AS attended
        FROM attendance WHERE madrasa_id = ? AND day >= ? AND day <= ?
       GROUP BY student_id`,
     [tid, since, today]
   );
-  const attByStudent = new Map(perStudentAtt.map((r) => [Number(r.student_id), { marked: num(r.marked), rate: pct(r.present, r.marked) }]));
+  const attByStudent = new Map(perStudentAtt.map((r) => [Number(r.student_id), { marked: num(r.marked), rate: pct(r.attended, r.marked) }]));
 
   const rollRows = await db.all(
     `SELECT s.id, s.admission_no, s.first_name, s.last_name, s.name_ar,
@@ -515,9 +515,10 @@ async function tenantAnalytics(madrasaId, opts = {}) {
     attendance: {
       marked: attMarked,
       present: attCounts.present,
+      late: attCounts.late,
       absent: attCounts.absent,
       excused: attCounts.excused,
-      rate: pct(attCounts.present, attMarked),
+      rate: pct(attCounts.present + attCounts.late, attMarked),
       daily: attendanceDaily,
     },
     fees: {

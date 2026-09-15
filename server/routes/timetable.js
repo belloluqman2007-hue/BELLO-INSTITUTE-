@@ -55,6 +55,43 @@ async function currentTermId(tid, requested) {
   return row ? Number(row.id) : 0;
 }
 
+/**
+ * A teacher can teach one class in a given day/period only. This is checked
+ * server-side (not only in the timetable editor) so imports, copied weeks and
+ * forged requests cannot create an impossible teaching schedule.
+ *
+ * `classId` is excluded because a replace-all save may retain its own slot.
+ */
+async function teacherSlotConflicts(tid, termId, classId, slots) {
+  const requested = (slots || []).filter((slot) => slot.teacherId || slot.teacher_id);
+  if (!requested.length) return [];
+  const otherSlots = await db.all(
+    `SELECT ts.day, ts.period, ts.teacher_id, c.name_en AS class_name, u.full_name AS teacher_name
+       FROM timetable_slots ts
+       LEFT JOIN classes c ON c.id = ts.class_id
+       LEFT JOIN users u ON u.id = ts.teacher_id
+      WHERE ts.madrasa_id = ? AND ts.class_id <> ? AND ts.teacher_id IS NOT NULL
+        AND ${termId ? "ts.term_id = ?" : "ts.term_id IS NULL"}`,
+    termId ? [tid, classId, termId] : [tid, classId]
+  );
+  const occupied = new Map(otherSlots.map((slot) => [
+    `${slot.teacher_id}:${slot.day}:${slot.period}`,
+    slot,
+  ]));
+  return requested.map((slot) => {
+    const teacherId = slot.teacherId || slot.teacher_id;
+    const clash = occupied.get(`${teacherId}:${slot.day}:${slot.period}`);
+    return clash ? {
+      key: `${teacherId}:${slot.day}:${slot.period}`,
+      day: slot.day,
+      period: Number(slot.period),
+      teacherId: Number(teacherId),
+      teacherName: clash.teacher_name || "This teacher",
+      className: clash.class_name || "another class",
+    } : null;
+  }).filter(Boolean);
+}
+
 async function buildGrid(tid, classId, termId) {
   const slots = await db.all(
     `SELECT ts.*, su.name_en AS subject_en, su.name_ar AS subject_ar,
@@ -162,6 +199,12 @@ router.put("/", requireRole("madrasa_admin", "super_admin"), asyncHandler(async 
     });
   }
 
+  const conflicts = await teacherSlotConflicts(tid, termId, classId, clean);
+  if (conflicts.length) {
+    const conflict = conflicts[0];
+    return err(res, 400, `${conflict.teacherName} is already assigned to ${conflict.className} on ${conflict.day}, period ${conflict.period}. Choose a different teacher or period.`);
+  }
+
   await db.transaction(async (tx) => {
     await tx.run("DELETE FROM timetable_slots WHERE madrasa_id = ? AND class_id = ? AND (term_id = ? OR (term_id IS NULL AND ? = 0))", [tid, classId, termId, termId]);
     for (const s of clean) {
@@ -194,22 +237,40 @@ router.post("/copy", requireRole("madrasa_admin", "super_admin"), asyncHandler(a
     if (!cls) { rejected.push({ classId, reason: "not_in_your_madrasa" }); continue; }
     targets.push(classId);
   }
+  // Preserve the useful timetable-copy workflow while never giving one
+  // teacher two simultaneous classes. Conflicting copies retain the class,
+  // subject, room and time, but deliberately leave the teacher unassigned for
+  // an administrator to resolve. Direct saves are rejected above instead.
+  const targetRows = [];
+  let teacherConflicts = 0;
+  for (const classId of targets) {
+    const conflicts = await teacherSlotConflicts(tid, termId, classId, rows);
+    const blocked = new Set(conflicts.map((c) => c.key));
+    teacherConflicts += conflicts.length;
+    targetRows.push({
+      classId,
+      rows: rows.map((row) => Object.assign({}, row, {
+        teacher_id: blocked.has(`${row.teacher_id}:${row.day}:${row.period}`) ? null : row.teacher_id,
+      })),
+    });
+  }
+
   let inserted = 0;
   await db.transaction(async (tx) => {
-    for (const classId of targets) {
-      await tx.run("DELETE FROM timetable_slots WHERE madrasa_id = ? AND class_id = ? AND (term_id = ? OR (term_id IS NULL AND ? = 0))", [tid, classId, termId, termId]);
-      for (const r of rows) {
+    for (const target of targetRows) {
+      await tx.run("DELETE FROM timetable_slots WHERE madrasa_id = ? AND class_id = ? AND (term_id = ? OR (term_id IS NULL AND ? = 0))", [tid, target.classId, termId, termId]);
+      for (const r of target.rows) {
         await tx.run(
           `INSERT INTO timetable_slots (madrasa_id, class_id, term_id, day, period, start_time, end_time, subject_id, teacher_id, room, notes)
            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-          [tid, classId, termId || null, r.day, r.period, r.start_time, r.end_time, r.subject_id, r.teacher_id, r.room, r.notes]
+          [tid, target.classId, termId || null, r.day, r.period, r.start_time, r.end_time, r.subject_id, r.teacher_id, r.room, r.notes]
         );
         inserted++;
       }
     }
   });
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "timetable.copy", entity: "class", entityId: String(from), meta: { to, inserted }, ip: req.ip });
-  ok(res, { ok: true, inserted, copiedTo: targets.length, rejected });
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "timetable.copy", entity: "class", entityId: String(from), meta: { to, inserted, teacherConflicts }, ip: req.ip });
+  ok(res, { ok: true, inserted, copiedTo: targets.length, rejected, teacherConflicts });
 }));
 
 /* ------------------------------ portal read ----------------------------- */

@@ -1,12 +1,11 @@
 "use strict";
 /* ============================================================================
-   BELLO PLATFORM — institution category catalogue
+   BELLO PLATFORM — institution category configuration
    ----------------------------------------------------------------------------
-   A single source of truth mapping the "institution type" an applicant picks
-   at registration to the coarse admin experience they get afterwards
-   ('islamic' | 'western'). Nothing here touches the database — it is pure
-   classification used by the registration/approval routes and by the
-   dashboards to pick their sidebar labels and subject catalogue.
+   This is the single server-side source of truth for the two institution
+   experiences. Core data operations stay tenant-scoped and category-neutral;
+   this configuration only supplies vocabulary, starter catalogues, visual
+   defaults, and category-specific module availability.
    ========================================================================== */
 
 const ISLAMIC_TYPES = [
@@ -26,74 +25,141 @@ const WESTERN_TYPES = [
   "Academy",
 ];
 
+const CATEGORY_CONFIG = Object.freeze({
+  islamic: Object.freeze({
+    categoryLabel: "Islamic School",
+    institutionLabel: "Institution",
+    institutionNoun: "institution",
+    myInstitutionLabel: "My Institution",
+    feesLabel: "School Fees",
+    subjectsLabel: "Islamic Subjects",
+    aboutLabel: "About Institution",
+    programsLabel: "Programs/Courses",
+    settingsLabel: "Institution Settings",
+    websiteCardTitle: "Your Institution Website",
+    adminLabel: "Islamic School Admin",
+    primaryColor: "#200A3D",
+    hifzEnabledByDefault: true,
+    subjectCatalogue: Object.freeze([
+      "Qur'an",
+      "Qur'an Memorization",
+      "Tajweed",
+      "Hadith",
+      "Fiqh",
+      "Tawheed",
+      "Aqeedah",
+      "Seerah",
+      "Arabic",
+      "Nahw",
+      "Sarf",
+      "Islamic Studies",
+      "Imla'",
+      "Arabic Reading",
+      "Arabic Expression",
+      "Other Subjects",
+    ]),
+  }),
+  western: Object.freeze({
+    categoryLabel: "Western Academy",
+    institutionLabel: "Academy",
+    institutionNoun: "academy",
+    myInstitutionLabel: "My Academy",
+    feesLabel: "Academy Fees",
+    subjectsLabel: "Academic Programs",
+    aboutLabel: "About Academy",
+    programsLabel: "Programs",
+    settingsLabel: "Academy Settings",
+    websiteCardTitle: "Your Academy Website",
+    adminLabel: "Western Academy Admin",
+    primaryColor: "#0A2342",
+    hifzEnabledByDefault: false,
+    subjectCatalogue: Object.freeze([
+      "Mathematics",
+      "English",
+      "Sciences",
+      "Computer Science",
+      "Technology",
+      "Business",
+      "Arts",
+      "Social Sciences",
+      "Languages",
+      "Other Subjects",
+    ]),
+  }),
+});
+
+function normalizeCategory(explicitCategory, type) {
+  const category = String(explicitCategory || "").trim().toLowerCase();
+  if (CATEGORY_CONFIG[category]) return category;
+  return categoryForType(type) || "islamic";
+}
+
 function categoryForType(type) {
-  const t = String(type || "").trim();
-  if (WESTERN_TYPES.includes(t)) return "western";
-  if (ISLAMIC_TYPES.includes(t)) return "islamic";
-  // Unknown/"Other" free text defaults to islamic ONLY when explicitly
-  // flagged that way by the caller; otherwise the caller must pass a
-  // category alongside a custom type. See normalizeCategory().
+  const value = String(type || "").trim();
+  if (WESTERN_TYPES.includes(value)) return "western";
+  if (ISLAMIC_TYPES.includes(value)) return "islamic";
   return null;
 }
 
-/** Resolves a definitive category, preferring an explicit choice, then the
- *  type catalogue, then a safe default. */
-function normalizeCategory(explicitCategory, type) {
-  const c = String(explicitCategory || "").trim().toLowerCase();
-  if (c === "islamic" || c === "western") return c;
-  const guessed = categoryForType(type);
-  return guessed || "islamic";
+function categoryConfig(category) {
+  return CATEGORY_CONFIG[normalizeCategory(category)] || CATEGORY_CONFIG.islamic;
 }
-
-/* Islamic Subjects sidebar catalogue (fixed labels from the spec). */
-const ISLAMIC_SUBJECTS = [
-  "Qur'an", "Qur'an Memorization", "Tajweed", "Hadith", "Fiqh", "Tawheed",
-  "Aqeedah", "Seerah", "Arabic", "Nahw", "Sarf", "Islamic Studies", "Other Subjects",
-];
-
-/* Western Academic Programs sidebar catalogue (fixed labels from the spec). */
-const WESTERN_SUBJECTS = [
-  "Mathematics", "English", "Sciences", "Computer Science", "Technology",
-  "Business", "Arts", "Social Sciences", "Languages", "Other Subjects",
-];
 
 function subjectCatalogue(category) {
-  return category === "western" ? WESTERN_SUBJECTS : ISLAMIC_SUBJECTS;
+  return categoryConfig(category).subjectCatalogue;
 }
 
-/** Copy differences between the two admin experiences (labels only). */
+/** Existing callers use terminology(); keep that shared contract intact. */
 function terminology(category) {
-  if (category === "western") {
-    return {
-      institutionLabel: "Academy",
-      institutionNoun: "academy",
-      subjectsMenuLabel: "Academic Programs",
-      aboutPageLabel: "About Academy",
-      programsLabel: "Programs",
-      settingsLabel: "Academy Settings",
-      myInstitutionLabel: "My Academy",
-      websiteCardTitle: "Your Academy Website",
-    };
-  }
+  const config = categoryConfig(category);
   return {
-    institutionLabel: "Institution",
-    institutionNoun: "institution",
-    subjectsMenuLabel: "Islamic Subjects",
-    aboutPageLabel: "About Institution",
-    programsLabel: "Programs/Courses",
-    settingsLabel: "Institution Settings",
-    myInstitutionLabel: "My Institution",
-    websiteCardTitle: "Your Institution Website",
+    institutionLabel: config.institutionLabel,
+    institutionNoun: config.institutionNoun,
+    subjectsMenuLabel: config.subjectsLabel,
+    feesLabel: config.feesLabel,
+    aboutPageLabel: config.aboutLabel,
+    programsLabel: config.programsLabel,
+    settingsLabel: config.settingsLabel,
+    myInstitutionLabel: config.myInstitutionLabel,
+    websiteCardTitle: config.websiteCardTitle,
+    primaryColor: config.primaryColor,
+    hifzEnabledByDefault: config.hifzEnabledByDefault,
   };
 }
 
+/** Safe serialisable configuration exposed by /app-config.js to the SPA. */
+function clientCategoryConfig() {
+  return Object.fromEntries(Object.entries(CATEGORY_CONFIG).map(([key, value]) => [key, {
+    categoryLabel: value.categoryLabel,
+    institutionLabel: value.institutionLabel,
+    institutionNoun: value.institutionNoun,
+    myInstitutionLabel: value.myInstitutionLabel,
+    feesLabel: value.feesLabel,
+    subjectsLabel: value.subjectsLabel,
+    aboutLabel: value.aboutLabel,
+    programsLabel: value.programsLabel,
+    settingsLabel: value.settingsLabel,
+    websiteCardTitle: value.websiteCardTitle,
+    adminLabel: value.adminLabel,
+    primaryColor: value.primaryColor,
+    hifzEnabledByDefault: value.hifzEnabledByDefault,
+    subjectCatalogue: [...value.subjectCatalogue],
+  }]));
+}
+
+const ISLAMIC_SUBJECTS = CATEGORY_CONFIG.islamic.subjectCatalogue;
+const WESTERN_SUBJECTS = CATEGORY_CONFIG.western.subjectCatalogue;
+
 module.exports = {
+  CATEGORY_CONFIG,
   ISLAMIC_TYPES,
   WESTERN_TYPES,
   ISLAMIC_SUBJECTS,
   WESTERN_SUBJECTS,
   categoryForType,
   normalizeCategory,
+  categoryConfig,
   subjectCatalogue,
   terminology,
+  clientCategoryConfig,
 };

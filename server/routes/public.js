@@ -480,14 +480,16 @@ router.post("/madaris/:slug/apply", publicWriteLimiter, asyncHandler(async (req,
   const reference = newReference();
   const r = await db.run(
     `INSERT INTO admission_requests
-      (madrasa_id, reference, status, first_name, last_name, name_ar, gender, date_of_birth, class_id,
-       previous_school, quran_level, parent_name, parent_phone, parent_email, address, message, ip)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      (madrasa_id, reference, status, first_name, middle_name, last_name, preferred_name, name_ar, gender, date_of_birth,
+       nationality, state_of_origin, lga, religion, class_id, previous_school, quran_level, program, education_track,
+       desired_session_id, parent_name, father_name, mother_name, guardian_name, guardian_relationship, parent_phone,
+       alternative_phone, parent_email, address, emergency_contact, additional_info, message, ip)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      m.id, reference, "pending", firstName, cleanStr(b.last_name, 100), cleanStr(b.name_ar, 160), gender, dob,
-      classRow ? classRow.id : null, cleanStr(b.previous_school, 200), cleanStr(b.quran_level, 80),
-      parentName, parentPhone, cleanStr(b.parent_email, 120), cleanStr(b.address, 255),
-      cleanStr(b.message, 2000), cleanStr(req.ip, 64),
+      m.id, reference, "pending", firstName, cleanStr(b.middle_name, 100), cleanStr(b.last_name, 100), cleanStr(b.preferred_name, 100), cleanStr(b.name_ar, 160), gender, dob,
+      cleanStr(b.nationality, 80), cleanStr(b.state_of_origin, 80), cleanStr(b.lga, 80), cleanStr(b.religion, 60), classRow ? classRow.id : null, cleanStr(b.previous_school, 200), cleanStr(b.quran_level, 80), cleanStr(b.program, 120), cleanStr(b.education_track, 20) || "both",
+      b.desired_session_id ? Number(b.desired_session_id) : null, parentName, cleanStr(b.father_name, 160), cleanStr(b.mother_name, 160), cleanStr(b.guardian_name, 160), cleanStr(b.guardian_relationship, 80), parentPhone,
+      cleanStr(b.alternative_phone, 60), cleanStr(b.parent_email, 120), cleanStr(b.address, 255), cleanStr(b.emergency_contact, 160), cleanStr(b.additional_info, 2000), cleanStr(b.message, 2000), cleanStr(req.ip, 64),
     ]
   );
   await logActivity(db, { madrasaId: m.id, action: "admission.public_apply", entity: "admission_request", entityId: String(r.lastInsertRowid), meta: { reference }, ip: req.ip });

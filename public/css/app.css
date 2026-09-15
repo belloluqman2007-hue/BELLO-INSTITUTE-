@@ -3140,3 +3140,107 @@ body.islamic-experience .socials a { border-color: #ddd3b8; }
 .category-page--islamic .category-register-section { background: #faf7ef; }
 .category-page--islamic .category-register-card { background: linear-gradient(120deg, var(--forest-900) 0%, var(--forest-800) 55%, var(--forest-700) 100%); box-shadow: 0 24px 50px rgba(21, 6, 40, .24); border-color: rgba(240, 217, 153, .35); }
 .category-page--islamic .category-register-card p:not(.section-kicker) { color: #dfd9e7; }
+
+/* ============================================================================
+   Public school website — administrator-configured appearance
+   ----------------------------------------------------------------------------
+   Added for ADMIN → MY INSTITUTION. The variables below are written into the
+   .school-public style attribute by renderSchoolPublic(), after the values have
+   been re-validated client-side. Each has a fallback, so a school that has
+   never opened the Appearance screen renders exactly as it did before.
+   ========================================================================== */
+.school-public {
+  --school-secondary: #c8952c;
+  --school-islamic: #200a3d;
+  --school-western: #0a2342;
+  --school-btn-radius: 12px;
+}
+.school-public[style*="--school-font"] { font-family: var(--school-font); }
+.school-public[style*="--school-paper"] { background: var(--school-paper); }
+.school-public[style*="--school-ink"] { color: var(--school-ink); }
+.school-public .button { border-radius: var(--school-btn-radius); }
+.school-public .button-gold { background: var(--school-secondary); }
+
+/* Dark theme, chosen in Website Appearance ------------------------------- */
+.school-public.school-theme-dark { background: #14111d; color: #f2eff8; }
+.school-public.school-theme-dark .school-section-muted { background: #1c1828; }
+.school-public.school-theme-dark .school-copy,
+.school-public.school-theme-dark .school-news-grid article p,
+.school-public.school-theme-dark .school-values-grid p { color: #cdc6dc; }
+.school-public.school-theme-dark h2,
+.school-public.school-theme-dark h3 { color: #fbfaff; }
+.school-public.school-theme-dark .school-contact-card,
+.school-public.school-theme-dark .school-news-grid article,
+.school-public.school-theme-dark .school-values-grid article,
+.school-public.school-theme-dark .school-stream { background: #221d31; border-color: rgba(255,255,255,.12); color: #ece8f5; }
+
+/* Page menu -------------------------------------------------------------- */
+.school-nav { position: sticky; top: 0; z-index: 20; background: var(--school-brand); }
+.school-nav-inner { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
+.school-nav-inner::-webkit-scrollbar { display: none; }
+.school-nav-inner a { flex: 0 0 auto; padding: 7px 14px; border-radius: 999px; color: rgba(255,255,255,.88); font-size: .85rem; font-weight: 600; text-decoration: none; }
+.school-nav-inner a:hover, .school-nav-inner a:focus-visible { background: rgba(255,255,255,.16); color: #fff; }
+
+/* Hero extras ------------------------------------------------------------ */
+.school-tagline { margin: 6px 0 0; font-size: 1.02rem; font-weight: 600; opacity: .92; }
+.school-badge-closed { display: inline-block; margin: 14px 0 0; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,.16); font-size: .85rem; font-weight: 700; }
+.school-meta-line { margin: 12px 0 0; color: #6a6478; font-size: .9rem; font-weight: 600; }
+
+/* Contact card extras ---------------------------------------------------- */
+.school-contact-card .school-hours,
+.school-contact-card .school-head,
+.school-contact-card .school-whatsapp,
+.school-contact-card .school-emergency { font-size: .9rem; line-height: 1.55; }
+.school-contact-card .school-emergency { font-weight: 700; }
+.school-socials { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.school-socials a { padding: 5px 12px; border: 1px solid currentColor; border-radius: 999px; font-size: .78rem; font-weight: 700; text-decoration: none; }
+
+/* Mission / vision / values --------------------------------------------- */
+.school-values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 22px; }
+.school-values-grid article { padding: 22px; border: 1px solid rgba(20,16,30,.1); border-radius: 18px; background: #fff; }
+.school-values-grid h3 { margin: 0 0 10px; font-size: 1.05rem; color: var(--school-brand); }
+.school-values-grid p { margin: 0; color: #56505f; line-height: 1.65; white-space: pre-wrap; }
+
+/* Islamic / Western strands — distinct accents, one institution ---------- */
+.school-streams { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 22px; }
+.school-stream { padding: 24px; border: 1px solid rgba(20,16,30,.1); border-top-width: 4px; border-radius: 18px; background: #fff; }
+.school-stream h3 { margin: 0 0 10px; font-size: 1.12rem; }
+.school-stream p { margin: 0; color: #56505f; line-height: 1.7; white-space: pre-wrap; }
+.school-stream-islamic { border-top-color: var(--school-islamic); }
+.school-stream-islamic h3 { color: var(--school-islamic); }
+.school-stream-western { border-top-color: var(--school-western); }
+.school-stream-western h3 { color: var(--school-western); }
+
+/* Gallery ---------------------------------------------------------------- */
+.school-album-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin: 22px 0 26px; }
+.school-album { display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(20,16,30,.1); border-radius: 18px; background: #fff; }
+.school-album.is-featured { border-color: var(--school-secondary); box-shadow: 0 10px 28px rgba(20,16,30,.1); }
+.school-album img, .school-album-blank { display: block; width: 100%; height: 140px; object-fit: cover; background: #ece9f2; }
+.school-album > div { padding: 14px 16px 18px; }
+.school-album h3 { margin: 0 0 4px; font-size: 1rem; }
+.school-album small { color: #7b7488; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.school-album p { margin: 8px 0 0; color: #56505f; font-size: .88rem; line-height: 1.55; }
+.school-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-top: 8px; }
+.school-gallery-item { position: relative; display: block; margin: 0; overflow: hidden; border-radius: 14px; background: #ece9f2; text-decoration: none; color: inherit; }
+.school-gallery-item.is-featured { outline: 3px solid var(--school-secondary); outline-offset: -3px; }
+.school-gallery-item img, .school-gallery-blank { display: block; width: 100%; height: 170px; object-fit: cover; transition: transform .3s ease; }
+.school-gallery-item:hover img { transform: scale(1.05); }
+.school-gallery-item figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 12px 10px; background: linear-gradient(transparent, rgba(12,9,18,.82)); color: #fff; font-size: .82rem; font-weight: 600; }
+.school-play { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 46px; height: 46px; transform: translate(-50%,-50%); border-radius: 50%; background: rgba(12,9,18,.62); color: #fff; font-size: 1rem; }
+
+/* Additional published pages -------------------------------------------- */
+.school-extra-pages { display: grid; gap: 30px; }
+.school-extra-pages h2 { margin: 0 0 10px; }
+.school-extra-pages .school-copy { white-space: pre-wrap; }
+
+@media (max-width: 800px) {
+  .school-values-grid, .school-streams { grid-template-columns: 1fr; }
+  .school-gallery-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .school-gallery-item img, .school-gallery-blank { height: 140px; }
+}
+@media (max-width: 520px) {
+  .school-gallery-grid { grid-template-columns: 1fr 1fr; gap: 9px; }
+  .school-gallery-item img, .school-gallery-blank { height: 112px; }
+  .school-album img, .school-album-blank { height: 120px; }
+  .school-nav-inner a { padding: 6px 11px; font-size: .8rem; }
+}

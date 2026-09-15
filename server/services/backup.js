@@ -28,7 +28,11 @@ const TABLE_ORDER = [
   "classes", "subjects", "class_subjects", "teacher_assignments", "students",
   "parent_links", "fee_items", "fee_payments", "grading_config", "results",
   "term_summaries", "attendance", "announcements", "settings", "platform_settings",
-  "admission_requests", "timetable_slots", "activity_log",
+  "admission_requests", "timetable_slots",
+  // My Institution: albums before images, because an image may point at the
+  // album that owns it (gallery_images.album_id).
+  "website_pages", "gallery_albums", "gallery_images",
+  "activity_log",
 ];
 /* Never part of a snapshot: login state is not data. */
 const SKIP_TABLES = new Set(["app_sessions"]);

@@ -91,14 +91,13 @@
           <div class="footer-brand">
             ${brandMarkup()}
             <p>A connected education platform helping families discover the right school and helping independent institutions grow with confidence.</p>
-            <p class="footer-ar" lang="ar" dir="rtl">منصة تعليمية تساعد العائلات على اكتشاف المدرسة المناسبة، وتساعد المؤسسات المستقلة على النمو بثقة.</p>
             <div class="socials"><a href="#footer" aria-label="BELLO on Instagram">${icons.instagram}</a><a href="#footer" aria-label="BELLO on LinkedIn">${icons.linkedin}</a><a href="#footer" aria-label="BELLO on Facebook">${icons.facebook}</a></div>
           </div>
           <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
           <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/login">Login</a></div>
           <div class="footer-col"><h3>Platform</h3><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
         </div>
-        <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i> <span lang="ar" dir="rtl">اكتشف · تواصل · ازدهر</span></span></div>
+        <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i></span></div>
       </footer>`;
   }
 
@@ -113,7 +112,6 @@
     const alt = islamic ? "Students learning together in an Islamic school" : "Students collaborating in a modern academy";
     const label = islamic ? "Faith-led learning" : "Modern academic learning";
     const button = islamic ? "Explore Islamic Schools" : "Explore Western Academies";
-    const titleAr = islamic ? "مدرسة إسلامية" : "أكاديمية غربية";
     return `
       <article class="education-choice education-choice--${kind} reveal">
         <a class="choice-image" href="${href}" data-route="${href}" aria-label="${button}">
@@ -124,7 +122,6 @@
         <div class="choice-content">
           <div class="choice-icon">${islamic ? icons.book : icons.school}</div>
           <h3>${title}</h3>
-          <p class="choice-ar" lang="ar" dir="rtl">${titleAr}</p>
           <p>${description}</p>
           <a class="button choice-button" href="${href}" data-route="${href}">${button} <span>${icons.arrow}</span></a>
         </div>
@@ -145,14 +142,12 @@
             <div class="platform-hero-intro reveal">
               <p class="eyebrow"><span class="eyebrow-dot"></span>One connected education platform</p>
               <h1 id="hero-title">Welcome to <em>BELLO</em></h1>
-              <p class="hero-arabic" lang="ar" dir="rtl">أهلاً بكم في منصة بيلو التعليمية</p>
               <p class="platform-hero-copy">A smarter way to discover, connect, and manage education.</p>
             </div>
             <div class="choice-heading reveal">
               <span class="choice-heading-line"></span>
               <div class="choice-heading-text">
                 <h2>What type of school are you looking for?</h2>
-                <p class="choice-heading-ar" lang="ar" dir="rtl">ما نوع المدرسة التي تبحث عنها؟</p>
               </div>
               <span class="choice-heading-line"></span>
             </div>
@@ -519,14 +514,6 @@
       registerHref: "/register-academy",
       registerRoute: "/register-academy",
       featureCards: [["Find schools", "Discover academic institutions in the places that work for your family.", "search"], ["Explore programmes", "See the subjects, classes and learning opportunities on offer.", "school"], ["Plan with clarity", "Get the information you need before connecting with a school.", "compass"]],
-      ar: {
-        eyebrow: "الأكاديميات الغربية",
-        title: "تعليمٌ حديثٌ جاهزٌ للاكتشاف",
-        quote: "",
-        audience: "بيتٌ لكلِّ رحلةٍ تعليمية",
-        types: ["مدرسة ابتدائية", "مدرسة ثانوية", "كلية", "أكاديمية أخرى"],
-        register: "سجِّل أكاديميتك على بيلو",
-      },
     }
   };
 
@@ -544,7 +531,7 @@
     document.body.classList.remove("western-experience", "western-menu-open");
     document.body.classList.toggle("islamic-experience", kind === "islamic");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = kind === "islamic" ? "#31075e" : "#220b40";
+    if (themeMeta) themeMeta.content = kind === "islamic" ? "#064e3b" : "#220b40";
     const data = categoryData[kind];
     if (!data) return renderHomepage();
     document.title = `BELLO — ${data.shortName}`;
@@ -667,7 +654,7 @@
     document.body.classList.remove("western-experience", "western-menu-open");
     document.body.classList.add("islamic-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (themeMeta) themeMeta.content = "#31075e";
+    if (themeMeta) themeMeta.content = "#064e3b";
     if (window.BelloRegister && typeof window.BelloRegister.mount === "function") {
       window.BelloRegister.mount();
     }
@@ -719,7 +706,7 @@
       const programs = publicPageCopy(pages, "programs", m.category === "western" ? "Programs" : "Programs & courses", "");
       const teachers = publicPageCopy(pages, "teachers", "Our teaching team", "");
       const admissions = publicPageCopy(pages, "admissions", "Admissions", "");
-      const brand = /^#[0-9a-fA-F]{3,8}$/.test(m.brandColor || "") ? m.brandColor : (m.category === "western" ? "#0a2342" : "#31075e");
+      const brand = /^#[0-9a-fA-F]{3,8}$/.test(m.brandColor || "") ? m.brandColor : (m.category === "western" ? "#0a2342" : "#064e3b");
       document.title = `${m.nameEn || "Institution"} — BELLO`;
       app.innerHTML = `
         ${headerMarkup()}

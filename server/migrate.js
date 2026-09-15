@@ -896,6 +896,164 @@ const MIGRATIONS = [
       await api.run(`CREATE INDEX idx_gallery_album ON gallery_images (madrasa_id, album_id, sort_order)`);
     },
   },
+  /* ------------------------------------------------------------------ */
+  {
+    id: "019_complete_student_management",
+    up: async (api, dialect) => {
+      // The original student table is retained as the source of truth. These
+      // columns add the registration/profile detail needed by the admin
+      // workspace without splitting Islamic and Western learners into two
+      // databases.
+      const studentColumns = [
+        ["student_code", "VARCHAR(60)"],
+        ["middle_name", "VARCHAR(100) NOT NULL DEFAULT ''"],
+        ["preferred_name", "VARCHAR(100) NOT NULL DEFAULT ''"],
+        ["nationality", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["state_of_origin", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["lga", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["religion", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["admission_date", "DATE"],
+        ["section", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["islamic_class_id", "INT"],
+        ["western_class_id", "INT"],
+        ["islamic_program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["western_program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["student_type", "VARCHAR(20) NOT NULL DEFAULT 'new'"],
+        ["previous_school", "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ["previous_class", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["father_name", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["mother_name", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["guardian_name", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["guardian_relationship", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["alternative_phone", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["parent_email", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["emergency_contact", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["emergency_info", "TEXT"],
+        ["residential_address", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        ["archived_at", dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT"],
+      ];
+      for (const [name, type] of studentColumns) await api.run(`ALTER TABLE students ADD COLUMN ${name} ${type}`);
+      // Existing records receive a stable, human-readable ID. Admission
+      // numbers are already unique within a madrasa and remain unchanged.
+      await api.run("UPDATE students SET student_code = admission_no WHERE student_code = '' OR student_code IS NULL");
+      await api.run("CREATE UNIQUE INDEX idx_students_code ON students (madrasa_id, student_code)");
+      await api.run("CREATE INDEX idx_students_directory ON students (madrasa_id, status, class_id, session_id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_status_history (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, student_id INT NOT NULL,
+          from_status VARCHAR(20), to_status VARCHAR(20) NOT NULL, reason VARCHAR(500) NOT NULL DEFAULT '',
+          changed_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_status_history ON student_status_history (madrasa_id, student_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_class_history (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, student_id INT NOT NULL,
+          from_class_id INT, to_class_id INT, from_session_id INT, to_session_id INT,
+          action VARCHAR(30) NOT NULL DEFAULT 'placement', notes VARCHAR(500) NOT NULL DEFAULT '',
+          changed_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_class_history ON student_class_history (madrasa_id, student_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_groups (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, name VARCHAR(160) NOT NULL,
+          group_type VARCHAR(60) NOT NULL DEFAULT 'custom', description TEXT,
+          leader_student_id INT, teacher_id INT, status VARCHAR(20) NOT NULL DEFAULT 'active',
+          created_by INT, created_at ${D.ts()}, updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_groups ON student_groups (madrasa_id, status, group_type, id)");
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_group_members (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, group_id INT NOT NULL,
+          student_id INT NOT NULL, joined_at ${D.ts()},
+          UNIQUE (madrasa_id, group_id, student_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_group_members ON student_group_members (madrasa_id, student_id, group_id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_documents (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, student_id INT NOT NULL,
+          document_name VARCHAR(200) NOT NULL, storage_path VARCHAR(500) NOT NULL,
+          original_name VARCHAR(255) NOT NULL DEFAULT '', mime_type VARCHAR(120) NOT NULL DEFAULT '',
+          file_size INT NOT NULL DEFAULT 0, uploaded_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_documents ON student_documents (madrasa_id, student_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_communications (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, student_id INT NOT NULL,
+          channel VARCHAR(30) NOT NULL DEFAULT 'note', subject VARCHAR(200) NOT NULL DEFAULT '',
+          message TEXT NOT NULL, created_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_communications ON student_communications (madrasa_id, student_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_life_records (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, student_id INT NOT NULL,
+          category VARCHAR(30) NOT NULL DEFAULT 'activity', title VARCHAR(200) NOT NULL,
+          details TEXT, record_date DATE, created_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_life_records ON student_life_records (madrasa_id, student_id, category, id)");
+
+      const applicationColumns = [
+        ["middle_name", "VARCHAR(100) NOT NULL DEFAULT ''"],
+        ["father_name", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["mother_name", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["guardian_name", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["guardian_relationship", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["preferred_name", "VARCHAR(100) NOT NULL DEFAULT ''"],
+        ["nationality", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["state_of_origin", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["lga", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["religion", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["section", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["islamic_class_id", "INT"],
+        ["western_class_id", "INT"],
+        ["islamic_program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["western_program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["student_type", "VARCHAR(20) NOT NULL DEFAULT 'new'"],
+        ["alternative_phone", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["emergency_contact", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["additional_info", "TEXT"],
+        ["desired_session_id", "INT"],
+        ["fee_status", "VARCHAR(20) NOT NULL DEFAULT 'unpaid'"],
+        ["fee_reference", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["interview_date", "DATE"],
+        ["interview_notes", "TEXT"],
+      ];
+      for (const [name, type] of applicationColumns) await api.run(`ALTER TABLE admission_requests ADD COLUMN ${name} ${type}`);
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS admission_application_history (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, application_id INT NOT NULL,
+          from_status VARCHAR(30), to_status VARCHAR(30) NOT NULL, note TEXT,
+          changed_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_admission_history ON admission_application_history (madrasa_id, application_id, id)");
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS admission_documents (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, application_id INT NOT NULL,
+          document_name VARCHAR(200) NOT NULL, storage_path VARCHAR(500) NOT NULL,
+          original_name VARCHAR(255) NOT NULL DEFAULT '', mime_type VARCHAR(120) NOT NULL DEFAULT '',
+          file_size INT NOT NULL DEFAULT 0, uploaded_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_admission_documents ON admission_documents (madrasa_id, application_id, id)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

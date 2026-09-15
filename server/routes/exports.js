@@ -62,6 +62,12 @@ router.get("/students.csv", STAFF, asyncHandler(async (req, res) => {
   const params = [tid];
   if (classIds) { where.push(`s.class_id IN (${inClause(classIds)})`); params.push(...classIds); }
   if (req.query.status) { where.push("s.status = ?"); params.push(cleanStr(req.query.status, 20)); }
+  if (req.query.gender) { where.push("s.gender = ?"); params.push(cleanStr(req.query.gender, 10)); }
+  if (req.query.sessionId) { where.push("s.session_id = ?"); params.push(toNum(req.query.sessionId, 0)); }
+  if (req.query.program) { where.push("s.program = ?"); params.push(cleanStr(req.query.program, 120)); }
+  if (req.query.education_track) { where.push("s.education_track = ?"); params.push(cleanStr(req.query.education_track, 20)); }
+  if (req.query.section) { where.push("s.section = ?"); params.push(cleanStr(req.query.section, 80)); }
+  if (req.query.search) { const q = `%${cleanStr(req.query.search, 100).toLowerCase()}%`; where.push("(LOWER(s.first_name) LIKE ? OR LOWER(s.last_name) LIKE ? OR LOWER(s.admission_no) LIKE ? OR LOWER(s.student_code) LIKE ? OR LOWER(s.parent_name) LIKE ?)"); params.push(q, q, q, q, q); }
 
   const rows = await db.all(
     `SELECT s.*, c.name_en AS class_en, s2.label AS session_label,
@@ -85,18 +91,41 @@ router.get("/students.csv", STAFF, asyncHandler(async (req, res) => {
     { label: "Admission No", key: "admission_no" },
     { label: "First Name", key: "first_name" },
     { label: "Last Name", key: "last_name" },
+    { label: "Student ID", key: "student_code" },
+    { label: "Middle Name", key: "middle_name" },
     { label: "Arabic Name", key: "name_ar" },
     { label: "Gender", key: "gender" },
     { label: "Date of Birth", key: "date_of_birth" },
     { label: "Age", value: (r) => age(r.date_of_birth) },
     { label: "Class", key: "class_en" },
+    { label: "Section", key: "section" },
     { label: "Session", key: "session_label" },
+    { label: "Program", key: "program" },
+    { label: "Education Track", key: "education_track" },
+    { label: "Islamic Program", key: "islamic_program" },
+    { label: "Western Program", key: "western_program" },
     { label: "Status", key: "status" },
     { label: "Parent/Guardian", key: "parent_name" },
     { label: "Parent Phone", key: "parent_phone" },
+    { label: "Alternative Phone", key: "alternative_phone" },
+    { label: "Parent Email", key: "parent_email" },
     { label: "Fees Paid (₦)", value: (r) => csv.num(r.paid || 0, 0) },
     { label: "Address", key: "address" },
     { label: "Enrolled On", value: (r) => String(r.created_at || "").slice(0, 10) },
+  ]));
+}));
+
+/* -------------------------- student group members ----------------------- */
+router.get("/student-groups/:id.csv", ADMINS, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const group = await db.get("SELECT id, name FROM student_groups WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
+  if (!group) return err(res, 404, "Student group not found.");
+  const rows = await db.all(`SELECT s.*, c.name_en AS class_en, ss.label AS session_label FROM student_group_members gm JOIN students s ON s.id = gm.student_id AND s.madrasa_id = gm.madrasa_id LEFT JOIN classes c ON c.id = s.class_id LEFT JOIN academic_sessions ss ON ss.id = s.session_id WHERE gm.group_id = ? AND gm.madrasa_id = ? ORDER BY s.last_name, s.first_name`, [group.id, tid]);
+  csv.sendCsv(res, filename(req, "student-group"), csv.toCsv(rows, [
+    { label: "Admission No", key: "admission_no" }, { label: "Student ID", key: "student_code" },
+    { label: "Student", value: (r) => `${r.first_name} ${r.last_name}`.trim() }, { label: "Gender", key: "gender" },
+    { label: "Class", key: "class_en" }, { label: "Session", key: "session_label" }, { label: "Status", key: "status" },
+    { label: "Parent / Guardian", key: "parent_name" }, { label: "Phone", key: "parent_phone" },
   ]));
 }));
 

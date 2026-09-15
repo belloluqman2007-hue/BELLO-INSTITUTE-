@@ -468,7 +468,14 @@ const registerHandler = asyncHandler(async (req, res) => {
 
   const registrationId = newMadrasaRegistrationId();
   const madrasaId = madrasaData.id || newMadrasaId();
-  const now = new Date().toISOString();
+  // MySQL runs in strict mode in production and does not accept the ISO 8601
+  // `T` separator for a DATETIME/TIMESTAMP parameter. SQLite is permissive,
+  // which hid this until registrations were submitted against the live DB.
+  // Keep the API response ISO-formatted, but use the portable SQL form for the
+  // persisted value.
+  const now = new Date();
+  const submittedAt = now.toISOString();
+  const databaseSubmittedAt = submittedAt.slice(0, 19).replace("T", " ");
 
   const officialName = cleanStr(madrasaData.officialName, 160);
   const logo = String(madrasaData.logo || "");
@@ -514,7 +521,7 @@ const registerHandler = asyncHandler(async (req, res) => {
         yearEstablished, institutionType, category, country, state, city, address, mapsLink,
         phone, whatsapp, madrasaEmail, website, facebook, instagram, JSON.stringify(subjects),
         studentCount, teacherCount, classCount, JSON.stringify(ageGroups), adminFullName,
-        adminPosition, adminEmail, adminPhone, adminUsername, adminPasswordHash, cleanStr(req.ip, 64), now,
+        adminPosition, adminEmail, adminPhone, adminUsername, adminPasswordHash, cleanStr(req.ip, 64), databaseSubmittedAt,
       ]
     );
   } catch (e) {

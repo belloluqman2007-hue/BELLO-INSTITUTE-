@@ -33,6 +33,7 @@ const tokens = require("../services/tokens");
 const { renderReportCard } = require("./results");
 const { publicLimiter, publicWriteLimiter, verifyLimiter } = require("../middleware/ratelimit");
 const institution = require("../services/institution");
+const myInstitution = require("../services/my-institution");
 
 const router = express.Router();
 const REPORT_TTL_SECONDS = 15 * 60;
@@ -62,12 +63,30 @@ async function publicSettings() {
   };
 }
 
-/* Shared projection for every public card/profile. m.id is kept internally. */
+/* Shared projection for every public card/profile. m.id is kept internally.
+   The My Institution columns are included so the public site renders exactly
+   what the administrator configured — identity, appearance and the contact
+   details they chose to publish. */
 const CARD_SELECT = `
   SELECT m.id, m.slug, m.name_en, m.name_ar, m.motto_en, m.motto_ar, m.logo_path, m.hero_image_path,
          m.brand_color, m.category, m.city, m.state_name, m.maps_link,
          m.description_en, m.description_ar, m.founded_year, m.website, m.phone, m.email,
          m.public_listing, m.public_results, m.public_admissions,
+         m.tagline, m.address, m.whatsapp, m.institution_type, m.badge_path, m.favicon_path,
+         m.short_description, m.history, m.mission, m.vision, m.core_values, m.philosophy,
+         m.ownership_type, m.head_name, m.head_title, m.registration_no, m.accreditation_body,
+         m.accreditation_details, m.country, m.alt_phone, m.admissions_email, m.emergency_contact,
+         m.opening_time, m.closing_time, m.school_days, m.levels_offered,
+         m.islamic_education_info, m.western_education_info, m.languages_of_instruction,
+         m.student_capacity, m.boarding_status, m.admission_status,
+         m.secondary_color, m.background_color, m.text_color, m.islamic_color, m.western_color,
+         m.font_family, m.header_style, m.footer_style, m.button_style, m.card_style,
+         m.homepage_layout, m.website_theme, m.website_published,
+         m.seo_title, m.seo_description, m.seo_keywords,
+         m.facebook, m.instagram, m.twitter, m.youtube, m.linkedin, m.tiktok,
+         m.show_phone, m.show_alt_phone, m.show_email, m.show_admissions_email, m.show_whatsapp,
+         m.show_address, m.show_map, m.show_hours, m.show_socials, m.show_head, m.show_emergency,
+         m.contact_form_enabled,
          (SELECT COUNT(*) FROM students s WHERE s.madrasa_id = m.id AND s.status IN ('active','promoted','suspended')) AS student_count,
          (SELECT COUNT(*) FROM users u WHERE u.madrasa_id = m.id AND u.role = 'teacher' AND u.is_active = 1) AS teacher_count,
          (SELECT COUNT(*) FROM classes c WHERE c.madrasa_id = m.id AND c.is_active = 1) AS class_count,
@@ -75,7 +94,13 @@ const CARD_SELECT = `
          (SELECT label FROM academic_sessions a WHERE a.madrasa_id = m.id AND a.is_current = 1 ORDER BY a.id DESC LIMIT 1) AS current_session
   FROM madaris m`;
 
+/** A contact channel is published only when the administrator allows it. */
+function ifShown(flag, value) {
+  return Number(flag) === 1 ? (value || "") : "";
+}
+
 function cardOut(m) {
+  const appearance = myInstitution.resolveAppearance(m);
   return {
     slug: m.slug,
     // Shareable per-school link: opens this school's own public page directly.
@@ -84,19 +109,29 @@ function cardOut(m) {
     nameAr: m.name_ar || "",
     mottoEn: m.motto_en || "",
     mottoAr: m.motto_ar || "",
+    tagline: m.tagline || "",
     logoPath: m.logo_path || "",
     heroImagePath: m.hero_image_path || "",
+    badgePath: m.badge_path || "",
+    faviconPath: m.favicon_path || "",
     brandColor: m.brand_color || "",
     category: m.category || "islamic",
-    mapsLink: m.maps_link || "",
+    institutionType: m.institution_type || "",
+    mapsLink: ifShown(m.show_map, m.maps_link),
+    address: ifShown(m.show_address, m.address),
     city: m.city || "",
     state: m.state_name || "",
+    country: m.country || "",
     descriptionEn: m.description_en || "",
     descriptionAr: m.description_ar || "",
+    shortDescription: m.short_description || "",
     foundedYear: m.founded_year || "",
     website: m.website || "",
-    phone: m.phone || "",
-    email: m.email || "",
+    phone: ifShown(m.show_phone, m.phone),
+    altPhone: ifShown(m.show_alt_phone, m.alt_phone),
+    email: ifShown(m.show_email, m.email),
+    admissionsEmail: ifShown(m.show_admissions_email, m.admissions_email),
+    whatsapp: ifShown(m.show_whatsapp, m.whatsapp),
     students: Number(m.student_count || 0),
     teachers: Number(m.teacher_count || 0),
     classes: Number(m.class_count || 0),
@@ -104,6 +139,47 @@ function cardOut(m) {
     currentSession: m.current_session || "",
     canCheckResults: Number(m.public_results) === 1,
     canApply: Number(m.public_admissions) === 1,
+    // --- My Institution: identity, operations and appearance -------------
+    profile: {
+      history: m.history || "",
+      mission: m.mission || "",
+      vision: m.vision || "",
+      coreValues: m.core_values || "",
+      philosophy: m.philosophy || "",
+      ownershipType: m.ownership_type || "",
+      headName: ifShown(m.show_head, m.head_name),
+      headTitle: ifShown(m.show_head, m.head_title),
+      registrationNo: m.registration_no || "",
+      accreditationBody: m.accreditation_body || "",
+      accreditationDetails: m.accreditation_details || "",
+    },
+    information: {
+      levelsOffered: m.levels_offered || "",
+      islamicEducation: m.islamic_education_info || "",
+      westernEducation: m.western_education_info || "",
+      languages: m.languages_of_instruction || "",
+      studentCapacity: m.student_capacity === null || m.student_capacity === undefined ? null : Number(m.student_capacity),
+      boardingStatus: m.boarding_status || "",
+      admissionStatus: m.admission_status || "open",
+      openingTime: ifShown(m.show_hours, m.opening_time),
+      closingTime: ifShown(m.show_hours, m.closing_time),
+      schoolDays: ifShown(m.show_hours, m.school_days),
+    },
+    contact: {
+      emergency: ifShown(m.show_emergency, m.emergency_contact),
+      formEnabled: Number(m.contact_form_enabled) === 1,
+      socials: Number(m.show_socials) === 1 ? {
+        facebook: m.facebook || "", instagram: m.instagram || "", twitter: m.twitter || "",
+        youtube: m.youtube || "", linkedin: m.linkedin || "", tiktok: m.tiktok || "",
+      } : {},
+    },
+    appearance,
+    seo: {
+      title: m.seo_title || "",
+      description: m.seo_description || m.short_description || "",
+      keywords: m.seo_keywords || "",
+    },
+    websitePublished: Number(m.website_published) !== 0,
   };
 }
 
@@ -156,6 +232,11 @@ router.get("/madaris", publicLimiter, asyncHandler(async (req, res) => {
 router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
   const m = await findPublicMadrasa(req.params.slug);
   if (!m || Number(m.public_listing) !== 1) return err(res, 404, "That madrasa page is not available.");
+  // Admin → My Institution → Public Website can take the site offline without
+  // touching the directory listing or any of the data behind it.
+  if (Number(m.website_published) === 0) {
+    return err(res, 404, "This institution's website is currently unpublished.");
+  }
   const [classes, subjects, notices, summaryCount, pageRows] = await Promise.all([
     db.all("SELECT id, name_en, name_ar FROM classes WHERE madrasa_id = ? AND is_active = 1 ORDER BY sort_order, id", [m.id]),
     db.all("SELECT name_en, name_ar FROM subjects WHERE madrasa_id = ? AND is_active = 1 ORDER BY name_en", [m.id]),
@@ -188,6 +269,29 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
   ]);
   const pages = {};
   pageRows.forEach((row) => { pages[row.key_name] = row.value || ""; });
+
+  // Website Pages + Gallery, as configured under ADMIN → MY INSTITUTION.
+  // Only records the administrator explicitly published are returned; an
+  // unpublished page or album is invisible to the public API entirely.
+  const [sitePages, albums, media] = await Promise.all([
+    db.all(
+      `SELECT slug, title, summary, body, seo_title, seo_description, in_navigation, sort_order
+         FROM website_pages WHERE madrasa_id = ? AND is_published = 1 ORDER BY sort_order, id`,
+      [m.id]
+    ),
+    db.all(
+      `SELECT a.id, a.title, a.description, a.category, a.is_featured, a.sort_order,
+              (SELECT g.image_path FROM gallery_images g WHERE g.id = a.cover_image_id AND g.madrasa_id = a.madrasa_id) AS cover_path
+         FROM gallery_albums a WHERE a.madrasa_id = ? AND a.is_published = 1 ORDER BY a.sort_order, a.id`,
+      [m.id]
+    ),
+    db.all(
+      `SELECT id, album_id, image_path, video_url, media_type, caption, category, is_featured, sort_order
+         FROM gallery_images WHERE madrasa_id = ? AND is_published = 1 ORDER BY sort_order, id LIMIT 200`,
+      [m.id]
+    ),
+  ]);
+
   ok(res, {
     madrasa: cardOut(m),
     classes,
@@ -195,6 +299,27 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
     notices,
     publishedTermCount: Number(summaryCount.n),
     pages,
+    sitePages: sitePages.map((p) => ({
+      slug: p.slug,
+      title: p.title,
+      summary: p.summary || "",
+      body: p.body || "",
+      seoTitle: p.seo_title || "",
+      seoDescription: p.seo_description || "",
+      inNavigation: Number(p.in_navigation) === 1,
+    })),
+    navigation: sitePages.filter((p) => Number(p.in_navigation) === 1).map((p) => ({ slug: p.slug, title: p.title })),
+    gallery: {
+      albums: albums.map((a) => ({
+        id: a.id, title: a.title, description: a.description || "",
+        category: a.category || "", coverPath: a.cover_path || "", featured: Number(a.is_featured) === 1,
+      })),
+      media: media.map((g) => ({
+        id: g.id, albumId: g.album_id || null, path: g.image_path || "", videoUrl: g.video_url || "",
+        type: g.media_type || "image", caption: g.caption || "", category: g.category || "",
+        featured: Number(g.is_featured) === 1,
+      })),
+    },
     // The administrator sign-in page — a real address (always asks for a
     // password) rather than the old hash route.
     loginUrl: "/login",

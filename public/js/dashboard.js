@@ -670,6 +670,16 @@
   }
 
   /* --------------------------------------------------------------------
+     Context handed to the MY INSTITUTION module.
+     Exposing the dashboard's own primitives (rather than letting that module
+     invent its own) is what keeps the section visually and behaviourally
+     identical to the rest of the workspace.
+     -------------------------------------------------------------------- */
+  function institutionContext() {
+    return { I, esc, T, go, toast, openModal, closeModal, statCard, fmtDate, state };
+  }
+
+  /* --------------------------------------------------------------------
      Route dispatch
      -------------------------------------------------------------------- */
   async function renderRoute(root) {
@@ -680,7 +690,15 @@
       if (state.superAdmin) return await renderSuperRoute(content, route);
       if (route === "dashboard") return await pageDashboard(content);
 
-      // Institution and public-site management
+      // Institution and public-site management.
+      // The whole MY INSTITUTION section lives in public/js/my-institution.js.
+      // It renders into this same #dashContent node and borrows the helpers
+      // below, so it stays inside the existing admin design system. The older
+      // "Website" menu items alias the same screens rather than duplicating
+      // them. If that module is unavailable the legacy editors still answer.
+      if (window.BelloMyInstitution && window.BelloMyInstitution.handles(route)) {
+        return await window.BelloMyInstitution.render(institutionContext(), content, route);
+      }
       if (["institution/profile", "institution/information", "institution/contact", "institution/settings", "settings/institution"].includes(route)) return await pageInstitutionEditor(content, route);
       if (route === "institution/website" || route === "website/public") return await pageWebsiteOverview(content);
       if (route === "institution/appearance" || route === "website/appearance") return await pageAppearance(content);

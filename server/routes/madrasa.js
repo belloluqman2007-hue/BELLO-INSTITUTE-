@@ -46,6 +46,12 @@ const adminOrSupport = (req, res, next) => {
   return res.status(403).json({ error: "Madrasa administrators only." });
 };
 
+/* ------------------------- ADMIN → MY INSTITUTION ----------------------- */
+// The eight "My Institution" screens live in their own file but are mounted
+// INSIDE this router, so they inherit requireAuth + requireTenant and use the
+// very same resolveMadrasa/adminOrSupport guards as every other tenant route.
+router.use("/institution", require("./institution")(resolveMadrasa, adminOrSupport));
+
 /* ------------------------------ profile -------------------------------- */
 
 router.get("/profile", asyncHandler(async (req, res) => {
@@ -605,4 +611,7 @@ rootRouter.put("/grading", requireAuth, requireTenant, adminOrSupport, asyncHand
   ok(res, { ok: true });
 }));
 
-module.exports = { router, rootRouter };
+// resolveMadrasa/adminOrSupport are exported so the My Institution router
+// (routes/institution.js) enforces tenancy through exactly the same code path
+// instead of re-implementing it.
+module.exports = { router, rootRouter, resolveMadrasa, adminOrSupport };

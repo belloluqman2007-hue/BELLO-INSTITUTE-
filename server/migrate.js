@@ -750,6 +750,152 @@ const MIGRATIONS = [
       await api.run(`CREATE INDEX idx_quran_progress_status ON quran_progress (madrasa_id, performance_status, progress_date)`);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "018_my_institution",
+    up: async (api, dialect) => {
+      // ---- ADMIN → MY INSTITUTION -------------------------------------
+      // The institution identity an administrator maintains in
+      // "Institution Profile" / "Institution Information". These are
+      // narrative and factual fields that previously had nowhere to live,
+      // so the public site had to guess them. Every column is nullable or
+      // defaults to '' so EXISTING ROWS ARE UNCHANGED.
+      for (const [col, type] of [
+        // Profile — identity & narrative
+        ["badge_path", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        ["short_description", "VARCHAR(400) NOT NULL DEFAULT ''"],
+        ["history", "TEXT"],
+        ["mission", "TEXT"],
+        ["vision", "TEXT"],
+        ["core_values", "TEXT"],
+        ["philosophy", "TEXT"],
+        ["ownership_type", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["head_name", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["head_title", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["registration_no", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["accreditation_body", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["accreditation_details", "TEXT"],
+        // Information — operations
+        ["country", "VARCHAR(80) NOT NULL DEFAULT 'Nigeria'"],
+        ["alt_phone", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["admissions_email", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["emergency_contact", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["opening_time", "VARCHAR(5) NOT NULL DEFAULT ''"],
+        ["closing_time", "VARCHAR(5) NOT NULL DEFAULT ''"],
+        ["school_days", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["levels_offered", "VARCHAR(400) NOT NULL DEFAULT ''"],
+        ["islamic_education_info", "TEXT"],
+        ["western_education_info", "TEXT"],
+        ["languages_of_instruction", "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ["student_capacity", "INT"],
+        ["boarding_status", "VARCHAR(40) NOT NULL DEFAULT ''"],
+        ["admission_status", "VARCHAR(20) NOT NULL DEFAULT 'open'"],
+        // Appearance — website theming. Both education sections get their
+        // own accent inside ONE shared institution identity, which is why
+        // the base palette is stored once and only the accents diverge.
+        ["secondary_color", "VARCHAR(20) NOT NULL DEFAULT ''"],
+        ["background_color", "VARCHAR(20) NOT NULL DEFAULT ''"],
+        ["text_color", "VARCHAR(20) NOT NULL DEFAULT ''"],
+        ["islamic_color", "VARCHAR(20) NOT NULL DEFAULT ''"],
+        ["western_color", "VARCHAR(20) NOT NULL DEFAULT ''"],
+        ["font_family", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["header_style", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["footer_style", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["button_style", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["card_style", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["homepage_layout", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["website_theme", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["favicon_path", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        // Public website publication state. Existing tenants stay exactly
+        // as visible as they are today (public_listing already decides the
+        // directory); website_published starts at 1 so nothing goes dark.
+        ["website_published", "INT NOT NULL DEFAULT 1"],
+        ["seo_title", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["seo_description", "VARCHAR(320) NOT NULL DEFAULT ''"],
+        ["seo_keywords", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        // Contact — extra channels and public/private visibility switches
+        ["twitter", "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ["youtube", "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ["linkedin", "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ["tiktok", "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ["show_phone", "INT NOT NULL DEFAULT 1"],
+        ["show_alt_phone", "INT NOT NULL DEFAULT 0"],
+        ["show_email", "INT NOT NULL DEFAULT 1"],
+        ["show_admissions_email", "INT NOT NULL DEFAULT 1"],
+        ["show_whatsapp", "INT NOT NULL DEFAULT 1"],
+        ["show_address", "INT NOT NULL DEFAULT 1"],
+        ["show_map", "INT NOT NULL DEFAULT 1"],
+        ["show_hours", "INT NOT NULL DEFAULT 1"],
+        ["show_socials", "INT NOT NULL DEFAULT 1"],
+        ["show_head", "INT NOT NULL DEFAULT 0"],
+        ["show_emergency", "INT NOT NULL DEFAULT 0"],
+        ["contact_form_enabled", "INT NOT NULL DEFAULT 1"],
+        // Settings — localisation & institution identifiers
+        ["school_code", "VARCHAR(40) NOT NULL DEFAULT ''"],
+        ["timezone", "VARCHAR(60) NOT NULL DEFAULT 'Africa/Lagos'"],
+        ["currency", "VARCHAR(10) NOT NULL DEFAULT 'NGN'"],
+        ["default_language", "VARCHAR(10) NOT NULL DEFAULT 'en'"],
+        ["date_format", "VARCHAR(20) NOT NULL DEFAULT 'DD/MM/YYYY'"],
+      ]) {
+        await api.run(`ALTER TABLE madaris ADD COLUMN ${col} ${type}`);
+      }
+
+      // Public website pages. A page is content the administrator writes and
+      // explicitly publishes — nothing is forced live. `slug` is unique per
+      // tenant so the public projection can address one page directly.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS website_pages (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          slug VARCHAR(80) NOT NULL,
+          title VARCHAR(160) NOT NULL,
+          summary VARCHAR(400) NOT NULL DEFAULT '',
+          body ${dialect === "mysql" ? "MEDIUMTEXT" : "TEXT"},
+          seo_title VARCHAR(160) NOT NULL DEFAULT '',
+          seo_description VARCHAR(320) NOT NULL DEFAULT '',
+          is_published INT NOT NULL DEFAULT 0,
+          in_navigation INT NOT NULL DEFAULT 0,
+          is_system INT NOT NULL DEFAULT 0,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at ${D.ts()},
+          updated_at ${D.ts()},
+          UNIQUE (madrasa_id, slug)
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_website_pages ON website_pages (madrasa_id, sort_order, id)`);
+
+      // Gallery albums group the existing gallery_images rows. The old table
+      // is extended (never replaced) so every photo already uploaded stays
+      // exactly where it is, simply un-albumed until an admin files it.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS gallery_albums (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          title VARCHAR(160) NOT NULL,
+          description VARCHAR(600) NOT NULL DEFAULT '',
+          category VARCHAR(60) NOT NULL DEFAULT 'School Activities',
+          cover_image_id INT,
+          is_published INT NOT NULL DEFAULT 1,
+          is_featured INT NOT NULL DEFAULT 0,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_gallery_albums ON gallery_albums (madrasa_id, sort_order, id)`);
+
+      await api.run(`ALTER TABLE gallery_images ADD COLUMN album_id INT`);
+      await api.run(`ALTER TABLE gallery_images ADD COLUMN category VARCHAR(60) NOT NULL DEFAULT 'School Activities'`);
+      await api.run(`ALTER TABLE gallery_images ADD COLUMN media_type VARCHAR(10) NOT NULL DEFAULT 'image'`);
+      // Videos are referenced by URL rather than uploaded: the platform's
+      // upload pipeline is image-only by design (middleware/upload.js), and
+      // hosting video would change the storage contract in docs/PERSISTENCE.md.
+      await api.run(`ALTER TABLE gallery_images ADD COLUMN video_url VARCHAR(500) NOT NULL DEFAULT ''`);
+      await api.run(`ALTER TABLE gallery_images ADD COLUMN is_published INT NOT NULL DEFAULT 1`);
+      await api.run(`ALTER TABLE gallery_images ADD COLUMN is_featured INT NOT NULL DEFAULT 0`);
+      await api.run(`CREATE INDEX idx_gallery_album ON gallery_images (madrasa_id, album_id, sort_order)`);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

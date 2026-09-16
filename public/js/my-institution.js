@@ -78,6 +78,27 @@
   function noun() { return ctx.T().institutionNoun; }
   function label() { return ctx.T().institutionLabel; }
 
+  // One canonical public address per tenant. No platform-homepage links are
+  // used for school websites; a configured custom domain takes precedence.
+  function institutionWebsiteHref(m) {
+    const domain = String((m || {}).custom_domain || "").trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+    return domain ? `https://${domain}` : `/schools/${encodeURIComponent(String((m || {}).slug || ""))}`;
+  }
+  function institutionWebsiteUrl(m) {
+    const href = institutionWebsiteHref(m);
+    return /^https?:\/\//i.test(href) ? href : `${window.location.origin}${href}`;
+  }
+  async function copyWebsiteUrl(m) {
+    const value = institutionWebsiteUrl(m);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(value);
+      else {
+        const input = document.createElement("textarea"); input.value = value; document.body.appendChild(input); input.select(); document.execCommand("copy"); input.remove();
+      }
+      toast("Website URL copied.", "success");
+    } catch (_) { toast("Could not copy the URL. Please copy it from the address shown.", "error"); }
+  }
+
   /* ---------------------------------- states ---------------------------- */
   function loadingState(title) {
     return `<div class="dash-mi-loading" role="status" aria-live="polite">
@@ -366,7 +387,7 @@
     content.innerHTML = `
       ${pageHead(`${label()} Profile`, `The identity of your ${noun()} — used across the admin workspace, report cards and your public website.`,
         `<button class="dash-btn dash-btn-ghost" id="miPreviewProfile">${icon("external")} Preview profile</button>
-         <a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("globe")} View website</a>`)}
+         <a class="dash-btn dash-btn-ghost" href="${esc(institutionWebsiteHref(m))}" target="_blank" rel="noopener">${icon("globe")} View website</a>`)}
       ${sectionNav("profile")}
       <form id="miProfileForm" novalidate>
         <div class="dash-mi-stack">
@@ -707,20 +728,22 @@
 
     content.innerHTML = `
       ${pageHead("Public Website", `Everything visitors see about your ${noun()}, and the switches that control it.`,
-        `<a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View public website</a>
+        `<a class="dash-btn dash-btn-ghost" href="${esc(institutionWebsiteHref(m))}" target="_blank" rel="noopener">${icon("external")} View public website</a>
          <button class="dash-btn dash-btn-ghost" id="miPreviewSite">${icon("image")} Preview</button>`)}
       ${sectionNav("website")}
 
       <div class="dash-website-card" style="margin-bottom:20px;">
         <div class="dash-website-info">
-          <div class="label">Live address</div>
-          <div class="url">${esc(m.slug)}.bello.ng</div>
-          <div class="desc">Also reachable at /s/${esc(m.slug)} on this deployment.</div>
+          <div class="label">Public website URL</div>
+          <div class="url" style="font-size:clamp(.85rem,1.7vw,1.12rem);word-break:break-all">${esc(institutionWebsiteUrl(m))}</div>
+          <div class="desc">This is the unique website for this institution. It never opens the BELLO platform homepage.</div>
         </div>
         <div class="dash-website-actions">
-          <span class="dash-pill ${published && listed ? "ok" : "warn"}" id="miWebsiteStatus">
-            ${published && listed ? icon("check") + " Published" : icon("clock") + (published ? " Published, not listed" : " Unpublished")}
+          <span class="dash-pill ${published ? "ok" : "warn"}" id="miWebsiteStatus">
+            ${published ? icon("check") + " Published" : icon("clock") + " Unpublished"}
           </span>
+          <button type="button" class="dash-btn dash-btn-ghost" id="miCopyWebsite">${icon("copy") || "▣"} Copy URL</button>
+          <a class="dash-btn dash-btn-ghost" href="${esc(institutionWebsiteHref(m))}" target="_blank" rel="noopener">${icon("external")} Open website</a>
           <button class="dash-btn ${published ? "dash-btn-ghost" : "dash-btn-accent"}" id="miTogglePublish"
                   style="${published ? "color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.35);" : ""}">
             ${published ? icon("clock") + " Unpublish website" : icon("check") + " Publish website"}
@@ -768,10 +791,13 @@
           <section class="dash-card">
             <div class="dash-card-head"><h3>Featured content</h3></div>
             <div class="dash-card-pad">
-              <p class="dash-field-hint" style="margin-top:0;">Featured albums and media appear first in the public gallery.</p>
+              <p class="dash-field-hint" style="margin-top:0;">Choose exactly what appears on this institution's website. Teacher profiles are private until you publish them here.</p>
               <div class="dash-actions" style="margin-top:10px;">
                 <button class="dash-btn dash-btn-ghost dash-btn-sm" data-mi-nav="institution/gallery">${icon("image")} Gallery</button>
-                <button class="dash-btn dash-btn-ghost dash-btn-sm" data-mi-route="communication/announcements">${icon("bell")} Announcements</button>
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" id="miManagePrograms">${icon("academic")} Programs</button>
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" id="miManageTeachers">${icon("teacher")} Public teachers</button>
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" id="miManageEvents">${icon("calendar")} Events</button>
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" data-mi-route="communication/announcements">${icon("bell")} News</button>
               </div>
             </div>
           </section>
@@ -790,9 +816,10 @@
         </section>
 
         <section class="dash-card">
-          <div class="dash-card-head"><h3>SEO settings</h3><span class="hint">How search engines describe you</span></div>
+          <div class="dash-card-head"><h3>Website address &amp; SEO</h3><span class="hint">Your unique institution link and search listing</span></div>
           <div class="dash-card-pad">
             <div class="dash-form-grid">
+              ${textField("custom_domain", "Custom domain (optional)", val(m.custom_domain), { maxlength: 255, placeholder: "ameenullahschool.com", hint: "Enter only the domain name. Once DNS is pointed here, both the domain and www version open this institution website." })}
               ${textField("seo_title", "SEO title", val(m.seo_title), { maxlength: 160, placeholder: val(m.name_en) })}
               ${textField("seo_keywords", "Keywords", val(m.seo_keywords), { maxlength: 255, placeholder: "islamic school, ijebu-ode, tahfiz" })}
               ${textAreaField("seo_description", "SEO description", val(m.seo_description), { rows: 3, maxlength: 320, hint: "Around 150–160 characters reads best in search results." })}
@@ -853,12 +880,77 @@
     });
 
     content.querySelector("#miPreviewSite").addEventListener("click", () => openSitePreview(data));
+    content.querySelector("#miCopyWebsite").addEventListener("click", () => copyWebsiteUrl(m));
+    content.querySelector("#miManagePrograms").addEventListener("click", () => openPublicPrograms(() => renderWebsite(content)));
+    content.querySelector("#miManageTeachers").addEventListener("click", () => openPublicTeachers(() => renderWebsite(content)));
+    content.querySelector("#miManageEvents").addEventListener("click", () => openPublicEvents(() => renderWebsite(content)));
     content.querySelectorAll("[data-mi-page]").forEach((btn) => btn.addEventListener("click", () => {
       const slug = btn.getAttribute("data-mi-page");
       const page = pages.find((p) => p.slug === slug);
       if (page) openPageEditor(page, () => ctx.go("institution/pages"));
       else ctx.go("institution/pages");
     }));
+  }
+
+
+  /* Public programs, teacher profiles and events are managed from the Public
+     Website control room — never as a second top-level Website menu. */
+  async function openPublicPrograms(done) {
+    let data;
+    try { data = await api().get("/madrasa/institution/programs"); }
+    catch (error) { toast(error.message || "Could not load programs.", "error"); return; }
+    const programs = data.programs || [];
+    const modal = ctx.openModal("Website programs", `
+      <div class="dash-mi-manager-list">${programs.length ? programs.map((program) => `<div class="dash-mi-manager-row"><div><strong>${esc(program.title)}</strong><small>${esc(program.education_track || "general")} · ${Number(program.is_published) === 1 ? "Published" : "Draft"}</small></div><div class="dash-actions"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-program-toggle="${program.id}">${Number(program.is_published) === 1 ? "Unpublish" : "Publish"}</button><button class="dash-btn dash-btn-danger dash-btn-sm" data-program-delete="${program.id}">${icon("trash")}</button></div></div>`).join("") : `<p class="dash-field-hint">No public programs yet. Add the courses and learning paths families should see.</p>`}</div>
+      <hr class="dash-rule"><h4>Add a program</h4><form id="miPublicProgramForm" novalidate><div class="dash-form-grid">${textField("title", "Program name", "", { required: true, maxlength: 160 })}${selectField("education_track", "Education section", "general", [{ value: "general", label: "General" }, { value: "islamic", label: "Islamic Education" }, { value: "western", label: "Western Education" }, { value: "both", label: "Islamic & Western" }])}${textAreaField("description", "Public description", "", { rows: 3, maxlength: 6000 })}</div>${toggleRow("is_published", "Publish this program on the website", true)}${toggleRow("is_featured", "Feature this program on the homepage", false)}<div class="dash-actions" style="margin-top:16px"><button class="dash-btn dash-btn-primary" type="submit">${icon("plus")} Add program</button></div></form>`);
+    const refresh = () => { ctx.closeModal(); openPublicPrograms(done); if (done) done(); };
+    modal.querySelectorAll("[data-program-toggle]").forEach((button) => button.addEventListener("click", async () => {
+      const program = programs.find((row) => Number(row.id) === Number(button.dataset.programToggle));
+      try { await api().patch(`/madrasa/institution/programs/${program.id}`, { is_published: Number(program.is_published) !== 1 }); refresh(); }
+      catch (error) { toast(error.message || "Could not update the program.", "error"); }
+    }));
+    modal.querySelectorAll("[data-program-delete]").forEach((button) => button.addEventListener("click", async () => {
+      try { await api().del(`/madrasa/institution/programs/${button.dataset.programDelete}`); refresh(); }
+      catch (error) { toast(error.message || "Could not delete the program.", "error"); }
+    }));
+    const form = modal.querySelector("#miPublicProgramForm");
+    form.addEventListener("submit", async (event) => { event.preventDefault(); if (!validate(form)) return; try { await api().post("/madrasa/institution/programs", readForm(form)); toast("Program added.", "success"); refresh(); } catch (error) { toast(error.message || "Could not add the program.", "error"); } });
+  }
+
+  async function openPublicTeachers(done) {
+    let data;
+    try { data = await api().get("/madrasa/institution/public-teachers"); }
+    catch (error) { toast(error.message || "Could not load teachers.", "error"); return; }
+    const teachers = data.teachers || [];
+    const modal = ctx.openModal("Public teacher profiles", `
+      <p class="dash-field-hint">Only teachers you explicitly publish are visible to visitors. Personal contacts, HR documents and salary details are never included on the public website.</p>
+      <div class="dash-mi-manager-list">${teachers.length ? teachers.map((teacher) => `<div class="dash-mi-manager-row"><div><strong>${esc(teacher.name)}</strong><small>${esc([teacher.position, teacher.specialization, teacher.status].filter(Boolean).join(" · ") || "Teacher")} · ${teacher.isPublic ? "Published" : "Private"}</small></div><div class="dash-actions"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-teacher-bio="${teacher.id}">${icon("edit")} Bio</button><button class="dash-btn ${teacher.isPublic ? "dash-btn-danger" : "dash-btn-primary"} dash-btn-sm" data-teacher-toggle="${teacher.id}">${teacher.isPublic ? "Hide" : "Publish"}</button></div></div>`).join("") : `<p class="dash-field-hint">There are no teachers in this institution yet.</p>`}</div>`);
+    const refresh = () => { ctx.closeModal(); openPublicTeachers(done); if (done) done(); };
+    modal.querySelectorAll("[data-teacher-toggle]").forEach((button) => button.addEventListener("click", async () => {
+      const teacher = teachers.find((row) => Number(row.id) === Number(button.dataset.teacherToggle));
+      try { await api().patch(`/madrasa/institution/public-teachers/${teacher.id}`, { is_public: !teacher.isPublic }); refresh(); }
+      catch (error) { toast(error.message || "Could not update this teacher.", "error"); }
+    }));
+    modal.querySelectorAll("[data-teacher-bio]").forEach((button) => button.addEventListener("click", () => {
+      const teacher = teachers.find((row) => Number(row.id) === Number(button.dataset.teacherBio));
+      const edit = ctx.openModal(`Public biography — ${teacher.name}`, `<form id="miTeacherBioForm"><div class="dash-field"><label>Short biography</label><textarea name="public_bio" rows="7" maxlength="1200" placeholder="Qualifications, teaching experience and a family-friendly introduction…">${esc(teacher.bio)}</textarea><span class="dash-field-hint">This is the only free-text teacher profile content published here.</span></div><div class="dash-actions" style="margin-top:16px"><button class="dash-btn dash-btn-primary" type="submit">${icon("check")} Save biography</button></div></form>`);
+      edit.querySelector("#miTeacherBioForm").addEventListener("submit", async (event) => { event.preventDefault(); try { await api().patch(`/madrasa/institution/public-teachers/${teacher.id}`, { public_bio: new FormData(event.currentTarget).get("public_bio") }); ctx.closeModal(); refresh(); } catch (error) { toast(error.message || "Could not save the biography.", "error"); } });
+    }));
+  }
+
+  async function openPublicEvents(done) {
+    let data;
+    try { data = await api().get("/madrasa/institution/events"); }
+    catch (error) { toast(error.message || "Could not load events.", "error"); return; }
+    const events = data.events || [];
+    const modal = ctx.openModal("Website events", `
+      <div class="dash-mi-manager-list">${events.length ? events.map((event) => `<div class="dash-mi-manager-row"><div><strong>${esc(event.title)}</strong><small>${esc([event.event_date, event.location].filter(Boolean).join(" · ") || "Date to be announced")} · ${Number(event.is_published) === 1 ? "Published" : "Draft"}</small></div><div class="dash-actions"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-event-toggle="${event.id}">${Number(event.is_published) === 1 ? "Unpublish" : "Publish"}</button><button class="dash-btn dash-btn-danger dash-btn-sm" data-event-delete="${event.id}">${icon("trash")}</button></div></div>`).join("") : `<p class="dash-field-hint">No events yet. Add public open days, graduation, activities and important dates.</p>`}</div>
+      <hr class="dash-rule"><h4>Add an event</h4><form id="miPublicEventForm" novalidate><div class="dash-form-grid">${textField("title", "Event title", "", { required: true, maxlength: 200 })}${textField("event_date", "Event date", "", { type: "date" })}${textField("location", "Location", "", { maxlength: 200 })}${textAreaField("description", "Public description", "", { rows: 3, maxlength: 6000 })}</div>${toggleRow("is_published", "Publish this event on the website", true)}${toggleRow("is_featured", "Feature this event on the homepage", false)}<div class="dash-actions" style="margin-top:16px"><button class="dash-btn dash-btn-primary" type="submit">${icon("plus")} Add event</button></div></form>`);
+    const refresh = () => { ctx.closeModal(); openPublicEvents(done); if (done) done(); };
+    modal.querySelectorAll("[data-event-toggle]").forEach((button) => button.addEventListener("click", async () => { const event = events.find((row) => Number(row.id) === Number(button.dataset.eventToggle)); try { await api().patch(`/madrasa/institution/events/${event.id}`, { is_published: Number(event.is_published) !== 1 }); refresh(); } catch (error) { toast(error.message || "Could not update the event.", "error"); } }));
+    modal.querySelectorAll("[data-event-delete]").forEach((button) => button.addEventListener("click", async () => { try { await api().del(`/madrasa/institution/events/${button.dataset.eventDelete}`); refresh(); } catch (error) { toast(error.message || "Could not delete the event.", "error"); } }));
+    const form = modal.querySelector("#miPublicEventForm");
+    form.addEventListener("submit", async (event) => { event.preventDefault(); if (!validate(form)) return; try { await api().post("/madrasa/institution/events", readForm(form)); toast("Event added.", "success"); refresh(); } catch (error) { toast(error.message || "Could not add the event.", "error"); } });
   }
 
   /** A framed, read-only rendering of the live public page. */
@@ -871,10 +963,10 @@
           <button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-mi-viewport="tablet">Tablet</button>
           <button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-mi-viewport="mobile">Mobile</button>
         </div>
-        <a class="dash-btn dash-btn-ghost dash-btn-sm" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} Open in a tab</a>
+        <a class="dash-btn dash-btn-ghost dash-btn-sm" href="${esc(institutionWebsiteHref(m))}" target="_blank" rel="noopener">${icon("external")} Open in a tab</a>
       </div>
       <div class="dash-mi-frame is-desktop" data-mi-frame>
-        <iframe src="/s/${esc(m.slug)}" title="Public website preview" loading="lazy"></iframe>
+        <iframe src="${esc(institutionWebsiteHref(m))}" title="Public website preview" loading="lazy"></iframe>
       </div>`);
     const frame = modal.querySelector("[data-mi-frame]");
     modal.querySelectorAll("[data-mi-viewport]").forEach((btn) => btn.addEventListener("click", () => {
@@ -895,7 +987,7 @@
 
     content.innerHTML = `
       ${pageHead("Website Appearance", `Branding, colours and layout for the public website — one identity, with its own accent for each education section.`,
-        `<a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View live site</a>`)}
+        `<a class="dash-btn dash-btn-ghost" href="${esc(institutionWebsiteHref(m))}" target="_blank" rel="noopener">${icon("external")} View live site</a>`)}
       ${sectionNav("appearance")}
       <form id="miAppearanceForm" novalidate>
         <div class="dash-mi-appearance">
@@ -1583,7 +1675,7 @@
 
     content.innerHTML = `
       ${pageHead("Contact Information", "The details families use to reach you — and exactly which of them appear publicly.",
-        `<a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View contact page</a>`)}
+        `<a class="dash-btn dash-btn-ghost" href="${esc(institutionWebsiteHref(m))}" target="_blank" rel="noopener">${icon("external")} View contact page</a>`)}
       ${sectionNav("contact")}
       <form id="miContactForm" novalidate>
         <div class="dash-mi-appearance">

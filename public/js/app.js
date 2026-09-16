@@ -699,122 +699,175 @@
       body: pages[`website_${key}_content`] || fallbackBody || "",
     };
   }
-  async function renderSchoolPublic(slug) {
-    document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
-    app.innerHTML = `${headerMarkup()}<main id="main-content" class="school-public"><div class="school-public-loading">Loading institution profile…</div></main>${footerMarkup()}`;
-    initPageEvents();
+  function schoolRoute(slug, page) {
+    const base = `/schools/${encodeURIComponent(slug)}`;
+    return page && page !== "home" ? `${base}/${encodeURIComponent(page)}` : base;
+  }
+
+  function schoolDate(value) {
+    if (!value) return "Date to be announced";
+    const date = new Date(`${value}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? safe(value) : safe(date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }));
+  }
+
+  function pageText(sitePages, pages, slug, legacyKey, fallbackTitle, fallbackBody) {
+    const page = (sitePages || []).find((item) => item.slug === slug);
+    if (page && (page.body || page.summary)) return { title: page.title || fallbackTitle, body: page.body || page.summary || "" };
+    const legacy = publicPageCopy(pages || {}, legacyKey, fallbackTitle, fallbackBody);
+    return { title: (page && page.title) || legacy.title || fallbackTitle, body: legacy.body || "" };
+  }
+
+  /* A standalone, tenant-resolved public website. The platform header and
+     platform footer are deliberately not rendered here: a visitor sees the
+     current institution's name, identity and content only. */
+  async function renderSchoolPublic(slug, requestedPage, useCurrentDomain) {
+    document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience", "menu-open");
+    app.innerHTML = `<main id="main-content" class="institution-site"><div class="institution-site-loading">Loading institution website…</div></main>`;
     try {
-      const data = await window.API.public.get(`/madaris/${encodeURIComponent(slug)}`);
-      const m = data.madrasa || {}; const pages = data.pages || {};
-
-      /* Pages written in ADMIN → MY INSTITUTION → Website Pages take priority
-         over the older per-key website copy; the legacy values remain the
-         fallback so nothing a school already wrote disappears. */
+      const endpoint = useCurrentDomain
+        ? `/schools/domain/current?domain=${encodeURIComponent(window.location.hostname)}`
+        : `/schools/${encodeURIComponent(slug)}`;
+      const data = await window.API.public.get(endpoint);
+      const m = data.madrasa || {};
+      const actualSlug = m.slug || slug;
       const sitePages = data.sitePages || [];
-      const bySlug = {};
-      sitePages.forEach((p) => { bySlug[p.slug] = p; });
-      const pageCopy = (pageSlug, legacyKey, fallbackTitle, fallbackBody) => {
-        const p = bySlug[pageSlug];
-        if (p && (p.body || p.summary)) return { title: p.title || fallbackTitle, body: p.body || p.summary };
-        const legacy = publicPageCopy(pages, legacyKey, fallbackTitle, fallbackBody);
-        return { title: (p && p.title) || legacy.title, body: legacy.body };
-      };
-
-      const home = pageCopy("home", "homepage", m.nameEn || "Welcome", m.descriptionEn || m.mottoEn || "");
-      const about = pageCopy("about-us", "about", "About us", m.descriptionEn || "");
-      const programs = pageCopy("programs", "programs", m.category === "western" ? "Programs" : "Programs & courses", "");
-      const teachers = pageCopy("teachers", "teachers", "Our teaching team", "");
-      const admissions = pageCopy("admissions", "admissions", "Admissions", "");
-
-      /* Appearance chosen by the administrator. Every value is re-validated
-         here because it is rendered straight into a style attribute. */
+      const pages = data.pages || {};
+      const selected = String(requestedPage || "home").toLowerCase();
+      const knownPages = new Set(["home", "about", "programs", "teachers", "admissions", "gallery", "news-events", "contact"]);
+      const customPage = !knownPages.has(selected) ? sitePages.find((page) => page.slug === selected) : null;
+      if (!knownPages.has(selected) && !customPage) {
+        const notFound = new Error("The requested page has not been published by this institution.");
+        notFound.status = 404;
+        throw notFound;
+      }
+      const active = customPage ? customPage.slug : selected;
+      const onHome = active === "home";
+      const show = (key) => onHome || active === key;
       const look = m.appearance || {};
-      const hex = (v, fb) => (/^#[0-9a-fA-F]{3,8}$/.test(String(v || "")) ? v : fb);
+      const hex = (value, fallback) => /^#[0-9a-fA-F]{3,8}$/.test(String(value || "")) ? value : fallback;
       const brand = hex(look.brand_color || m.brandColor, m.category === "western" ? "#0A2342" : "#200A3D");
       const secondary = hex(look.secondary_color, "#C8952C");
-      const islamicAccent = hex(look.islamic_color, "#200A3D");
-      const westernAccent = hex(look.western_color, "#0A2342");
-      const FONTS = {
-        system: 'Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif',
-        serif: 'Georgia, "Times New Roman", serif',
-        rounded: '"Trebuchet MS", "Segoe UI", system-ui, sans-serif',
-        humanist: 'Optima, Candara, "Segoe UI", system-ui, sans-serif',
-      };
-      const fontStack = FONTS[look.font_family] || "";
-      const btnRadius = look.button_style === "pill" ? "999px" : (look.button_style === "square" ? "4px" : "12px");
-      const themeClass = look.website_theme === "dark" ? " school-theme-dark" : "";
-      const layoutClass = look.homepage_layout ? ` school-layout-${safe(look.homepage_layout)}` : "";
-      const styleVars = [
-        `--school-brand:${safe(brand)}`,
-        `--school-secondary:${safe(secondary)}`,
-        `--school-islamic:${safe(islamicAccent)}`,
-        `--school-western:${safe(westernAccent)}`,
-        `--school-btn-radius:${btnRadius}`,
-        fontStack ? `--school-font:${fontStack}` : "",
-        hex(look.text_color, "") ? `--school-ink:${safe(look.text_color)}` : "",
-        hex(look.background_color, "") ? `--school-paper:${safe(look.background_color)}` : "",
-      ].filter(Boolean).join(";");
-
-      const info = m.information || {};
-      const prof = m.profile || {};
-      const socials = (m.contact && m.contact.socials) || {};
+      const islamicAccent = hex(look.islamic_color, "#1F7A4D");
+      const westernAccent = hex(look.western_color, "#0A5B9A");
+      const fontClass = ["system", "serif", "rounded", "humanist"].includes(look.font_family) ? ` institution-font-${look.font_family}` : "";
+      const radius = look.button_style === "pill" ? "999px" : look.button_style === "square" ? "3px" : "10px";
+      const style = `--institution-brand:${safe(brand)};--institution-secondary:${safe(secondary)};--institution-islamic:${safe(islamicAccent)};--institution-western:${safe(westernAccent)};--institution-radius:${radius};`;
+      const info = m.information || {}; const profile = m.profile || {}; const admission = data.admissions || {};
       const gallery = data.gallery || { albums: [], media: [] };
-      document.title = `${m.seo && m.seo.title ? m.seo.title : (m.nameEn || "Institution")} — BELLO`;
+      const programs = data.programs || []; const teachers = data.teachers || []; const events = data.events || []; const notices = data.notices || [];
+      const home = pageText(sitePages, pages, "home", "homepage", m.nameEn || "Welcome", m.shortDescription || m.descriptionEn || m.mottoEn);
+      const configuredHome = sitePages.find((page) => page.slug === "home");
+      // "Homepage" is the management screen's default label, not useful
+      // visitor-facing hero copy. Prefer explicitly configured legacy copy,
+      // then a deliberately renamed page title, then the institution name.
+      const homeHeroTitle = pages.website_homepage_title ||
+        (configuredHome && !/^homepage$/i.test(String(configuredHome.title || "")) ? configuredHome.title : "") ||
+        m.nameEn || home.title || "Welcome";
+      const about = pageText(sitePages, pages, "about-us", "about", "About us", m.descriptionEn || "");
+      const programsCopy = pageText(sitePages, pages, "programs", "programs", "Programs", "");
+      const teachersCopy = pageText(sitePages, pages, "teachers", "teachers", "Our teachers", "");
+      const admissionsCopy = pageText(sitePages, pages, "admissions", "admissions", "Admissions", "");
+      const achievement = sitePages.find((page) => page.slug === "achievements" && (page.body || page.summary));
+      const socials = (m.contact && m.contact.socials) || {};
+      const navItems = [
+        ["home", "Home"], ["about", "About"], ["programs", "Programs"], ["teachers", "Teachers"],
+        ["admissions", "Admissions"], ["gallery", "Gallery"], ["news-events", "News & Events"], ["contact", "Contact"],
+      ];
+      // A custom-domain visitor remains on that domain while navigating.
+      // Canonical /schools/:slug links remain available for every tenant.
+      const onCustomDomain = Boolean(useCurrentDomain && data.website && data.website.usesCustomDomain);
+      const schoolLink = (key) => onCustomDomain
+        ? (key === "home" ? "/" : `/${encodeURIComponent(key)}`)
+        : schoolRoute(actualSlug, key === "home" ? "" : key);
+      const navMarkup = navItems.map(([key, label]) => `<a href="${safe(schoolLink(key))}" data-route="${safe(schoolLink(key))}" class="${active === key ? "is-active" : ""}"${active === key ? ' aria-current="page"' : ""}>${label}</a>`).join("");
+      const applyHref = `${schoolLink("admissions")}#apply`;
+      const logo = m.logoPath ? `<img class="institution-logo" src="${safe(m.logoPath)}" alt="${safe(m.nameEn)} logo">` : `<span class="institution-logo institution-logo--initial" aria-hidden="true">${safe((m.nameEn || "I").slice(0, 1))}</span>`;
+      const programCards = programs.map((program) => `<article class="institution-card institution-program-card ${program.educationTrack === "islamic" ? "is-islamic" : program.educationTrack === "western" ? "is-western" : ""}">
+        ${program.imagePath ? `<img src="${safe(program.imagePath)}" alt="" loading="lazy">` : ""}
+        <div><span class="institution-chip">${safe(program.educationTrack === "both" ? "Islamic & Western" : program.educationTrack === "general" ? "Program" : `${program.educationTrack.charAt(0).toUpperCase() + program.educationTrack.slice(1)} education`)}</span><h3>${safe(program.title)}</h3>${program.description ? `<p>${safe(program.description)}</p>` : ""}</div>
+      </article>`).join("");
+      const teacherCards = teachers.map((teacher) => `<article class="institution-teacher-card">
+        ${teacher.photoPath ? `<img src="${safe(teacher.photoPath)}" alt="${safe(teacher.name)}" loading="lazy">` : `<div class="institution-teacher-placeholder" aria-hidden="true">${safe((teacher.name || "T").slice(0, 1))}</div>`}
+        <div><h3>${safe(teacher.name)}</h3>${teacher.position ? `<p class="institution-role">${safe(teacher.position)}</p>` : ""}${teacher.specialization ? `<p><strong>Specialization:</strong> ${safe(teacher.specialization)}</p>` : ""}${teacher.qualification ? `<p><strong>Qualification:</strong> ${safe(teacher.qualification)}</p>` : ""}${teacher.subjects && teacher.subjects.length ? `<p class="institution-subjects">${teacher.subjects.map(safe).join(" · ")}</p>` : ""}${teacher.bio ? `<p>${safe(teacher.bio)}</p>` : ""}</div>
+      </article>`).join("");
+      const renderGalleryCards = (items) => items.map((item) => item.type === "video" && item.videoUrl
+        ? `<a class="institution-gallery-item is-video" href="${safe(item.videoUrl)}" target="_blank" rel="noopener">${item.path ? `<img src="${safe(item.path)}" alt="${safe(item.caption || "Video")}" loading="lazy">` : `<span class="institution-gallery-empty">Video</span>`}<b>▶</b>${item.caption ? `<span>${safe(item.caption)}</span>` : ""}</a>`
+        : item.path ? `<figure class="institution-gallery-item"><img src="${safe(item.path)}" alt="${safe(item.caption || "School gallery image")}" loading="lazy">${item.caption ? `<figcaption>${safe(item.caption)}</figcaption>` : ""}</figure>` : "").join("");
+      const galleryCards = renderGalleryCards(gallery.media);
+      // Limit the data before rendering so image and video cards are treated
+      // equally; truncating HTML by a closing tag used to leak extra videos.
+      const galleryPreviewCards = renderGalleryCards(gallery.media.slice(0, 6));
+      const eventCards = events.map((event) => `<article class="institution-event-card"><p class="institution-event-date">${schoolDate(event.date)}</p><h3>${safe(event.title)}</h3>${event.location ? `<p class="institution-event-location">${safe(event.location)}</p>` : ""}${event.description ? `<p>${safe(event.description)}</p>` : ""}</article>`).join("");
+      const newsCards = notices.map((notice) => `<article class="institution-news-card">${notice.image_path ? `<img src="${safe(notice.image_path)}" alt="" loading="lazy">` : ""}<div><p class="institution-news-date">${schoolDate(String(notice.created_at || "").slice(0, 10))}</p><h3>${safe(notice.title)}</h3><p>${safe(notice.body)}</p></div></article>`).join("");
+      const educationBlocks = `${info.islamicEducation ? `<article class="institution-learning-block is-islamic"><span>Islamic Education</span><h3>Knowledge rooted in faith</h3><p>${safe(info.islamicEducation)}</p></article>` : ""}${info.westernEducation ? `<article class="institution-learning-block is-western"><span>Western Education</span><h3>Learning for a changing world</h3><p>${safe(info.westernEducation)}</p></article>` : ""}`;
+      const admissionFacts = [
+        admission.currentSession && admission.currentSession.length ? `Current session: ${admission.currentSession.map((item) => item.label).join(", ")}` : "",
+        admission.availablePrograms && admission.availablePrograms.length ? `Available programs: ${admission.availablePrograms.join(", ")}` : "",
+        admission.applicationFee ? `Application fee: ${admission.applicationFee}` : "",
+      ].filter(Boolean);
+      const standardFooterLinks = [["About", "about"], ["Programs", "programs"], ["Admissions", "admissions"], ["Contact", "contact"]];
+
+      document.title = `${(m.seo && m.seo.title) || m.nameEn || "Institution"}`;
+      const description = document.querySelector('meta[name="description"]');
+      if (description) description.content = (m.seo && m.seo.description) || m.shortDescription || m.descriptionEn || "";
+      const favicon = document.querySelector('link[rel="icon"]');
+      if (favicon && m.faviconPath) favicon.href = m.faviconPath;
+
       app.innerHTML = `
-        ${headerMarkup()}
-        <main id="main-content" class="school-public${themeClass}${layoutClass}" style="${styleVars}">
-          ${(data.navigation || []).length > 1 ? `<nav class="school-nav" aria-label="${safe(m.nameEn)} pages"><div class="container school-nav-inner">${data.navigation.map((p) => `<a href="#page-${safe(p.slug)}">${safe(p.title)}</a>`).join("")}</div></nav>` : ""}
-          <section class="school-hero">
-            ${m.heroImagePath ? `<img src="${safe(m.heroImagePath)}" alt="" class="school-hero-image">` : ""}
-            <div class="school-hero-overlay"></div>
-            <div class="container school-hero-inner">
-              ${m.logoPath ? `<img src="${safe(m.logoPath)}" class="school-logo" alt="${safe(m.nameEn)} logo">` : ""}
-              <p class="school-kicker">${safe(m.city)}${m.state ? `, ${safe(m.state)}` : ""}${m.country && m.country !== m.state ? `, ${safe(m.country)}` : ""}</p>
-              <h1>${safe(home.title)}</h1>
-              ${m.nameAr ? `<p lang="ar" dir="rtl" class="school-ar">${safe(m.nameAr)}</p>` : ""}
-              ${m.tagline ? `<p class="school-tagline">${safe(m.tagline)}</p>` : ""}
-              <p class="school-lead">${safe(home.body)}</p>
-              ${info.admissionStatus === "closed" ? `<p class="school-badge-closed">Admissions are currently closed</p>` : ""}
-              <div class="school-actions">${m.canApply && info.admissionStatus !== "closed" ? `<a class="button button-gold" href="#apply">Apply for admission <span>${icons.arrow}</span></a>` : ""}${m.canCheckResults ? `<a class="button school-outline" href="#results">Check results</a>` : ""}</div>
+        <div class="institution-site${fontClass}" style="${style}">
+          <header class="institution-header">
+            <div class="institution-container institution-header-inner">
+              <a class="institution-brand" href="${safe(schoolLink("home"))}" data-route="${safe(schoolLink("home"))}" aria-label="${safe(m.nameEn)} home">${logo}<span><strong>${safe(m.nameEn || "Institution")}</strong>${m.mottoEn ? `<small>${safe(m.mottoEn)}</small>` : ""}</span></a>
+              <nav class="institution-desktop-nav" aria-label="${safe(m.nameEn)} navigation">${navMarkup}</nav>
+              <a class="institution-apply-button" href="${safe(applyHref)}" data-route="${safe(applyHref)}">Apply now</a>
+              <button type="button" class="institution-menu-toggle" aria-expanded="false" aria-controls="institution-mobile-nav" aria-label="Open menu"><span>☰</span><span>×</span></button>
             </div>
-          </section>
-          <section class="school-stats"><div class="container school-stat-grid"><div><strong>${Number(m.students || 0)}</strong><span>Students</span></div><div><strong>${Number(m.teachers || 0)}</strong><span>Teachers</span></div><div><strong>${Number(m.classes || 0)}</strong><span>Classes</span></div><div><strong>${Number(m.subjects || 0)}</strong><span>Subjects</span></div></div></section>
-          <section class="school-section" id="page-about-us"><div class="container school-two-col"><div><p class="section-kicker">About the institution</p><h2>${safe(about.title)}</h2><p class="school-copy">${safe(about.body || "Our information will be updated soon.")}</p>${m.foundedYear ? `<p class="school-founded">Established ${safe(m.foundedYear)}</p>` : ""}${prof.ownershipType || m.institutionType ? `<p class="school-meta-line">${[m.institutionType, prof.ownershipType, info.boardingStatus].filter(Boolean).map(safe).join(" · ")}</p>` : ""}</div><aside class="school-contact-card"><h3>Contact</h3>${m.address ? `<p>${safe(m.address)}<br>${safe(m.city)}${m.state ? `, ${safe(m.state)}` : ""}</p>` : ""}${m.phone ? `<p><a href="tel:${safe(m.phone)}">${safe(m.phone)}</a></p>` : ""}${m.altPhone ? `<p><a href="tel:${safe(m.altPhone)}">${safe(m.altPhone)}</a></p>` : ""}${m.whatsapp ? `<p class="school-whatsapp">WhatsApp: ${safe(m.whatsapp)}</p>` : ""}${m.email ? `<p><a href="mailto:${safe(m.email)}">${safe(m.email)}</a></p>` : ""}${m.admissionsEmail ? `<p>Admissions: <a href="mailto:${safe(m.admissionsEmail)}">${safe(m.admissionsEmail)}</a></p>` : ""}${info.openingTime && info.closingTime ? `<p class="school-hours">Open ${safe(info.openingTime)}–${safe(info.closingTime)}${info.schoolDays ? `<br>${safe(info.schoolDays.split(",").join(", "))}` : ""}</p>` : ""}${m.contact && m.contact.emergency ? `<p class="school-emergency">Emergency: ${safe(m.contact.emergency)}</p>` : ""}${prof.headName ? `<p class="school-head">${safe(prof.headName)}${prof.headTitle ? ` — ${safe(prof.headTitle)}` : ""}</p>` : ""}${m.mapsLink ? `<a href="${safe(m.mapsLink)}" target="_blank" rel="noopener" class="school-text-link">Find us on the map</a>` : ""}${Object.values(socials).some(Boolean) ? `<div class="school-socials">${Object.entries(socials).filter(([, url]) => url).map(([name, url]) => `<a href="${safe(url)}" target="_blank" rel="noopener">${safe(name.charAt(0).toUpperCase() + name.slice(1))}</a>`).join("")}</div>` : ""}</aside></div></section>
-          ${prof.mission || prof.vision || prof.coreValues || prof.philosophy ? `<section class="school-section school-section-muted"><div class="container"><p class="section-kicker">What we stand for</p><div class="school-values-grid">${prof.mission ? `<article><h3>Our mission</h3><p>${safe(prof.mission)}</p></article>` : ""}${prof.vision ? `<article><h3>Our vision</h3><p>${safe(prof.vision)}</p></article>` : ""}${prof.coreValues ? `<article><h3>Core values</h3><p>${safe(prof.coreValues)}</p></article>` : ""}${prof.philosophy ? `<article><h3>Educational philosophy</h3><p>${safe(prof.philosophy)}</p></article>` : ""}</div></div></section>` : ""}
-          ${prof.history ? `<section class="school-section" id="page-our-history"><div class="container"><p class="section-kicker">Our story</p><h2>Our history</h2><p class="school-copy school-copy-wide">${safe(prof.history)}</p></div></section>` : ""}
-          ${info.islamicEducation || info.westernEducation ? `<section class="school-section school-section-muted"><div class="container"><p class="section-kicker">Two strands, one institution</p><h2>What we teach</h2><div class="school-streams">${info.islamicEducation ? `<article class="school-stream school-stream-islamic" id="page-islamic-education"><h3>Islamic Education</h3><p>${safe(info.islamicEducation)}</p></article>` : ""}${info.westernEducation ? `<article class="school-stream school-stream-western" id="page-western-education"><h3>Western Education</h3><p>${safe(info.westernEducation)}</p></article>` : ""}</div>${info.languages ? `<p class="school-meta-line">Languages of instruction: ${safe(info.languages)}</p>` : ""}</div></section>` : ""}
-          <section class="school-section school-section-muted"><div class="container"><p class="section-kicker">Learning</p><h2>${safe(programs.title)}</h2>${programs.body ? `<p class="school-copy school-copy-wide">${safe(programs.body)}</p>` : ""}<div class="school-tag-list">${(data.subjects || []).length ? data.subjects.map((s) => `<span>${safe(s.name_en || s.name_ar)}</span>`).join("") : `<span>Subject catalogue coming soon</span>`}</div>${(data.classes || []).length ? `<p class="school-classes"><strong>Classes:</strong> ${data.classes.map((c) => safe(c.name_en || c.name_ar)).join(" · ")}</p>` : ""}</div></section>
-          ${teachers.body ? `<section class="school-section"><div class="container school-two-col"><div><p class="section-kicker">People</p><h2>${safe(teachers.title)}</h2><p class="school-copy">${safe(teachers.body)}</p></div><div class="school-quote">Our staff details are protected; contact the institution directly for enrolment and teaching enquiries.</div></div></section>` : ""}
-          ${gallery.media.length ? `<section class="school-section" id="page-gallery"><div class="container"><p class="section-kicker">Life here</p><h2>Gallery</h2>${gallery.albums.length ? `<div class="school-album-row">${gallery.albums.map((a) => `<article class="school-album${a.featured ? " is-featured" : ""}">${a.coverPath ? `<img src="${safe(a.coverPath)}" alt="" loading="lazy">` : `<span class="school-album-blank"></span>`}<div><h3>${safe(a.title)}</h3>${a.category ? `<small>${safe(a.category)}</small>` : ""}${a.description ? `<p>${safe(a.description)}</p>` : ""}</div></article>`).join("")}</div>` : ""}<div class="school-gallery-grid">${gallery.media.slice(0, 48).map((g) => (g.type === "video" && g.videoUrl)
-            ? `<a class="school-gallery-item is-video${g.featured ? " is-featured" : ""}" href="${safe(g.videoUrl)}" target="_blank" rel="noopener">${g.path ? `<img src="${safe(g.path)}" alt="${safe(g.caption || "Video")}" loading="lazy">` : `<span class="school-gallery-blank"></span>`}<span class="school-play" aria-hidden="true">▶</span>${g.caption ? `<figcaption>${safe(g.caption)}</figcaption>` : ""}</a>`
-            : `<figure class="school-gallery-item${g.featured ? " is-featured" : ""}"><img src="${safe(g.path)}" alt="${safe(g.caption || "Gallery image")}" loading="lazy">${g.caption ? `<figcaption>${safe(g.caption)}</figcaption>` : ""}</figure>`).join("")}</div></div></section>` : ""}
-          <section class="school-section" id="page-news"><div class="container"><p class="section-kicker">Latest updates</p><h2>News & announcements</h2><div class="school-news-grid">${(data.notices || []).length ? data.notices.map((n) => `<article><small>${safe(new Date(n.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" }))}</small><h3>${safe(n.title)}</h3><p>${safe(n.body)}</p></article>`).join("") : `<p class="school-copy">There are no public announcements at the moment.</p>`}</div></div></section>
-          ${(() => {
-            /* Any other page the administrator published and put in the menu —
-               FAQs, Policies, Fees and so on — rendered in their saved order. */
-            const shown = new Set(["home", "about-us", "programs", "teachers", "admissions", "gallery", "news", "contact-us", "our-history", "islamic-education", "western-education"]);
-            const extras = sitePages.filter((p) => !shown.has(p.slug) && (p.body || p.summary));
-            if (!extras.length) return "";
-            return `<section class="school-section school-section-muted"><div class="container school-extra-pages">${extras.map((p) => `<article id="page-${safe(p.slug)}"><h2>${safe(p.title)}</h2>${p.summary && p.body ? `<p class="school-copy"><strong>${safe(p.summary)}</strong></p>` : ""}<p class="school-copy">${safe(p.body || p.summary)}</p></article>`).join("")}</div></section>`;
-          })()}
-          ${m.canCheckResults ? `<section id="results" class="school-section school-results"><div class="container school-two-col"><div><p class="section-kicker">Published results</p><h2>Check your results</h2><p>For privacy, enter the admission number together with the surname or date of birth on the student record.</p></div><form id="publicResultForm" class="school-form"><label>Admission number<input name="admissionNo" required></label><label>Surname<input name="surname"></label><label>Date of birth (or surname)<input name="dateOfBirth" type="date"></label><button class="button button-primary" type="submit">Check results <span>${icons.arrow}</span></button><p class="school-form-result" id="publicResultOutput" aria-live="polite"></p></form></div></section>` : ""}
-          ${m.canApply ? `<section id="apply" class="school-section school-section-muted"><div class="container school-two-col"><div><p class="section-kicker">Join our community</p><h2>${safe(admissions.title)}</h2><p class="school-copy">${safe(admissions.body || "Complete the form and the admissions team will review your request.")}</p><div class="school-application-status"><h3>Already applied?</h3><form id="publicStatusForm"><input name="reference" placeholder="Application reference" required><input name="phone" placeholder="Guardian phone" required><button type="submit" class="school-text-link">Check application status</button><p id="publicStatusOutput" aria-live="polite"></p></form></div></div><form id="publicApplicationForm" class="school-form school-form-wide"><div class="school-form-grid"><label>First name *<input name="first_name" required></label><label>Last name<input name="last_name"></label><label>Arabic name<input name="name_ar" dir="rtl"></label><label>Gender<select name="gender"><option value="">Prefer not to say</option><option value="M">Male</option><option value="F">Female</option></select></label><label>Date of birth<input name="date_of_birth" type="date"></label><label>Nationality<input name="nationality" value="Nigerian"></label><label>Religion<input name="religion" value="Islam"></label><label>Preferred class<select name="class_id"><option value="">Not specified</option>${(data.classes || []).map((c) => `<option value="${safe(c.id || "")}">${safe(c.name_en || c.name_ar)}</option>`).join("")}</select></label><label>Program<input name="program" placeholder="Program or course"></label><label>Education track<select name="education_track"><option value="both">Islamic + Western</option><option value="islamic">Islamic education</option><option value="western">Western / general</option></select></label><label>Parent / guardian name *<input name="parent_name" required></label><label>Parent / guardian phone *<input name="parent_phone" required></label><label>Email<input name="parent_email" type="email"></label><label>Previous school<input name="previous_school"></label><label class="full">Address<input name="address"></label><label class="full">Message / additional details<textarea name="message"></textarea></label><label class="school-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label></div><button class="button button-primary" type="submit">Submit application <span>${icons.arrow}</span></button><p id="publicApplicationOutput" class="school-form-result" aria-live="polite"></p></form></div></section>` : ""}
-        </main>${footerMarkup()}`;
+            <nav id="institution-mobile-nav" class="institution-mobile-nav" aria-label="Mobile navigation" aria-hidden="true">${navMarkup}<a class="institution-apply-button" href="${safe(applyHref)}" data-route="${safe(applyHref)}">Apply now</a></nav>
+          </header>
+          <main id="main-content">
+            ${onHome ? `<section class="institution-hero">${m.heroImagePath ? `<img class="institution-hero-image" src="${safe(m.heroImagePath)}" alt="">` : ""}<div class="institution-hero-shade"></div><div class="institution-container institution-hero-content"><p class="institution-eyebrow">${safe(m.institutionType || "Welcome to our institution")}</p><h1>${safe(homeHeroTitle)}</h1>${m.mottoEn ? `<p class="institution-motto">${safe(m.mottoEn)}</p>` : ""}<p class="institution-hero-copy">${safe(home.body || m.shortDescription || m.descriptionEn || "")}</p><div class="institution-actions">${admission.open ? `<a class="institution-btn institution-btn--primary" href="${safe(applyHref)}" data-route="${safe(applyHref)}">Apply now</a>` : ""}<a class="institution-btn institution-btn--outline" href="${safe(schoolLink("about"))}" data-route="${safe(schoolLink("about"))}">Learn more</a></div></div></section>
+            <section class="institution-stat-strip"><div class="institution-container">${m.foundedYear ? `<span><strong>${safe(m.foundedYear)}</strong> Established</span>` : ""}${info.levelsOffered ? `<span><strong>${safe(info.levelsOffered)}</strong> Levels offered</span>` : ""}${info.languages ? `<span><strong>${safe(info.languages)}</strong> Languages</span>` : ""}</div></section>` : ""}
+
+            ${show("about") ? `<section class="institution-section ${onHome ? "" : "institution-page-hero"}" id="about"><div class="institution-container institution-two-col"><div><p class="institution-kicker">${onHome ? "Welcome" : "About"}</p><h2>${safe(onHome ? "A warm welcome" : about.title)}</h2><p class="institution-copy">${safe(onHome ? (m.shortDescription || about.body || m.descriptionEn) : (about.body || m.descriptionEn))}</p>${profile.headName ? `<div class="institution-director"><strong>${safe(profile.headName)}</strong>${profile.headTitle ? `<span>${safe(profile.headTitle)}</span>` : ""}</div>` : ""}</div>${m.heroImagePath && onHome ? `<div class="institution-welcome-image"><img src="${safe(m.heroImagePath)}" alt="${safe(m.nameEn)}"></div>` : ""}</div></section>
+            ${!onHome && (profile.history || profile.mission || profile.vision || profile.coreValues || profile.philosophy || profile.headName || profile.accreditationBody) ? `<section class="institution-section institution-section--soft"><div class="institution-container"><div class="institution-detail-grid">${profile.history ? `<article><h3>Our history</h3><p>${safe(profile.history)}</p></article>` : ""}${profile.mission ? `<article><h3>Our mission</h3><p>${safe(profile.mission)}</p></article>` : ""}${profile.vision ? `<article><h3>Our vision</h3><p>${safe(profile.vision)}</p></article>` : ""}${profile.coreValues ? `<article><h3>Core values</h3><p>${safe(profile.coreValues)}</p></article>` : ""}${profile.philosophy ? `<article><h3>Educational philosophy</h3><p>${safe(profile.philosophy)}</p></article>` : ""}${profile.accreditationBody ? `<article><h3>Accreditation</h3><p>${safe([profile.accreditationBody, profile.registrationNo].filter(Boolean).join(" · "))}</p></article>` : ""}</div></div></section>` : ""}` : ""}
+
+            ${onHome && educationBlocks ? `<section class="institution-section institution-section--soft"><div class="institution-container"><p class="institution-kicker">Our educational offering</p><h2>One institution, distinctive learning paths</h2><div class="institution-learning-grid">${educationBlocks}</div></div></section>` : ""}
+            ${show("programs") ? `<section class="institution-section" id="programs"><div class="institution-container"><p class="institution-kicker">Programs</p><h2>${safe(onHome ? "Featured programs" : programsCopy.title)}</h2>${programsCopy.body ? `<p class="institution-copy">${safe(programsCopy.body)}</p>` : ""}${programs.length ? `<div class="institution-program-grid">${onHome ? programCards.split("</article>").slice(0, 3).join("</article>") : programCards}</div>` : onHome ? "" : `<p class="institution-empty">Programs will appear here when this institution publishes them.</p>`}${!onHome && data.subjects && data.subjects.length ? `<div class="institution-subject-catalogue"><h3>Subjects</h3>${data.subjects.map((subject) => `<span>${safe(subject.name_en || subject.name_ar)}</span>`).join("")}</div>` : ""}</div></section>` : ""}
+
+            ${show("teachers") ? `<section class="institution-section institution-section--soft" id="teachers"><div class="institution-container"><p class="institution-kicker">Our people</p><h2>${safe(onHome ? "Meet our teachers" : teachersCopy.title)}</h2>${teachersCopy.body ? `<p class="institution-copy">${safe(teachersCopy.body)}</p>` : ""}${teachers.length ? `<div class="institution-teacher-grid">${onHome ? teacherCards.split("</article>").slice(0, 3).join("</article>") : teacherCards}</div>` : !onHome ? `<p class="institution-empty">Teacher profiles are published by the institution when ready.</p>` : ""}</div></section>` : ""}
+
+            ${show("admissions") ? `<section class="institution-section institution-admissions ${onHome ? "institution-section--soft" : ""}" id="apply"><div class="institution-container institution-two-col"><div><p class="institution-kicker">Admissions</p><h2>${safe(onHome ? "Start your journey with us" : admissionsCopy.title)}</h2><p class="institution-copy">${safe(admissionsCopy.body || "Find the right learning path, then submit an application directly to this institution.")}</p><p class="institution-admission-status ${admission.open ? "is-open" : ""}">${admission.open ? "Admissions are open" : "Admissions are currently closed"}</p>${admissionFacts.length ? `<ul class="institution-facts">${admissionFacts.map((fact) => `<li>${safe(fact)}</li>`).join("")}</ul>` : ""}${admission.requirements && admission.requirements.length ? `<div class="institution-requirements"><h3>Application requirements</h3><ul>${admission.requirements.map((item) => `<li>${safe(item)}</li>`).join("")}</ul></div>` : ""}${admission.requiredDocuments && admission.requiredDocuments.length ? `<div class="institution-requirements"><h3>Documents to prepare</h3><ul>${admission.requiredDocuments.map((item) => `<li>${safe(item)}</li>`).join("")}</ul></div>` : ""}</div>${admission.open ? `<form class="institution-form" id="publicApplicationForm"><h3>Apply to ${safe(m.nameEn)}</h3><div class="institution-form-grid"><label>First name *<input name="first_name" required></label><label>Last name<input name="last_name"></label><label>Parent / guardian name *<input name="parent_name" required></label><label>Parent / guardian phone *<input name="parent_phone" required></label><label>Email<input name="parent_email" type="email"></label><label>Class / level<select name="class_id"><option value="">Select a class</option>${(data.classes || []).map((item) => `<option value="${safe(item.id)}">${safe(item.name_en || item.name_ar)}</option>`).join("")}</select></label><label>Program<select name="program"><option value="">Select a program</option>${(admission.availablePrograms || []).map((item) => `<option value="${safe(item)}">${safe(item)}</option>`).join("")}</select></label><label>Preferred session<select name="desired_session_id"><option value="">Select a session</option>${(admission.currentSession || []).map((item) => `<option value="${safe(item.id)}">${safe(item.label)}</option>`).join("")}</select></label><label class="institution-form-full">Message<textarea name="message" rows="3"></textarea></label><label class="institution-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label></div><button class="institution-btn institution-btn--primary" type="submit">Submit application</button><p class="institution-form-output" id="institutionApplicationOutput" aria-live="polite"></p></form>` : ""}</div></section>` : ""}
+
+            ${show("gallery") ? `<section class="institution-section" id="gallery"><div class="institution-container"><p class="institution-kicker">School life</p><h2>${onHome ? "Gallery preview" : "Gallery"}</h2>${gallery.albums.length && !onHome ? `<div class="institution-album-list">${gallery.albums.map((album) => `<article>${album.coverPath ? `<img src="${safe(album.coverPath)}" alt="" loading="lazy">` : ""}<div><span>${safe(album.category)}</span><h3>${safe(album.title)}</h3>${album.description ? `<p>${safe(album.description)}</p>` : ""}</div></article>`).join("")}</div>` : ""}${galleryCards ? `<div class="institution-gallery-grid">${onHome ? galleryPreviewCards : galleryCards}</div>` : !onHome ? `<p class="institution-empty">Published photographs and videos will appear here.</p>` : ""}</div></section>` : ""}
+
+            ${show("news-events") ? `<section class="institution-section institution-section--soft" id="news-events"><div class="institution-container"><p class="institution-kicker">Stay connected</p><h2>${onHome ? "News & events" : "News & events"}</h2><div class="institution-news-events-grid"><div><h3>News & announcements</h3>${newsCards || `<p class="institution-empty">No published news at the moment.</p>`}</div><div><h3>Upcoming events</h3>${eventCards || `<p class="institution-empty">No published events at the moment.</p>`}</div></div></div></section>` : ""}
+
+            ${onHome && achievement ? `<section class="institution-section"><div class="institution-container"><div class="institution-achievement"><p class="institution-kicker">Achievements</p><h2>${safe(achievement.title)}</h2><p class="institution-copy">${safe(achievement.body || achievement.summary)}</p></div></div></section>` : ""}
+
+            ${show("contact") ? `<section class="institution-section" id="contact"><div class="institution-container institution-two-col"><div><p class="institution-kicker">Contact</p><h2>Get in touch with ${safe(m.nameEn)}</h2><div class="institution-contact-list">${m.address ? `<p><strong>Address</strong><span>${safe([m.address, m.city, m.state, m.country].filter(Boolean).join(", "))}</span></p>` : ""}${m.phone ? `<p><strong>Phone</strong><a href="tel:${safe(m.phone)}">${safe(m.phone)}</a></p>` : ""}${m.whatsapp ? `<p><strong>WhatsApp</strong><a href="https://wa.me/${safe(String(m.whatsapp).replace(/\D/g, ""))}" target="_blank" rel="noopener">${safe(m.whatsapp)}</a></p>` : ""}${m.email ? `<p><strong>Email</strong><a href="mailto:${safe(m.email)}">${safe(m.email)}</a></p>` : ""}${info.openingTime || info.closingTime ? `<p><strong>Opening hours</strong><span>${safe([info.openingTime, info.closingTime].filter(Boolean).join(" – "))}${info.schoolDays ? `<br>${safe(String(info.schoolDays).split(",").join(", "))}` : ""}</span></p>` : ""}</div>${m.mapsLink ? `<a class="institution-map-link" href="${safe(m.mapsLink)}" target="_blank" rel="noopener">View ${safe(m.nameEn)} on the map ↗</a>` : ""}${Object.values(socials).some(Boolean) ? `<div class="institution-social-links">${Object.entries(socials).filter(([, url]) => url).map(([name, url]) => `<a href="${safe(url)}" target="_blank" rel="noopener">${safe(name)}</a>`).join("")}</div>` : ""}</div>${m.contact && m.contact.formEnabled ? `<form class="institution-form" id="institutionContactForm"><h3>Send a message</h3><label>Your name *<input name="name" required></label><label>Email<input type="email" name="email"></label><label>Phone<input name="phone"></label><label>Subject<input name="subject"></label><label>Message *<textarea name="message" rows="5" required></textarea></label><button class="institution-btn institution-btn--primary" type="submit">Send message</button><p class="institution-form-output" id="institutionContactOutput" aria-live="polite"></p></form>` : ""}</div></section>` : ""}
+
+            ${customPage ? `<section class="institution-section institution-page-hero"><div class="institution-container"><p class="institution-kicker">${safe(m.nameEn)}</p><h1>${safe(customPage.title)}</h1>${customPage.summary ? `<p class="institution-copy"><strong>${safe(customPage.summary)}</strong></p>` : ""}<p class="institution-copy institution-copy--wide">${safe(customPage.body || customPage.summary)}</p></div></section>` : ""}
+          </main>
+          <footer class="institution-footer"><div class="institution-container institution-footer-grid"><div><div class="institution-footer-brand">${logo}<strong>${safe(m.nameEn)}</strong></div>${m.mottoEn ? `<p>${safe(m.mottoEn)}</p>` : ""}</div><div><h3>Quick links</h3>${standardFooterLinks.map(([label, key]) => `<a href="${safe(schoolLink(key))}" data-route="${safe(schoolLink(key))}">${label}</a>`).join("")}</div><div><h3>Contact</h3>${m.phone ? `<a href="tel:${safe(m.phone)}">${safe(m.phone)}</a>` : ""}${m.email ? `<a href="mailto:${safe(m.email)}">${safe(m.email)}</a>` : ""}${m.address ? `<p>${safe(m.address)}</p>` : ""}</div></div><div class="institution-container institution-footer-bottom"><span>© ${new Date().getFullYear()} ${safe(m.nameEn)}. All rights reserved.</span><span><a href="${safe(schoolLink("privacy"))}" data-route="${safe(schoolLink("privacy"))}">Privacy Policy</a> <a href="${safe(schoolLink("terms"))}" data-route="${safe(schoolLink("terms"))}">Terms & Conditions</a></span></div></footer>
+        </div>`;
       initPageEvents();
-      const resultForm = document.getElementById("publicResultForm");
-      if (resultForm) resultForm.addEventListener("submit", async (event) => {
-        event.preventDefault(); const out = document.getElementById("publicResultOutput"); const fd = new FormData(resultForm); if (!fd.get("surname") && !fd.get("dateOfBirth")) { out.textContent = "Enter the surname or date of birth to verify the record."; return; }
-        out.textContent = "Checking…";
-        try { const r = await window.API.public.post("/results/verify", { madrasaSlug: slug, admissionNo: fd.get("admissionNo"), surname: fd.get("surname"), dateOfBirth: fd.get("dateOfBirth") }); out.innerHTML = r.terms && r.terms.length ? `${safe(r.student.name)} — ${r.terms.map((t) => `<a href="${safe(t.reportUrl)}" target="_blank" rel="noopener">${safe(t.session_label)} ${safe(t.name_en)}: ${safe(t.average)}% (${safe(t.overall_grade)})</a>`).join(" · ")}` : safe(r.message || "No published results yet."); } catch (err) { out.textContent = err.message || "We could not find a matching record."; }
-      });
-      const applyForm = document.getElementById("publicApplicationForm");
-      if (applyForm) applyForm.addEventListener("submit", async (event) => { event.preventDefault(); const out = document.getElementById("publicApplicationOutput"); out.textContent = "Submitting…"; try { const r = await window.API.public.post(`/madaris/${encodeURIComponent(slug)}/apply`, Object.fromEntries(new FormData(applyForm))); out.textContent = `Application received. Keep this reference: ${r.reference}`; applyForm.reset(); } catch (err) { out.textContent = err.message || "We could not submit the application."; } });
-      const statusForm = document.getElementById("publicStatusForm");
-      if (statusForm) statusForm.addEventListener("submit", async (event) => { event.preventDefault(); const out = document.getElementById("publicStatusOutput"); const fd = new FormData(statusForm); out.textContent = "Checking…"; try { const r = await window.API.public.get(`/madaris/${encodeURIComponent(slug)}/apply-status?reference=${encodeURIComponent(fd.get("reference"))}&phone=${encodeURIComponent(fd.get("phone"))}`); out.textContent = `Status: ${r.status}${r.note ? ` — ${r.note}` : ""}${r.admissionNo ? ` · Admission no.: ${r.admissionNo}` : ""}`; } catch (err) { out.textContent = err.message || "Application not found."; } });
-    } catch (err) {
-      const main = document.querySelector(".school-public");
-      if (main) main.innerHTML = `<div class="container school-not-found"><h1>Institution page unavailable</h1><p>${safe(err.message || "This school may not be publicly listed.")}</p><a href="/" data-route="/" class="button button-primary">Return to BELLO</a></div>`;
-      initPageEvents();
+      const toggle = document.querySelector(".institution-menu-toggle"); const mobileNav = document.querySelector(".institution-mobile-nav");
+      if (toggle && mobileNav) toggle.addEventListener("click", () => { const isOpen = toggle.getAttribute("aria-expanded") !== "true"; toggle.setAttribute("aria-expanded", String(isOpen)); toggle.setAttribute("aria-label", isOpen ? "Close menu" : "Open menu"); mobileNav.setAttribute("aria-hidden", String(!isOpen)); mobileNav.classList.toggle("is-open", isOpen); });
+      const applicationForm = document.getElementById("publicApplicationForm");
+      if (applicationForm) applicationForm.addEventListener("submit", async (event) => { event.preventDefault(); const out = document.getElementById("institutionApplicationOutput"); out.textContent = "Submitting…"; try { const result = await window.API.public.post(`/madaris/${encodeURIComponent(actualSlug)}/apply`, Object.fromEntries(new FormData(applicationForm))); out.textContent = `Application received. Please keep your reference: ${result.reference}`; applicationForm.reset(); } catch (error) { out.textContent = error.message || "We could not submit your application."; } });
+      const contactForm = document.getElementById("institutionContactForm");
+      if (contactForm) contactForm.addEventListener("submit", async (event) => { event.preventDefault(); const out = document.getElementById("institutionContactOutput"); out.textContent = "Sending…"; try { const result = await window.API.public.post(`/schools/${encodeURIComponent(actualSlug)}/contact`, Object.fromEntries(new FormData(contactForm))); out.textContent = result.message || "Your message has been sent."; contactForm.reset(); } catch (error) { out.textContent = error.message || "We could not send your message."; } });
+    } catch (error) {
+      // A regular platform host has no custom-domain mapping. Keep the
+      // platform landing page available, while a configured but unrecognised
+      // custom host remains an institution-not-found page instead of leaking
+      // the platform homepage into that address.
+      const platformHost = String((window.__APP_CONFIG__ || {}).platformHostname || "").toLowerCase();
+      const currentHost = String(window.location.hostname || "").toLowerCase();
+      const isPlatformHost = !platformHost || currentHost === platformHost || currentHost === `www.${platformHost}`;
+      if (useCurrentDomain && !slug && isPlatformHost) { renderHomepage(); return; }
+      document.title = "Institution not found";
+      app.innerHTML = `<main id="main-content" class="institution-site"><section class="institution-not-found"><p class="institution-kicker">404</p><h1>Institution not found</h1><p>${safe(error.message || "This institution website is unavailable or has not been published.")}</p></section></main>`;
     }
   }
 
@@ -846,8 +899,13 @@
       renderDashboard();
     // Every onboarding stage is its own page (…/administrator, …/review,
     // …/submitted), so the whole subtree routes into the matching module.
+    } else if (/^\/schools\/[^/]+(?:\/[^/]+)?$/.test(path)) {
+      const parts = path.split("/").filter(Boolean);
+      renderSchoolPublic(decodeURIComponent(parts[1]), parts[2] ? decodeURIComponent(parts[2]) : "home");
     } else if (/^\/(?:s|school|m)\/[^/]+$/.test(path)) {
-      renderSchoolPublic(decodeURIComponent(path.split("/").pop()));
+      // Old share links keep working but are rendered by the same isolated
+      // institution-site renderer as the canonical /schools/:slug route.
+      renderSchoolPublic(decodeURIComponent(path.split("/").pop()), "home");
     } else if (path === "/register-academy" || path.startsWith("/register-academy/") || hash === "#/register-academy" || hash === "#register-academy") {
       renderAcademyRegistration();
     } else if (path === "/register-madrasa" || path.startsWith("/register-madrasa/") || hash === "#/register-madrasa" || hash === "#register-madrasa") {
@@ -857,7 +915,11 @@
     } else if (path === "/western-schools") {
       renderWesternAcademy();
     } else {
-      renderHomepage();
+      // On an optional custom domain there is no /schools/:slug prefix. Ask
+      // the public API to resolve the current host; ordinary platform hosts
+      // fall back to the platform homepage after a 404 response.
+      const customPage = path === "/" ? "home" : decodeURIComponent(path.replace(/^\//, "").split("/")[0]);
+      renderSchoolPublic("", customPage, true).catch(() => renderHomepage());
     }
   }
 

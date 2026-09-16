@@ -88,32 +88,54 @@ function createApp() {
   // The SPA is same-origin by default and calls /api. If the operator sets
   // API_BASE_URL (API hosted on a different origin), this endpoint serves
   // it to the frontend — no hard-coded production URLs anywhere in code.
+  // PUBLIC_URL names the platform host when custom institution domains share
+  // this server; it lets the browser distinguish a platform visit from an
+  // unknown tenant host without embedding a deployment-specific URL.
+  let platformHostname = "";
+  try { platformHostname = config.PUBLIC_URL ? new URL(config.PUBLIC_URL).hostname.toLowerCase() : ""; } catch (_) { /* config validation owns malformed URLs */ }
   app.get("/app-config.js", (req, res) => {
     res
       .type("application/javascript")
       .set("Cache-Control", "no-store")
       .send("window.__APP_CONFIG__=" + JSON.stringify({
         apiBase: config.EFFECTIVE_API_BASE,
+        platformHostname,
         categoryConfig: institution.clientCategoryConfig(),
       }) + ";");
   });
 
   // Static frontend + uploads
-  app.use(express.static(path.join(__dirname, "..", "public")));
+  // Let the SPA fallback own `/`: otherwise express.static serves index.html
+  // before custom-domain validation can decide whether a host belongs to an
+  // institution. Assets remain served normally.
+  app.use(express.static(path.join(__dirname, "..", "public"), { index: false }));
   app.use("/uploads", express.static(config.UPLOAD_DIR, { maxAge: "1h", fallthrough: true }));
 
-  /* ----------------- pretty per-school links (/s/<slug>) --------------- */
-  // Every registered madrasa gets its own shareable link,
-  // e.g. https://your-domain/s/noor-ul-islam — it opens that school's own
-  // public page directly (not the platform landing). The SPA reads the slug
-  // from the path on boot and routes to #/madrasa/<slug>. /school/ and /m/
-  // are accepted aliases of the same link.
-  const schoolLinkHandler = (req, res) => {
-    res.sendFile(path.join(__dirname, "..", "public", "index.html"));
-  };
-  app.get("/s/:slug", schoolLinkHandler);
-  app.get("/school/:slug", schoolLinkHandler);
-  app.get("/m/:slug", schoolLinkHandler);
+  /* --------------- tenant public websites (/schools/<slug>) ------------ */
+  // Every registered institution has one canonical, shareable public URL,
+  // e.g. https://your-domain/schools/noor-ul-islam. It always resolves its
+  // own tenant data; it is not the platform landing. The earlier /s, /school
+  // and /m routes remain compatibility aliases for links already shared.
+  const schoolShell = (res, status) => res.status(status || 200).sendFile(path.join(__dirname, "..", "public", "index.html"));
+  // Generic platform SPA pages (login, dashboards and registration) use this
+  // simple shell. It deliberately does not perform a tenant lookup.
+  const schoolLinkHandler = (req, res) => schoolShell(res);
+  const institutionSchoolLinkHandler = asyncHandler(async (req, res) => {
+    // Resolve the requested slug before returning the SPA shell. This makes a
+    // bad /schools/:slug a real HTTP 404 as well as the in-app not-found page;
+    // critically, it never falls through to another institution or BELLO's
+    // platform homepage.
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    const institution = slug && await db.get(
+      "SELECT id FROM madaris WHERE slug = ? AND status = 'active' AND website_published <> 0", [slug]
+    );
+    return schoolShell(res, institution ? 200 : 404);
+  });
+  app.get("/schools/:slug", institutionSchoolLinkHandler);
+  app.get("/schools/:slug/:page", institutionSchoolLinkHandler);
+  app.get("/s/:slug", institutionSchoolLinkHandler);
+  app.get("/school/:slug", institutionSchoolLinkHandler);
+  app.get("/m/:slug", institutionSchoolLinkHandler);
   // Public directory landing pages. Their initial structure is intentionally
   // frontend-only while search, listings and category-specific registration
   // are developed in later milestones.
@@ -249,13 +271,22 @@ function createApp() {
   // 404 for unknown API routes
   app.use("/api", (req, res) => res.status(404).json({ error: "Not found." }));
 
-  // SPA fallback: unknown non-API GET -> index.html
-  app.use((req, res, next) => {
-    if (req.method === "GET" && !req.path.startsWith("/api") && req.accepts("html")) {
-      return res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+  // SPA fallback: unknown non-API GET -> index.html. A configured custom
+  // hostname has to belong to one active, published institution; an arbitrary
+  // host must never silently receive the platform homepage as its website.
+  app.use(asyncHandler(async (req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api") || !req.accepts("html")) return next();
+    const requestHost = String(req.hostname || "").toLowerCase().replace(/\.$/, "");
+    const bareHost = requestHost.replace(/^www\./, "");
+    const isPlatformHost = !platformHostname || requestHost === platformHostname || requestHost === `www.${platformHostname}`;
+    if (!isPlatformHost) {
+      const institution = await db.get(
+        "SELECT id FROM madaris WHERE custom_domain = ? AND status = 'active' AND website_published <> 0", [bareHost]
+      );
+      return schoolShell(res, institution ? 200 : 404);
     }
-    next();
-  });
+    return schoolShell(res);
+  }));
 
   // Central error handler
   // eslint-disable-next-line no-unused-vars

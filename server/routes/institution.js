@@ -29,7 +29,7 @@
    ========================================================================== */
 const express = require("express");
 const db = require("../db");
-const { asyncHandler, err, ok, cleanStr, toNum, logActivity } = require("../util");
+const { asyncHandler, err, ok, cleanStr, toNum, validDate, logActivity } = require("../util");
 const { imageUploader } = require("../middleware/upload");
 const institution = require("../services/institution");
 const mi = require("../services/my-institution");
@@ -55,6 +55,28 @@ function safeUrl(value, max) {
   if (!s) return "";
   if (!/^https?:\/\//i.test(s)) return null;
   return s;
+}
+
+
+/** A custom institution domain is a hostname, never a URL or a path. */
+function normalizeCustomDomain(value) {
+  let domain = cleanStr(value, 255).toLowerCase().replace(/\.$/, "");
+  if (!domain) return "";
+  domain = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  // Store www.example.org as example.org. The resolver accepts both the apex
+  // and www variant, while administrators have one unambiguous setting.
+  domain = domain.replace(/^www\./, "");
+  if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) return null;
+  return domain;
+}
+
+function websitePath(m) {
+  return `/schools/${encodeURIComponent(m.slug)}`;
+}
+
+function normalizeTrack(value) {
+  const track = cleanStr(value, 20).toLowerCase();
+  return ["islamic", "western", "both", "general"].includes(track) ? track : "general";
 }
 
 /**
@@ -112,6 +134,12 @@ function buildMadrasaUpdate(body, allowed) {
       const u = safeUrl(raw, max);
       if (u === null) return { error: `${key.replace(/_/g, " ")} must be a full link starting with http:// or https://` };
       sets.push(`${key} = ?`); vals.push(u);
+      continue;
+    }
+    if (key === "custom_domain") {
+      const domain = normalizeCustomDomain(raw);
+      if (domain === null) return { error: "Custom domain must be a valid hostname, such as ameenullahschool.com." };
+      sets.push("custom_domain = ?"); vals.push(domain);
       continue;
     }
     if (key === "admission_status") {
@@ -274,6 +302,13 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     const built = buildMadrasaUpdate(body, allowed);
     if (built.error) return err(res, 400, built.error);
     if (!built.sets.length) return err(res, 400, "Nothing to update.");
+    if (allowed.has("custom_domain") && body.custom_domain !== undefined) {
+      const domain = normalizeCustomDomain(body.custom_domain);
+      if (domain) {
+        const other = await db.get("SELECT id FROM madaris WHERE custom_domain = ? AND id <> ?", [domain, m.id]);
+        if (other) return err(res, 400, "That custom domain is already connected to another institution.");
+      }
+    }
 
     built.sets.push("updated_at = CURRENT_TIMESTAMP");
     built.vals.push(m.id);
@@ -367,12 +402,202 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
         teachers: Number(counts.teachers),
       },
       urls: {
-        site: `/s/${m.slug}`,
+        // `website` is the canonical, tenant-specific public URL. Keep `site`
+        // as a backwards-compatible alias for existing integrations.
+        website: websitePath(m),
+        customDomain: m.custom_domain || "",
+        site: websitePath(m),
+        legacySite: `/s/${m.slug}`,
         directory: `/madrasa/${m.slug}`,
-        apply: `/apply/${m.slug}`,
+        apply: `${websitePath(m)}/admissions#apply`,
         results: `/results-check?madrasa=${m.slug}`,
       },
     }));
+  }));
+
+
+  /* ========================================================================
+     Public website collections — teachers, programs and events
+     ------------------------------------------------------------------------
+     These administrative routes stay under My Institution. Their records are
+     always queried by the resolved tenant, not by an id supplied by the UI.
+     ======================================================================== */
+  const publicImagePath = (value) => {
+    const image = cleanStr(value, 500);
+    return image.startsWith("/uploads/") ? image : "";
+  };
+
+  async function publicTeacherRows(madrasaId) {
+    const rows = await db.all(
+      `SELECT u.id AS user_id, u.full_name, p.photo_path, p.position,
+              p.qualifications, p.specialization, p.public_bio,
+              p.education_track, p.status, p.is_public,
+              (SELECT GROUP_CONCAT(s.name_en)
+                 FROM teacher_assignments ta
+                 JOIN subjects s ON s.id = ta.subject_id AND s.madrasa_id = ta.madrasa_id
+                WHERE ta.madrasa_id = p.madrasa_id AND ta.user_id = p.user_id
+                  AND COALESCE(ta.status, 'active') <> 'archived') AS subject_names
+         FROM users u
+         JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id
+        WHERE u.madrasa_id = ? AND u.role = 'teacher'
+        ORDER BY u.full_name, u.id`,
+      [madrasaId]
+    );
+    return rows.map((row) => ({
+      id: Number(row.user_id), name: row.full_name || "", photoPath: row.photo_path || "",
+      position: row.position || "", qualification: row.qualifications || "",
+      specialization: row.specialization || "", bio: row.public_bio || "",
+      educationTrack: row.education_track || "both", status: row.status || "inactive",
+      isPublic: Number(row.is_public) === 1,
+      subjects: String(row.subject_names || "").split(",").map((name) => name.trim()).filter(Boolean),
+    }));
+  }
+
+  // Creates a minimal profile for teachers created before teacher_profiles
+  // existed. It still defaults to private; this only lets the admin make an
+  // explicit public-display choice for every current teacher.
+  async function ensurePublicTeacherProfiles(madrasaId) {
+    const users = await db.all(
+      `SELECT u.id, u.full_name, u.is_active FROM users u
+       WHERE u.madrasa_id = ? AND u.role = 'teacher'
+         AND NOT EXISTS (SELECT 1 FROM teacher_profiles p WHERE p.madrasa_id = u.madrasa_id AND p.user_id = u.id)`,
+      [madrasaId]
+    );
+    for (const user of users) {
+      const pieces = String(user.full_name || "Teacher").trim().split(/\s+/);
+      await db.run(
+        `INSERT INTO teacher_profiles (madrasa_id, user_id, first_name, last_name, status, education_track)
+         VALUES (?,?,?,?,?,?)`,
+        [madrasaId, user.id, pieces[0] || "Teacher", pieces.slice(1).join(" "), Number(user.is_active) === 1 ? "active" : "inactive", "both"]
+      );
+    }
+  }
+
+  router.get("/public-teachers", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    await ensurePublicTeacherProfiles(m.id);
+    ok(res, { teachers: await publicTeacherRows(m.id) });
+  }));
+
+  router.patch("/public-teachers/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    await ensurePublicTeacherProfiles(m.id);
+    const userId = toNum(req.params.id, 0);
+    const profile = await db.get(
+      `SELECT p.id FROM teacher_profiles p JOIN users u ON u.id = p.user_id AND u.madrasa_id = p.madrasa_id
+       WHERE p.madrasa_id = ? AND p.user_id = ? AND u.role = 'teacher'`,
+      [m.id, userId]
+    );
+    if (!profile) return err(res, 404, "Teacher not found.");
+    const b = req.body || {}; const sets = []; const vals = [];
+    if (b.is_public !== undefined) { sets.push("is_public = ?"); vals.push(truthy(b.is_public) ? 1 : 0); }
+    if (b.public_bio !== undefined) { sets.push("public_bio = ?"); vals.push(cleanStr(b.public_bio, 1200)); }
+    if (!sets.length) return err(res, 400, "Nothing to update.");
+    sets.push("updated_at = CURRENT_TIMESTAMP"); vals.push(profile.id, m.id);
+    await db.run(`UPDATE teacher_profiles SET ${sets.join(", ")} WHERE id = ? AND madrasa_id = ?`, vals);
+    logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "website.teacher.visibility", entity: "teacher_profile", entityId: String(profile.id), ip: req.ip });
+    ok(res, { ok: true });
+  }));
+
+  router.get("/programs", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const programs = await db.all("SELECT * FROM public_programs WHERE madrasa_id = ? ORDER BY sort_order, id", [m.id]);
+    ok(res, { programs });
+  }));
+
+  router.post("/programs", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const b = req.body || {}; const title = cleanStr(b.title, 160);
+    if (!title) return err(res, 400, "Program title is required.");
+    const last = await db.get("SELECT MAX(sort_order) AS n FROM public_programs WHERE madrasa_id = ?", [m.id]);
+    const result = await db.run(
+      `INSERT INTO public_programs (madrasa_id, title, description, education_track, image_path, is_published, is_featured, sort_order)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [m.id, title, cleanStr(b.description, 6000), normalizeTrack(b.education_track), publicImagePath(b.image_path),
+       truthy(b.is_published) ? 1 : 0, truthy(b.is_featured) ? 1 : 0, Number(last && last.n || 0) + 1]
+    );
+    logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "website.program.create", entity: "public_program", entityId: String(result.lastInsertRowid), ip: req.ip });
+    ok(res, { ok: true, id: result.lastInsertRowid });
+  }));
+
+  router.patch("/programs/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const id = toNum(req.params.id, 0);
+    const current = await db.get("SELECT id FROM public_programs WHERE id = ? AND madrasa_id = ?", [id, m.id]);
+    if (!current) return err(res, 404, "Program not found.");
+    const b = req.body || {}; const sets = []; const vals = [];
+    if (b.title !== undefined) { const title = cleanStr(b.title, 160); if (!title) return err(res, 400, "Program title is required."); sets.push("title = ?"); vals.push(title); }
+    if (b.description !== undefined) { sets.push("description = ?"); vals.push(cleanStr(b.description, 6000)); }
+    if (b.education_track !== undefined) { sets.push("education_track = ?"); vals.push(normalizeTrack(b.education_track)); }
+    if (b.image_path !== undefined) { sets.push("image_path = ?"); vals.push(publicImagePath(b.image_path)); }
+    for (const key of ["is_published", "is_featured"]) if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(truthy(b[key]) ? 1 : 0); }
+    if (!sets.length) return err(res, 400, "Nothing to update.");
+    sets.push("updated_at = CURRENT_TIMESTAMP"); vals.push(id, m.id);
+    await db.run(`UPDATE public_programs SET ${sets.join(", ")} WHERE id = ? AND madrasa_id = ?`, vals);
+    ok(res, { ok: true });
+  }));
+
+  router.delete("/programs/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const result = await db.run("DELETE FROM public_programs WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+    if (!result.changes) return err(res, 404, "Program not found.");
+    ok(res, { ok: true });
+  }));
+
+  router.get("/events", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const events = await db.all("SELECT * FROM public_events WHERE madrasa_id = ? ORDER BY event_date, sort_order, id", [m.id]);
+    ok(res, { events });
+  }));
+
+  router.post("/events", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const b = req.body || {}; const title = cleanStr(b.title, 200);
+    if (!title) return err(res, 400, "Event title is required.");
+    if (b.event_date && !validDate(b.event_date)) return err(res, 400, "Event date must be YYYY-MM-DD.");
+    const last = await db.get("SELECT MAX(sort_order) AS n FROM public_events WHERE madrasa_id = ?", [m.id]);
+    const result = await db.run(
+      `INSERT INTO public_events (madrasa_id, title, description, event_date, location, image_path, is_published, is_featured, sort_order)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [m.id, title, cleanStr(b.description, 6000), validDate(b.event_date), cleanStr(b.location, 200), publicImagePath(b.image_path),
+       truthy(b.is_published) ? 1 : 0, truthy(b.is_featured) ? 1 : 0, Number(last && last.n || 0) + 1]
+    );
+    logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "website.event.create", entity: "public_event", entityId: String(result.lastInsertRowid), ip: req.ip });
+    ok(res, { ok: true, id: result.lastInsertRowid });
+  }));
+
+  router.patch("/events/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const id = toNum(req.params.id, 0); const current = await db.get("SELECT id FROM public_events WHERE id = ? AND madrasa_id = ?", [id, m.id]);
+    if (!current) return err(res, 404, "Event not found.");
+    const b = req.body || {}; const sets = []; const vals = [];
+    if (b.title !== undefined) { const title = cleanStr(b.title, 200); if (!title) return err(res, 400, "Event title is required."); sets.push("title = ?"); vals.push(title); }
+    if (b.description !== undefined) { sets.push("description = ?"); vals.push(cleanStr(b.description, 6000)); }
+    if (b.event_date !== undefined) { if (b.event_date && !validDate(b.event_date)) return err(res, 400, "Event date must be YYYY-MM-DD."); sets.push("event_date = ?"); vals.push(validDate(b.event_date)); }
+    if (b.location !== undefined) { sets.push("location = ?"); vals.push(cleanStr(b.location, 200)); }
+    if (b.image_path !== undefined) { sets.push("image_path = ?"); vals.push(publicImagePath(b.image_path)); }
+    for (const key of ["is_published", "is_featured"]) if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(truthy(b[key]) ? 1 : 0); }
+    if (!sets.length) return err(res, 400, "Nothing to update.");
+    sets.push("updated_at = CURRENT_TIMESTAMP"); vals.push(id, m.id);
+    await db.run(`UPDATE public_events SET ${sets.join(", ")} WHERE id = ? AND madrasa_id = ?`, vals);
+    ok(res, { ok: true });
+  }));
+
+  router.delete("/events/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const result = await db.run("DELETE FROM public_events WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+    if (!result.changes) return err(res, 404, "Event not found.");
+    ok(res, { ok: true });
   }));
 
   /* ========================================================================

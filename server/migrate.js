@@ -1642,6 +1642,80 @@ const MIGRATIONS = [
       `);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "024_institution_public_websites",
+    up: async (api, dialect) => {
+      // Each public website has a tenant-owned slug already. A custom domain
+      // is optional, and is deliberately stored on the tenant record rather
+      // than in a platform-wide lookup so it can never resolve to a different
+      // institution's content.
+      await api.run("ALTER TABLE madaris ADD COLUMN custom_domain VARCHAR(255) NOT NULL DEFAULT ''");
+      await api.run("CREATE INDEX idx_madaris_custom_domain ON madaris (custom_domain)");
+
+      // Programs and events are public-site records, not shared catalogues.
+      // Every query against them includes madrasa_id in routes/public.js.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS public_programs (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          title VARCHAR(160) NOT NULL,
+          description TEXT,
+          education_track VARCHAR(20) NOT NULL DEFAULT 'general',
+          image_path VARCHAR(500) NOT NULL DEFAULT '',
+          is_published INT NOT NULL DEFAULT 0,
+          is_featured INT NOT NULL DEFAULT 0,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at ${D.ts()},
+          updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_public_programs_site ON public_programs (madrasa_id, is_published, sort_order, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS public_events (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          title VARCHAR(200) NOT NULL,
+          description TEXT,
+          event_date DATE,
+          location VARCHAR(200) NOT NULL DEFAULT '',
+          image_path VARCHAR(500) NOT NULL DEFAULT '',
+          is_published INT NOT NULL DEFAULT 0,
+          is_featured INT NOT NULL DEFAULT 0,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_at ${D.ts()},
+          updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_public_events_site ON public_events (madrasa_id, is_published, event_date, sort_order, id)");
+
+      // A staff member is private by default. Only a tenant administrator can
+      // explicitly opt a profile into the website and provide a short public
+      // biography. Private HR fields are never selected by the public API.
+      await api.run("ALTER TABLE teacher_profiles ADD COLUMN is_public INT NOT NULL DEFAULT 0");
+      await api.run("ALTER TABLE teacher_profiles ADD COLUMN public_bio TEXT");
+      await api.run("CREATE INDEX idx_teacher_profiles_public ON teacher_profiles (madrasa_id, is_public, status)");
+
+      // Contact form submissions stay inside the recipient institution. They
+      // are intentionally separate from student and HR records.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS public_contact_messages (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          name VARCHAR(160) NOT NULL,
+          email VARCHAR(120) NOT NULL DEFAULT '',
+          phone VARCHAR(60) NOT NULL DEFAULT '',
+          subject VARCHAR(200) NOT NULL DEFAULT '',
+          message TEXT NOT NULL,
+          ip VARCHAR(64) NOT NULL DEFAULT '',
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_public_contact_messages ON public_contact_messages (madrasa_id, id)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

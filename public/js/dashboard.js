@@ -196,6 +196,14 @@
     return String(s === null || s === undefined ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
+  function publicWebsiteHref(m) {
+    const domain = String((m || {}).custom_domain || "").trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+    return domain ? `https://${domain}` : `/schools/${encodeURIComponent(String((m || {}).slug || ""))}`;
+  }
+  function publicWebsiteUrl(m) {
+    const href = publicWebsiteHref(m);
+    return /^https?:\/\//i.test(href) ? href : `${window.location.origin}${href}`;
+  }
   function fmtDate(v) {
     if (!v) return "—";
     try { return new Date(v).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
@@ -828,7 +836,7 @@
     state.dashboardData = data;
     const m = (state.profile && state.profile.madrasa) || {};
     const slug = m.slug || "your-institution";
-    const url = `${slug}.bello.ng`;
+    const url = publicWebsiteUrl(m);
     const s = (data && data.stats) || { totalStudents: 0, totalTeachers: 0, totalClasses: 0, totalSubjects: 0, pendingApplications: 0, attendanceToday: { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 } };
     const att = s.attendanceToday || { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 };
     const reportAnalytics = (analytics && analytics.analytics) || {};
@@ -847,7 +855,7 @@
           <div class="desc">Your public page is live and updates automatically as you edit your ${esc(t.instNoun)} in this dashboard.</div>
         </div>
         <div class="dash-website-actions">
-          <a class="dash-btn dash-btn-accent" href="/s/${esc(slug)}" target="_blank" rel="noopener">${I.external} Visit Website</a>
+          <a class="dash-btn dash-btn-accent" href="${esc(publicWebsiteHref(m))}" target="_blank" rel="noopener">${I.external} Visit Website</a>
           <button class="dash-btn dash-btn-ghost" data-nav-route="institution/appearance" style="color:#fff;border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.08);">${I.edit} Edit Website</button>
         </div>
       </div>
@@ -981,11 +989,11 @@
       <div class="dash-website-card" style="margin-bottom:20px;">
         <div class="dash-website-info">
           <div class="label">Live URL</div>
-          <div class="url">${esc(slug)}.bello.ng</div>
-          <div class="desc">Also reachable at /s/${esc(slug)} on this deployment.</div>
+          <div class="url">${esc(publicWebsiteUrl(m))}</div>
+          <div class="desc">A unique institution website, resolved from this institution's slug or custom domain.</div>
         </div>
         <div class="dash-website-actions">
-          <a class="dash-btn dash-btn-accent" href="/s/${esc(slug)}" target="_blank" rel="noopener">${I.external} Visit Website</a>
+          <a class="dash-btn dash-btn-accent" href="${esc(publicWebsiteHref(m))}" target="_blank" rel="noopener">${I.external} Visit Website</a>
           <button class="dash-btn dash-btn-ghost" data-nav-route="institution/appearance" style="color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.35);">${I.edit} Edit Website</button>
         </div>
       </div>
@@ -1184,7 +1192,7 @@
     const defaultCopy = key === "homepage" ? (site.description_en || "") : key === "admissions" ? (m.admission_info || "") : (settings[contentKey] || "");
     content.innerHTML = `
       <div class="dash-page-head"><div><div class="dash-crumb">Website</div><h2>${esc(meta[0])}</h2><p>${esc(meta[1])}</p></div>
-        <a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${I.external} Preview public site</a></div>
+        <a class="dash-btn dash-btn-ghost" href="${esc(publicWebsiteHref(m))}" target="_blank" rel="noopener">${I.external} Preview public site</a></div>
       <div class="dash-card"><div class="dash-card-pad">
         <form id="websiteContentForm">
           <div class="dash-form-grid">
@@ -1707,7 +1715,7 @@
   async function pageAdmissionRequirements(content) { return pageWebsiteContent(content, "website/admissions"); }
   async function pageAdmissionSettings(content) {
     const [site, profile] = await Promise.all([window.API.get("/madrasa/public-site"), window.API.get("/madrasa/profile")]); const s = site.settings || {}; const slug = profile.madrasa.slug;
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Admissions</div><h2>Admission Settings</h2><p>Control which parts of your online admission journey are visible to the public.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="admissionSettingsForm"><label class="dash-toggle"><input name="public_listing" type="checkbox" ${s.public_listing ? "checked" : ""}><span>Show this institution in the BELLO directory</span></label><label class="dash-toggle"><input name="public_admissions" type="checkbox" ${s.public_admissions ? "checked" : ""}><span>Accept online applications</span></label><label class="dash-toggle"><input name="public_results" type="checkbox" ${s.public_results ? "checked" : ""}><span>Enable public result checking for published results</span></label><div class="dash-form-grid" style="margin-top:16px"><div class="dash-field"><label>Founded year</label><input name="founded_year" pattern="[0-9]{4}" value="${esc(s.founded_year || "")}"></div><div class="dash-field"><label>Public website URL</label><input name="website" type="url" value="${esc(s.website || "")}"></div><div class="dash-field" style="grid-column:1/-1"><label>Public introduction</label><textarea name="description_en">${esc(s.description_en || "")}</textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save admission settings</button></form><p class="dash-info-line" style="margin-top:16px">Your public application link: <a href="/s/${esc(slug)}" target="_blank" rel="noopener">/s/${esc(slug)}</a></p></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Admissions</div><h2>Admission Settings</h2><p>Control which parts of your online admission journey are visible to the public.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="admissionSettingsForm"><label class="dash-toggle"><input name="public_listing" type="checkbox" ${s.public_listing ? "checked" : ""}><span>Show this institution in the BELLO directory</span></label><label class="dash-toggle"><input name="public_admissions" type="checkbox" ${s.public_admissions ? "checked" : ""}><span>Accept online applications</span></label><label class="dash-toggle"><input name="public_results" type="checkbox" ${s.public_results ? "checked" : ""}><span>Enable public result checking for published results</span></label><div class="dash-form-grid" style="margin-top:16px"><div class="dash-field"><label>Founded year</label><input name="founded_year" pattern="[0-9]{4}" value="${esc(s.founded_year || "")}"></div><div class="dash-field"><label>Public website URL</label><input name="website" type="url" value="${esc(s.website || "")}"></div><div class="dash-field" style="grid-column:1/-1"><label>Public introduction</label><textarea name="description_en">${esc(s.description_en || "")}</textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save admission settings</button></form><p class="dash-info-line" style="margin-top:16px">Your public application link: <a href="${esc(publicWebsiteHref(m))}/admissions" target="_blank" rel="noopener">${esc(publicWebsiteUrl(m))}/admissions</a></p></div></div>`;
     content.querySelector("#admissionSettingsForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.put("/madrasa/public-site", { public_listing: fd.get("public_listing") === "on", public_admissions: fd.get("public_admissions") === "on", public_results: fd.get("public_results") === "on", founded_year: fd.get("founded_year"), website: fd.get("website"), description_en: fd.get("description_en") }); toast("Admission settings saved.", "success"); } catch (err) { toast(err.message || "Could not save admission settings.", "error"); } });
   }
 

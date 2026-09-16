@@ -68,7 +68,7 @@ async function publicSettings() {
    what the administrator configured — identity, appearance and the contact
    details they chose to publish. */
 const CARD_SELECT = `
-  SELECT m.id, m.slug, m.name_en, m.name_ar, m.motto_en, m.motto_ar, m.logo_path, m.hero_image_path,
+  SELECT m.id, m.slug, m.custom_domain, m.name_en, m.name_ar, m.motto_en, m.motto_ar, m.logo_path, m.hero_image_path,
          m.brand_color, m.category, m.city, m.state_name, m.maps_link,
          m.description_en, m.description_ar, m.founded_year, m.website, m.phone, m.email,
          m.public_listing, m.public_results, m.public_admissions,
@@ -103,8 +103,12 @@ function cardOut(m) {
   const appearance = myInstitution.resolveAppearance(m);
   return {
     slug: m.slug,
-    // Shareable per-school link: opens this school's own public page directly.
-    sharePath: "/s/" + m.slug,
+    // Modern canonical website path. `sharePath` is retained for directory
+    // clients that predate /schools/:slug; its alias still resolves this same
+    // tenant website, never the platform homepage.
+    websitePath: "/schools/" + encodeURIComponent(m.slug),
+    sharePath: "/s/" + encodeURIComponent(m.slug),
+    customDomain: m.custom_domain || "",
     nameEn: m.name_en,
     nameAr: m.name_ar || "",
     mottoEn: m.motto_en || "",
@@ -187,6 +191,170 @@ async function findPublicMadrasa(slug) {
   const s = cleanStr(slug, 80).toLowerCase();
   if (!s) return null;
   return db.get(CARD_SELECT + " WHERE m.slug = ? AND m.status = 'active'", [s]);
+}
+
+function domainFrom(value) {
+  return cleanStr(value, 255).toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+}
+
+/** Resolve an optional custom host to its ONE active institution. */
+async function findPublicMadrasaByDomain(hostname) {
+  const domain = domainFrom(hostname);
+  if (!domain || !domain.includes(".")) return null;
+  return db.get(CARD_SELECT + " WHERE m.custom_domain = ? AND m.status = 'active'", [domain]);
+}
+
+function publicWebsiteAddress(req, m) {
+  if (m.custom_domain) return `https://${m.custom_domain}`;
+  const host = cleanStr(req.get("host"), 255);
+  const protocol = req.protocol === "https" ? "https" : "http";
+  // Host comes from the current request; it is never a deployment constant.
+  return host ? `${protocol}://${host}/schools/${encodeURIComponent(m.slug)}` : `/schools/${encodeURIComponent(m.slug)}`;
+}
+
+function parseStoredList(value) {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return String(value || "").split(/\n|,/).map((item) => item.trim()).filter(Boolean);
+  }
+}
+
+/**
+ * Complete public-site projection for a single resolved institution.
+ * Every content query is parameterised with m.id. Do not replace these
+ * predicates with a global "published" query: that would cross tenants.
+ */
+async function publicWebsitePayload(req, m) {
+  const [classes, subjects, notices, summaryCount, pageRows, sitePages, albums, media, teachers, programs, events, admissionRows] = await Promise.all([
+    db.all("SELECT id, name_en, name_ar FROM classes WHERE madrasa_id = ? AND is_active = 1 ORDER BY sort_order, id", [m.id]),
+    db.all("SELECT name_en, name_ar, description, education_track, category FROM subjects WHERE madrasa_id = ? AND is_active = 1 ORDER BY name_en", [m.id]),
+    db.all(
+      `SELECT a.id, a.title, a.body, a.created_at, a.publish_until, a.image_path
+       FROM announcements a
+       WHERE a.madrasa_id = ? AND a.is_active = 1 AND a.publish_public = 1
+         AND (a.publish_until IS NULL OR a.publish_until >= ?)
+       ORDER BY a.created_at DESC, a.id DESC LIMIT 24`,
+      [m.id, today()]
+    ),
+    db.get(
+      `SELECT COUNT(*) AS n FROM term_summaries ts
+       JOIN students s ON s.id = ts.student_id AND s.madrasa_id = ts.madrasa_id
+       WHERE ts.madrasa_id = ? AND ts.published_at IS NOT NULL`, [m.id]
+    ),
+    db.all(
+      `SELECT key_name, value FROM settings WHERE madrasa_id = ? AND key_name IN
+       ('website_homepage_title', 'website_homepage_content',
+        'website_about_title', 'website_about_content',
+        'website_programs_title', 'website_programs_content',
+        'website_teachers_title', 'website_teachers_content',
+        'website_admissions_title', 'website_admissions_content')`, [m.id]
+    ),
+    db.all(
+      `SELECT slug, title, summary, body, seo_title, seo_description, in_navigation, sort_order
+       FROM website_pages WHERE madrasa_id = ? AND is_published = 1 ORDER BY sort_order, id`, [m.id]
+    ),
+    db.all(
+      `SELECT a.id, a.title, a.description, a.category, a.is_featured, a.sort_order,
+              (SELECT g.image_path FROM gallery_images g WHERE g.id = a.cover_image_id AND g.madrasa_id = a.madrasa_id) AS cover_path
+       FROM gallery_albums a WHERE a.madrasa_id = ? AND a.is_published = 1 ORDER BY a.sort_order, a.id`, [m.id]
+    ),
+    db.all(
+      `SELECT id, album_id, image_path, video_url, media_type, caption, category, is_featured, sort_order
+       FROM gallery_images WHERE madrasa_id = ? AND is_published = 1 ORDER BY is_featured DESC, sort_order, id LIMIT 200`, [m.id]
+    ),
+    // Intentionally narrow public teacher projection: no email, phone,
+    // address, HR documents, salary or private employment details.
+    db.all(
+      `SELECT u.full_name, p.photo_path, p.position, p.qualifications, p.specialization,
+              p.public_bio, p.education_track,
+              (SELECT GROUP_CONCAT(s.name_en)
+                 FROM teacher_assignments ta
+                 JOIN subjects s ON s.id = ta.subject_id AND s.madrasa_id = ta.madrasa_id
+                WHERE ta.madrasa_id = p.madrasa_id AND ta.user_id = p.user_id
+                  AND COALESCE(ta.status, 'active') <> 'archived') AS subject_names
+       FROM teacher_profiles p
+       JOIN users u ON u.id = p.user_id AND u.madrasa_id = p.madrasa_id
+       WHERE p.madrasa_id = ? AND p.is_public = 1 AND p.status = 'active'
+         AND u.role = 'teacher' AND u.is_active = 1
+       ORDER BY u.full_name, u.id`, [m.id]
+    ),
+    db.all(
+      `SELECT id, title, description, education_track, image_path, is_featured
+       FROM public_programs WHERE madrasa_id = ? AND is_published = 1
+       ORDER BY is_featured DESC, sort_order, id`, [m.id]
+    ),
+    db.all(
+      `SELECT id, title, description, event_date, location, image_path, is_featured
+       FROM public_events WHERE madrasa_id = ? AND is_published = 1
+       ORDER BY CASE WHEN event_date IS NULL THEN 1 ELSE 0 END, event_date, sort_order, id`, [m.id]
+    ),
+    db.all(
+      `SELECT key_name, value FROM settings WHERE madrasa_id = ? AND key_name IN
+       ('admission_open', 'application_start_date', 'application_closing_date',
+        'available_session_ids', 'available_class_ids', 'available_programs',
+        'application_fee', 'required_information', 'required_documents',
+        'interview_instructions', 'acceptance_instructions')`, [m.id]
+    ),
+  ]);
+  const pages = {}; pageRows.forEach((row) => { pages[row.key_name] = row.value || ""; });
+  const admission = {}; admissionRows.forEach((row) => { admission[row.key_name] = row.value || ""; });
+  const availableClassIds = parseStoredList(admission.available_class_ids).map(Number);
+  const availableSessionIds = parseStoredList(admission.available_session_ids).map(Number);
+  const sessions = availableSessionIds.length
+    ? await db.all(`SELECT id, label FROM academic_sessions WHERE madrasa_id = ? AND id IN (${availableSessionIds.map(() => "?").join(",")}) ORDER BY id DESC`, [m.id, ...availableSessionIds])
+    : await db.all("SELECT id, label FROM academic_sessions WHERE madrasa_id = ? AND is_current = 1 ORDER BY id DESC LIMIT 1", [m.id]);
+
+  return {
+    madrasa: cardOut(m),
+    website: {
+      path: `/schools/${encodeURIComponent(m.slug)}`,
+      url: publicWebsiteAddress(req, m),
+      customDomain: m.custom_domain || "",
+      usesCustomDomain: Boolean(m.custom_domain),
+    },
+    classes: classes.filter((row) => !availableClassIds.length || availableClassIds.includes(Number(row.id))),
+    subjects,
+    notices,
+    events: events.map((event) => ({
+      id: Number(event.id), title: event.title, description: event.description || "", date: event.event_date || "",
+      location: event.location || "", imagePath: event.image_path || "", featured: Number(event.is_featured) === 1,
+    })),
+    programs: programs.map((program) => ({
+      id: Number(program.id), title: program.title, description: program.description || "",
+      educationTrack: program.education_track || "general", imagePath: program.image_path || "", featured: Number(program.is_featured) === 1,
+    })),
+    teachers: teachers.map((teacher) => ({
+      name: teacher.full_name || "", photoPath: teacher.photo_path || "", position: teacher.position || "",
+      qualification: teacher.qualifications || "", specialization: teacher.specialization || "", bio: teacher.public_bio || "",
+      educationTrack: teacher.education_track || "both",
+      subjects: String(teacher.subject_names || "").split(",").map((name) => name.trim()).filter(Boolean),
+    })),
+    admissions: {
+      open: Number(m.public_admissions) === 1 && admission.admission_open !== "false" && m.admission_status !== "closed",
+      status: m.admission_status || "open", currentSession: sessions.map((session) => ({ id: Number(session.id), label: session.label })),
+      availablePrograms: parseStoredList(admission.available_programs),
+      applicationFee: admission.application_fee || "",
+      requirements: parseStoredList(admission.required_information),
+      requiredDocuments: parseStoredList(admission.required_documents),
+      process: admission.interview_instructions || "",
+      acceptanceInstructions: admission.acceptance_instructions || "",
+      applicationPath: `/api/public/madaris/${encodeURIComponent(m.slug)}/apply`,
+    },
+    publishedTermCount: Number(summaryCount.n), pages,
+    sitePages: sitePages.map((page) => ({
+      slug: page.slug, title: page.title, summary: page.summary || "", body: page.body || "",
+      seoTitle: page.seo_title || "", seoDescription: page.seo_description || "",
+      inNavigation: Number(page.in_navigation) === 1,
+    })),
+    navigation: sitePages.filter((page) => Number(page.in_navigation) === 1).map((page) => ({ slug: page.slug, title: page.title })),
+    gallery: {
+      albums: albums.map((album) => ({ id: album.id, title: album.title, description: album.description || "", category: album.category || "", coverPath: album.cover_path || "", featured: Number(album.is_featured) === 1 })),
+      media: media.map((item) => ({ id: item.id, albumId: item.album_id || null, path: item.image_path || "", videoUrl: item.video_url || "", type: item.media_type || "image", caption: item.caption || "", category: item.category || "", featured: Number(item.is_featured) === 1 })),
+    },
+    loginUrl: "/login",
+  };
 }
 
 function today() {
@@ -324,6 +492,42 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
     // password) rather than the old hash route.
     loginUrl: "/login",
   });
+}));
+
+/* ---------------------- dedicated institution websites ----------------- */
+
+/** Canonical public website by tenant slug. Directory visibility is separate. */
+router.get("/schools/:slug", publicLimiter, asyncHandler(async (req, res) => {
+  const m = await findPublicMadrasa(req.params.slug);
+  if (!m || Number(m.website_published) === 0) return err(res, 404, "Institution website not found.");
+  ok(res, await publicWebsitePayload(req, m));
+}));
+
+/** Custom-domain bootstrapping; www and apex resolve to the same tenant. */
+router.get("/schools/domain/current", publicLimiter, asyncHandler(async (req, res) => {
+  // `domain` supports deployments whose public frontend and API use
+  // different origins. It is only a lookup key; the resolved tenant still
+  // supplies every subsequent scoped query.
+  const m = await findPublicMadrasaByDomain(req.query.domain || req.hostname);
+  if (!m || Number(m.website_published) === 0) return err(res, 404, "Institution website not found for this domain.");
+  ok(res, await publicWebsitePayload(req, m));
+}));
+
+/** Contact requests are delivered only into the website's resolved tenant. */
+router.post("/schools/:slug/contact", publicWriteLimiter, asyncHandler(async (req, res) => {
+  const m = await findPublicMadrasa(req.params.slug);
+  if (!m || Number(m.website_published) === 0 || Number(m.contact_form_enabled) !== 1) return err(res, 404, "This institution contact form is not available.");
+  const b = req.body || {}; const name = cleanStr(b.name, 160); const message = cleanStr(b.message, 5000);
+  const email = cleanStr(b.email, 120); const phone = cleanStr(b.phone, 60);
+  if (!name || !message) return err(res, 400, "Your name and message are required.");
+  if (email && !validEmail(email)) return err(res, 400, "Enter a valid email address.");
+  if (phone && !validPhone(phone)) return err(res, 400, "Enter a valid phone number.");
+  const result = await db.run(
+    "INSERT INTO public_contact_messages (madrasa_id, name, email, phone, subject, message, ip) VALUES (?,?,?,?,?,?,?)",
+    [m.id, name, email, phone, cleanStr(b.subject, 200), message, cleanStr(req.ip, 64)]
+  );
+  await logActivity(db, { madrasaId: m.id, action: "website.contact", entity: "public_contact_message", entityId: String(result.lastInsertRowid), ip: req.ip });
+  ok(res, { ok: true, message: "Thank you. Your message has been sent to " + m.name_en + "." });
 }));
 
 /* ------------------------------ public notices ------------------------- */

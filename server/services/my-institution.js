@@ -169,7 +169,7 @@ const TEXT_FIELDS = Object.freeze({
     ["card_style", 30], ["homepage_layout", 30], ["website_theme", 30],
   ]),
   website: Object.freeze([
-    ["seo_title", 160], ["seo_description", 320], ["seo_keywords", 255],
+    ["seo_title", 160], ["seo_description", 320], ["seo_keywords", 255], ["custom_domain", 255],
     ["facebook", 200], ["instagram", 200], ["twitter", 200], ["youtube", 200],
     ["linkedin", 200], ["tiktok", 200],
   ]),

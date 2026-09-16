@@ -261,6 +261,9 @@ function teacherDto(row, assignments = []) {
     phone: row.phone || "",
     staff_id: row.staff_id || "",
     photo_path: row.photo_path || "",
+    public_display: Number(row.public_display) === 1,
+    public_bio: row.public_bio || "",
+    public_subjects: row.public_subjects || "",
     status,
     education_track: normalizeTrack(row.education_track),
     is_active: Number(row.is_active) === 1,
@@ -278,7 +281,7 @@ async function loadTeacher(tid, id, res) {
             p.employment_type, p.position, p.department, p.education_track, p.qualifications,
             p.certifications, p.specialization, p.years_experience, p.academic_session_id,
             p.available_days, p.available_periods, p.employment_history, p.professional_development,
-            p.awards, p.training, p.achievements, p.status, p.source_application_id, p.archived_at,
+            p.awards, p.training, p.achievements, p.public_display, p.public_bio, p.public_subjects, p.status, p.source_application_id, p.archived_at,
             p.created_at AS profile_created_at, p.updated_at AS profile_updated_at
        FROM users u LEFT JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id
       WHERE u.id = ? AND u.madrasa_id = ? AND u.role = 'teacher'`,
@@ -293,7 +296,7 @@ async function loadTeacher(tid, id, res) {
             p.employment_type, p.position, p.department, p.education_track, p.qualifications,
             p.certifications, p.specialization, p.years_experience, p.academic_session_id,
             p.available_days, p.available_periods, p.employment_history, p.professional_development,
-            p.awards, p.training, p.achievements, p.status, p.source_application_id, p.archived_at,
+            p.awards, p.training, p.achievements, p.public_display, p.public_bio, p.public_subjects, p.status, p.source_application_id, p.archived_at,
             p.created_at AS profile_created_at, p.updated_at AS profile_updated_at
        FROM users u LEFT JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id
       WHERE u.id = ? AND u.madrasa_id = ? AND u.role = 'teacher'`, [toNum(id, 0), tid]);
@@ -370,7 +373,7 @@ router.get("/", ADMIN, asyncHandler(async (req, res) => {
             p.employment_type, p.position, p.department, p.education_track, p.qualifications,
             p.certifications, p.specialization, p.years_experience, p.academic_session_id,
             p.available_days, p.available_periods, p.employment_history, p.professional_development,
-            p.awards, p.training, p.achievements, p.status, p.source_application_id, p.archived_at,
+            p.awards, p.training, p.achievements, p.public_display, p.public_bio, p.public_subjects, p.status, p.source_application_id, p.archived_at,
             p.created_at AS profile_created_at, p.updated_at AS profile_updated_at
        FROM users u LEFT JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id
       WHERE ${where.join(" AND ")}
@@ -699,9 +702,11 @@ router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
     position: [b.position, 120], department: [b.department, 120], qualifications: [b.qualifications, 5000], certifications: [b.certifications, 5000],
     specialization: [b.specialization, 200], available_periods: [b.available_periods, 1000], employment_history: [b.employment_history, 5000],
     professional_development: [b.professional_development, 5000], awards: [b.awards, 5000], training: [b.training, 5000], achievements: [b.achievements, 5000],
+    public_bio: [b.public_bio, 5000], public_subjects: [b.public_subjects, 500],
   };
   for (const [field, [value, max]] of Object.entries(profileFields)) if (value !== undefined) { profileSets.push(`${field} = ?`); profileVals.push(cleanStr(value, max)); }
   if (b.alternative_phone && !validPhone(b.alternative_phone)) return err(res, 400, "Invalid alternative phone number.");
+  if (b.public_display !== undefined) { profileSets.push("public_display = ?"); profileVals.push(b.public_display === true || b.public_display === 1 || b.public_display === "1" ? 1 : 0); }
   if (b.education_track !== undefined) { profileSets.push("education_track = ?"); profileVals.push(normalizeTrack(b.education_track)); }
   if (b.years_experience !== undefined) { profileSets.push("years_experience = ?"); profileVals.push(parsePositiveInt(b.years_experience, 80)); }
   if (b.academic_session_id !== undefined) { const sid = b.academic_session_id ? toNum(b.academic_session_id, 0) : null; if (sid && !await sessionById(tid, sid)) return err(res, 400, "Unknown academic session."); profileSets.push("academic_session_id = ?"); profileVals.push(sid); }

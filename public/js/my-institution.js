@@ -366,7 +366,7 @@
     content.innerHTML = `
       ${pageHead(`${label()} Profile`, `The identity of your ${noun()} — used across the admin workspace, report cards and your public website.`,
         `<button class="dash-btn dash-btn-ghost" id="miPreviewProfile">${icon("external")} Preview profile</button>
-         <a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("globe")} View website</a>`)}
+         <a class="dash-btn dash-btn-ghost" href="/schools/${esc(m.slug)}" target="_blank" rel="noopener">${icon("globe")} View website</a>`)}
       ${sectionNav("profile")}
       <form id="miProfileForm" novalidate>
         <div class="dash-mi-stack">
@@ -693,6 +693,8 @@
     const counts = data.counts || {};
     const published = Number(m.website_published) !== 0;
     const listed = isOn(m.public_listing);
+    const websitePath = (data.urls && data.urls.site) || `/schools/${m.slug}`;
+    const websiteHref = (data.urls && data.urls.website) || `${window.location.origin}${websitePath}`;
 
     const quickLinks = [
       ["home", "Homepage", "book"],
@@ -707,15 +709,16 @@
 
     content.innerHTML = `
       ${pageHead("Public Website", `Everything visitors see about your ${noun()}, and the switches that control it.`,
-        `<a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View public website</a>
-         <button class="dash-btn dash-btn-ghost" id="miPreviewSite">${icon("image")} Preview</button>`)}
+        `<a class="dash-btn dash-btn-ghost" href="${esc(websitePath)}" target="_blank" rel="noopener">${icon("external")} Open Website</a>
+         <button class="dash-btn dash-btn-ghost" id="miCopyWebsite" type="button">${icon("copy")} Copy URL</button>
+         <button class="dash-btn dash-btn-ghost" id="miPreviewSite">${icon("image")} Preview Website</button>`)}
       ${sectionNav("website")}
 
       <div class="dash-website-card" style="margin-bottom:20px;">
         <div class="dash-website-info">
           <div class="label">Live address</div>
-          <div class="url">${esc(m.slug)}.bello.ng</div>
-          <div class="desc">Also reachable at /s/${esc(m.slug)} on this deployment.</div>
+          <div class="url" id="miWebsiteUrl">${esc(websiteHref)}</div>
+          <div class="desc">This address always opens only ${esc(m.name_en || "this institution")}.</div>
         </div>
         <div class="dash-website-actions">
           <span class="dash-pill ${published && listed ? "ok" : "warn"}" id="miWebsiteStatus">
@@ -795,6 +798,7 @@
             <div class="dash-form-grid">
               ${textField("seo_title", "SEO title", val(m.seo_title), { maxlength: 160, placeholder: val(m.name_en) })}
               ${textField("seo_keywords", "Keywords", val(m.seo_keywords), { maxlength: 255, placeholder: "islamic school, ijebu-ode, tahfiz" })}
+              ${textField("custom_domain", "Custom domain (optional)", val(m.custom_domain), { maxlength: 255, placeholder: "www.example.com", hint: "After DNS is configured, visitors can use this domain. The /schools/slug link always remains available." })}
               ${textAreaField("seo_description", "SEO description", val(m.seo_description), { rows: 3, maxlength: 320, hint: "Around 150–160 characters reads best in search results." })}
             </div>
           </div>
@@ -820,6 +824,11 @@
         </div>
       </form>`;
 
+    const copyButton = content.querySelector("#miCopyWebsite");
+    if (copyButton) copyButton.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(websiteHref); toast("Website URL copied.", "success"); }
+      catch (_) { toast(websiteHref, "info"); }
+    });
     const form = content.querySelector("#miWebsiteForm");
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -864,6 +873,7 @@
   /** A framed, read-only rendering of the live public page. */
   function openSitePreview(data) {
     const m = data.madrasa || {};
+    const websitePath = (data.urls && data.urls.site) || `/schools/${m.slug}`;
     const modal = ctx.openModal("Website preview", `
       <div class="dash-mi-frame-bar">
         <div class="dash-actions">
@@ -871,10 +881,10 @@
           <button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-mi-viewport="tablet">Tablet</button>
           <button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-mi-viewport="mobile">Mobile</button>
         </div>
-        <a class="dash-btn dash-btn-ghost dash-btn-sm" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} Open in a tab</a>
+        <a class="dash-btn dash-btn-ghost dash-btn-sm" href="${esc(websitePath)}" target="_blank" rel="noopener">${icon("external")} Open in a tab</a>
       </div>
       <div class="dash-mi-frame is-desktop" data-mi-frame>
-        <iframe src="/s/${esc(m.slug)}" title="Public website preview" loading="lazy"></iframe>
+        <iframe src="${esc(websitePath)}" title="Public website preview" loading="lazy"></iframe>
       </div>`);
     const frame = modal.querySelector("[data-mi-frame]");
     modal.querySelectorAll("[data-mi-viewport]").forEach((btn) => btn.addEventListener("click", () => {
@@ -895,7 +905,7 @@
 
     content.innerHTML = `
       ${pageHead("Website Appearance", `Branding, colours and layout for the public website — one identity, with its own accent for each education section.`,
-        `<a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View live site</a>`)}
+        `<a class="dash-btn dash-btn-ghost" href="/schools/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View live site</a>`)}
       ${sectionNav("appearance")}
       <form id="miAppearanceForm" novalidate>
         <div class="dash-mi-appearance">
@@ -1583,7 +1593,7 @@
 
     content.innerHTML = `
       ${pageHead("Contact Information", "The details families use to reach you — and exactly which of them appear publicly.",
-        `<a class="dash-btn dash-btn-ghost" href="/s/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View contact page</a>`)}
+        `<a class="dash-btn dash-btn-ghost" href="/schools/${esc(m.slug)}" target="_blank" rel="noopener">${icon("external")} View contact page</a>`)}
       ${sectionNav("contact")}
       <form id="miContactForm" novalidate>
         <div class="dash-mi-appearance">

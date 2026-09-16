@@ -88,13 +88,19 @@ function createApp() {
   // The SPA is same-origin by default and calls /api. If the operator sets
   // API_BASE_URL (API hosted on a different origin), this endpoint serves
   // it to the frontend — no hard-coded production URLs anywhere in code.
-  app.get("/app-config.js", (req, res) => {
+  app.get("/app-config.js", async (req, res) => {
+    const host = String(req.get("host") || "").split(":")[0].toLowerCase();
+    const custom = host ? await db.get(
+      "SELECT slug FROM madaris WHERE LOWER(custom_domain) = ? AND status = 'active' AND public_listing = 1 AND website_published <> 0",
+      [host]
+    ) : null;
     res
       .type("application/javascript")
       .set("Cache-Control", "no-store")
       .send("window.__APP_CONFIG__=" + JSON.stringify({
         apiBase: config.EFFECTIVE_API_BASE,
         categoryConfig: institution.clientCategoryConfig(),
+        schoolSlug: custom ? custom.slug : "",
       }) + ";");
   });
 
@@ -108,9 +114,25 @@ function createApp() {
   // public page directly (not the platform landing). The SPA reads the slug
   // from the path on boot and routes to #/madrasa/<slug>. /school/ and /m/
   // are accepted aliases of the same link.
-  const schoolLinkHandler = (req, res) => {
-    res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+  const schoolLinkHandler = async (req, res) => {
+    // Resolve the slug at the edge as well as in the public API. This gives
+    // crawlers and direct requests a real 404 for an unknown/unpublished
+    // institution instead of briefly serving another tenant's shell.
+    if (req.params && req.params.slug) {
+      const school = await db.get(
+        "SELECT id FROM madaris WHERE slug = ? AND status = 'active' AND public_listing = 1 AND website_published <> 0",
+        [String(req.params.slug).toLowerCase()]
+      );
+      if (!school) {
+        return res.status(404).type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Institution not found</title><style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#faf8fc;color:#241532}main{max-width:560px;padding:40px;text-align:center}a{display:inline-block;margin-top:18px;padding:12px 18px;background:#200a3d;color:#fff;border-radius:8px;text-decoration:none}</style></head><body><main><p>Public website</p><h1>Institution not found</h1><p>This institution may be unpublished or the address may be incorrect.</p><a href="/">Return to BELLO</a></main></body></html>`);
+      }
+    }
+    return res.sendFile(path.join(__dirname, "..", "public", "index.html"));
   };
+  // Canonical institution website URL. The older aliases remain backwards
+  // compatible, but all generated links use /schools/:slug.
+  app.get("/schools/:slug", schoolLinkHandler);
+  app.get("/schools/:slug/:page", schoolLinkHandler);
   app.get("/s/:slug", schoolLinkHandler);
   app.get("/school/:slug", schoolLinkHandler);
   app.get("/m/:slug", schoolLinkHandler);

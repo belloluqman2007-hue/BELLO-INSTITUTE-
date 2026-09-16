@@ -1360,6 +1360,164 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_exams_directory ON exams (madrasa_id, class_id, subject_id, session_id, term_id, exam_date)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "022_complete_academic_admissions",
+    up: async (api, dialect) => {
+      // Complete the existing shared academic/admissions records in place.
+      // No Islamic/Western duplicate tables are created: education_track is
+      // carried by the same lessons, assignments, examinations and applicants.
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+      const ident = (name) => {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(name))) throw new Error("Unsafe identifier in migration: " + name);
+        return name;
+      };
+      async function columnExists(table, name) {
+        if (dialect === "sqlite") {
+          const rows = await api.all(`PRAGMA table_info(${ident(table)})`);
+          return rows.some((row) => String(row.name).toLowerCase() === String(name).toLowerCase());
+        }
+        return (await api.all(`SHOW COLUMNS FROM ${ident(table)} LIKE ?`, [name])).length > 0;
+      }
+      async function addColumn(table, name, type) {
+        if (!await columnExists(table, name)) await api.run(`ALTER TABLE ${ident(table)} ADD COLUMN ${ident(name)} ${type}`);
+      }
+
+      // Sessions and terms remain the platform's original period records.
+      for (const [name, type] of [
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'upcoming'"],
+        ["archived_at", nullableTs], ["updated_at", nullableTs],
+      ]) await addColumn("academic_sessions", name, type);
+      await api.run("UPDATE academic_sessions SET status = CASE WHEN is_current = 1 THEN 'active' ELSE status END");
+      await api.run("CREATE INDEX idx_academic_sessions_status ON academic_sessions (madrasa_id, status, is_current)");
+
+      for (const [name, type] of [
+        ["result_submission_deadline", "DATE"],
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'upcoming'"],
+        ["is_current", "INT NOT NULL DEFAULT 0"],
+        ["updated_at", nullableTs],
+      ]) await addColumn("terms", name, type);
+      await api.run("CREATE INDEX idx_terms_status ON terms (madrasa_id, session_id, status, is_current)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS academic_period_history (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          entity_type VARCHAR(20) NOT NULL, entity_id INT NOT NULL,
+          action VARCHAR(40) NOT NULL, from_status VARCHAR(20), to_status VARCHAR(20),
+          note TEXT, changed_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_academic_period_history ON academic_period_history (madrasa_id, entity_type, entity_id, id)");
+
+      // The original homework table is the existing lesson/assignment source
+      // of truth. It is expanded instead of being replaced.
+      for (const [name, type] of [
+        ["teacher_id", "INT"], ["topic", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        ["objectives", "TEXT"], ["content", "TEXT"], ["learning_materials", "TEXT"],
+        ["lesson_date", "DATE"], ["period", "VARCHAR(40) NOT NULL DEFAULT ''"],
+        ["homework_text", "TEXT"], ["assigned_date", "DATE"],
+        ["maximum_score", "DECIMAL(7,2) NOT NULL DEFAULT 100"],
+        ["session_id", "INT"], ["term_id", "INT"],
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'published'"],
+        ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["archived_at", nullableTs], ["updated_at", nullableTs],
+      ]) await addColumn("homework", name, type);
+      await api.run("UPDATE homework SET teacher_id = created_by WHERE teacher_id IS NULL");
+      await api.run("CREATE INDEX idx_homework_academic ON homework (madrasa_id, kind, status, session_id, term_id, class_id, subject_id)");
+      await api.run("CREATE INDEX idx_homework_teacher ON homework (madrasa_id, teacher_id, kind, lesson_date)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS academic_attachments (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          entity_type VARCHAR(30) NOT NULL, entity_id INT NOT NULL,
+          display_name VARCHAR(200) NOT NULL, storage_path VARCHAR(500) NOT NULL,
+          original_name VARCHAR(255) NOT NULL DEFAULT '', mime_type VARCHAR(120) NOT NULL DEFAULT '',
+          file_size INT NOT NULL DEFAULT 0, uploaded_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_academic_attachments ON academic_attachments (madrasa_id, entity_type, entity_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS academic_item_history (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          entity_type VARCHAR(30) NOT NULL, entity_id INT NOT NULL,
+          action VARCHAR(40) NOT NULL, from_status VARCHAR(20), to_status VARCHAR(20),
+          summary TEXT, changed_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_academic_item_history ON academic_item_history (madrasa_id, entity_type, entity_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS assignment_submissions (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          assignment_id INT NOT NULL, student_id INT NOT NULL,
+          submission_text TEXT, attachment_path VARCHAR(500) NOT NULL DEFAULT '',
+          original_name VARCHAR(255) NOT NULL DEFAULT '', mime_type VARCHAR(120) NOT NULL DEFAULT '',
+          file_size INT NOT NULL DEFAULT 0, submitted_at ${nullableTs},
+          status VARCHAR(20) NOT NULL DEFAULT 'submitted', score DECIMAL(7,2),
+          feedback TEXT, graded_by INT, graded_at ${nullableTs},
+          updated_at ${nullableTs},
+          UNIQUE (madrasa_id, assignment_id, student_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_assignment_submissions ON assignment_submissions (madrasa_id, assignment_id, status, student_id)");
+
+      // Extend the existing exam schedule. One row is one class/subject sitting;
+      // a named examination can therefore span many schedule rows safely.
+      for (const [name, type] of [
+        ["start_time", "VARCHAR(5) NOT NULL DEFAULT ''"],
+        ["end_time", "VARCHAR(5) NOT NULL DEFAULT ''"],
+        ["duration_minutes", "INT NOT NULL DEFAULT 0"],
+        ["invigilator_id", "INT"], ["classroom", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["instructions", "TEXT"], ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["published_at", nullableTs], ["cancelled_at", nullableTs],
+      ]) await addColumn("exams", name, type);
+      await api.run("CREATE INDEX idx_exam_conflicts ON exams (madrasa_id, exam_date, start_time, end_time, invigilator_id, class_id, classroom)");
+
+      // Results retain the original CA/exam/total columns and gain an explicit
+      // moderation workflow plus traceability. 'approved' is the default so
+      // pre-existing integrations that insert rows directly keep working;
+      // the HTTP gradebook explicitly writes new entries as draft/submitted.
+      for (const [name, type] of [
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'approved'"],
+        ["grade", "VARCHAR(10) NOT NULL DEFAULT ''"], ["grade_point", "DECIMAL(6,2) NOT NULL DEFAULT 0"],
+        ["teacher_remark", "TEXT"], ["entered_by", "INT"], ["modified_by", "INT"],
+        ["submitted_at", nullableTs], ["approved_by", "INT"], ["approved_at", nullableTs],
+        ["published_at", nullableTs],
+      ]) await addColumn("results", name, type);
+      await api.run("CREATE INDEX idx_results_workflow ON results (madrasa_id, class_id, term_id, subject_id, status)");
+
+      // Admission requirements are configurable and can be scoped without
+      // splitting either education track into a separate admissions database.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS admission_requirements (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          name VARCHAR(200) NOT NULL, description TEXT,
+          is_required INT NOT NULL DEFAULT 1, document_type VARCHAR(100) NOT NULL DEFAULT '',
+          class_id INT, program VARCHAR(120) NOT NULL DEFAULT '',
+          education_track VARCHAR(20) NOT NULL DEFAULT 'both', session_id INT,
+          status VARCHAR(20) NOT NULL DEFAULT 'active', archived_at ${nullableTs},
+          created_by INT, created_at ${D.ts()}, updated_at ${nullableTs}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_admission_requirements ON admission_requirements (madrasa_id, status, session_id, class_id, education_track)");
+
+      for (const [name, type] of [
+        ["photo_path", "VARCHAR(500) NOT NULL DEFAULT ''"],
+        ["contact_phone", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["contact_email", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["previous_class", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["interview_time", "VARCHAR(5) NOT NULL DEFAULT ''"],
+        ["interview_location", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["interview_status", "VARCHAR(20) NOT NULL DEFAULT 'not_scheduled'"],
+        ["requested_information", "TEXT"],
+      ]) await addColumn("admission_requests", name, type);
+      await addColumn("admission_documents", "requirement_id", "INT");
+      await addColumn("admission_documents", "verification_status", "VARCHAR(20) NOT NULL DEFAULT 'pending'");
+      await api.run("CREATE INDEX idx_admission_pipeline ON admission_requests (madrasa_id, desired_session_id, education_track, class_id, status, created_at)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

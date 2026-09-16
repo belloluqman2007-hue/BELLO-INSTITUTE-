@@ -8,7 +8,7 @@
    ========================================================================== */
 const express = require("express");
 const db = require("../db");
-const { asyncHandler, err, ok, cleanStr, toNum, clampNum, logActivity } = require("../util");
+const { asyncHandler, err, ok, cleanStr, toNum, clampNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireRole, requireTenant } = require("../middleware/auth");
 const { getActiveMadrasa } = require("../middleware/tenant");
 const { imageUploader } = require("../middleware/upload");
@@ -674,21 +674,32 @@ rootRouter.post("/sessions", requireAuth, requireTenant, adminOrSupport, asyncHa
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const b = req.body || {};
-  const label = cleanStr(b.label, 40); // e.g. "2026/2027"
-  if (!/^\d{4}([/ -]?\d{0,2})?$/.test(label)) return err(res, 400, "Label should look like 2026/2027.");
+  const label = cleanStr(b.label || b.name, 40); // e.g. "2026/2027"
+  if (!/^\d{4}([/ -]\d{4})?$/.test(label)) return err(res, 400, "Session name should look like 2026/2027.");
+  const startDate = b.start_date ? validDate(b.start_date) : null;
+  const endDate = b.end_date ? validDate(b.end_date) : null;
+  if ((b.start_date && !startDate) || (b.end_date && !endDate)) return err(res, 400, "Session dates must use YYYY-MM-DD.");
+  if (startDate && endDate && endDate < startDate) return err(res, 400, "Session end date cannot be before its start date.");
+  const status = ["upcoming", "active", "completed", "archived"].includes(cleanStr(b.status, 20).toLowerCase()) ? cleanStr(b.status, 20).toLowerCase() : "upcoming";
   const dup = await db.get("SELECT id FROM academic_sessions WHERE madrasa_id = ? AND label = ?", [m.id, label]);
   if (dup) return err(res, 400, "That session already exists.");
-  const r = await db.run(
-    "INSERT INTO academic_sessions (madrasa_id, label, start_date, end_date) VALUES (?,?,?,?)",
-    [m.id, label, b.start_date || null, b.end_date || null]
-  );
-  // Auto-create the three standard terms
-  const defaults = [["First Term", "الفترة الأولى"], ["Second Term", "الفترة الثانية"], ["Third Term", "الفترة الثالثة"]];
-  for (let i = 0; i < defaults.length; i++) {
-    await db.insertIgnore("terms", "madrasa_id, session_id, position, name_en, name_ar", [m.id, r.lastInsertRowid, i + 1, defaults[i][0], defaults[i][1]]);
-  }
-  logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "session.create", entity: "session", entityId: String(r.lastInsertRowid), ip: req.ip });
-  ok(res, { ok: true, id: r.lastInsertRowid });
+  let id;
+  await db.transaction(async (tx) => {
+    if (status === "active") await tx.run("UPDATE academic_sessions SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=?", [m.id]);
+    const r = await tx.run(
+      "INSERT INTO academic_sessions (madrasa_id,label,start_date,end_date,is_current,status,updated_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+      [m.id, label, startDate, endDate, status === "active" ? 1 : 0, status]
+    );
+    id = r.lastInsertRowid;
+    if (status === "active") await tx.run("UPDATE terms SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND session_id<>?", [m.id, id]);
+    if (b.create_default_terms !== false) {
+      const defaults = [["First Term", "الفترة الأولى"], ["Second Term", "الفترة الثانية"], ["Third Term", "الفترة الثالثة"]];
+      for (let i = 0; i < defaults.length; i++) await tx.run("INSERT INTO terms (madrasa_id,session_id,position,name_en,name_ar,status) VALUES (?,?,?,?,?,'upcoming')", [m.id, id, i + 1, defaults[i][0], defaults[i][1]]);
+    }
+    await tx.run("INSERT INTO academic_period_history (madrasa_id,entity_type,entity_id,action,from_status,to_status,note,changed_by) VALUES (?,'session',?,'created',NULL,?,?,?)", [m.id, id, status, cleanStr(b.note, 2000), req.user.id]);
+  });
+  logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "session.create", entity: "session", entityId: String(id), ip: req.ip });
+  ok(res, { ok: true, id });
 }));
 
 rootRouter.patch("/sessions/:id", requireAuth, requireTenant, adminOrSupport, asyncHandler(async (req, res) => {
@@ -696,11 +707,27 @@ rootRouter.patch("/sessions/:id", requireAuth, requireTenant, adminOrSupport, as
   if (!m) return;
   const s = await db.get("SELECT * FROM academic_sessions WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
   if (!s) return res.status(404).json({ error: "Session not found." });
-  if (req.body && req.body.is_current !== undefined) {
-    await db.run("UPDATE academic_sessions SET is_current = 0 WHERE madrasa_id = ?", [m.id]);
-    if (req.body.is_current) await db.run("UPDATE academic_sessions SET is_current = 1 WHERE id = ?", [s.id]);
-  }
-  ok(res, { ok: true });
+  const b = req.body || {}; const sets = []; const vals = [];
+  if (b.label !== undefined || b.name !== undefined) { const label = cleanStr(b.label || b.name, 40); if (!/^\d{4}([/ -]\d{4})?$/.test(label)) return err(res, 400, "Session name should look like 2026/2027."); const dup = await db.get("SELECT id FROM academic_sessions WHERE madrasa_id=? AND label=? AND id<>?", [m.id, label, s.id]); if (dup) return err(res, 400, "That session already exists."); sets.push("label=?"); vals.push(label); }
+  let startDate = s.start_date ? String(s.start_date).slice(0, 10) : null; let endDate = s.end_date ? String(s.end_date).slice(0, 10) : null;
+  for (const [field, setter] of [["start_date", (v) => { startDate = v; }], ["end_date", (v) => { endDate = v; }]]) if (b[field] !== undefined) { const date = b[field] ? validDate(b[field]) : null; if (b[field] && !date) return err(res, 400, "Session dates must use YYYY-MM-DD."); setter(date); sets.push(`${field}=?`); vals.push(date); }
+  if (startDate && endDate && endDate < startDate) return err(res, 400, "Session end date cannot be before its start date.");
+  let status = s.status || (Number(s.is_current) === 1 ? "active" : "upcoming");
+  if (b.status !== undefined) { const next = cleanStr(b.status, 20).toLowerCase(); if (!["upcoming", "active", "completed", "archived"].includes(next)) return err(res, 400, "Invalid session status."); status = next; sets.push("status=?"); vals.push(status); sets.push("archived_at=?"); vals.push(status === "archived" ? new Date().toISOString().slice(0, 19).replace("T", " ") : null); }
+  const makeCurrent = b.is_current === true || status === "active";
+  if (!sets.length && b.is_current === undefined) return err(res, 400, "Nothing to update.");
+  await db.transaction(async (tx) => {
+    if (makeCurrent) {
+      await tx.run("UPDATE academic_sessions SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND id<>?", [m.id, s.id]);
+      await tx.run("UPDATE terms SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND session_id<>?", [m.id, s.id]);
+    }
+    if (b.is_current !== undefined || b.status !== undefined) { sets.push("is_current=?"); vals.push(makeCurrent ? 1 : 0); }
+    sets.push("updated_at=CURRENT_TIMESTAMP"); vals.push(s.id, m.id);
+    await tx.run(`UPDATE academic_sessions SET ${sets.join(",")} WHERE id=? AND madrasa_id=?`, vals);
+    await tx.run("INSERT INTO academic_period_history (madrasa_id,entity_type,entity_id,action,from_status,to_status,note,changed_by) VALUES (?,'session',?,'updated',?,?,?,?)", [m.id, s.id, s.status || null, status, cleanStr(b.note, 2000), req.user.id]);
+  });
+  logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "session.update", entity: "session", entityId: String(s.id), ip: req.ip });
+  ok(res, { ok: true, session: await db.get("SELECT * FROM academic_sessions WHERE id=? AND madrasa_id=?", [s.id, m.id]) });
 }));
 
 rootRouter.post("/sessions/:id/terms", requireAuth, requireTenant, adminOrSupport, asyncHandler(async (req, res) => {
@@ -714,11 +741,26 @@ rootRouter.post("/sessions/:id/terms", requireAuth, requireTenant, adminOrSuppor
   if (!pos || !nameEn) return err(res, 400, "position and name_en are required.");
   const dup = await db.get("SELECT id FROM terms WHERE madrasa_id = ? AND session_id = ? AND position = ?", [m.id, s.id, pos]);
   if (dup) return err(res, 400, "A term with this position already exists.");
-  const r = await db.run(
-    "INSERT INTO terms (madrasa_id, session_id, position, name_en, name_ar, start_date, end_date) VALUES (?,?,?,?,?,?,?)",
-    [m.id, s.id, pos, nameEn, cleanStr(b.name_ar, 60), b.start_date || null, b.end_date || null]
-  );
-  ok(res, { ok: true, id: r.lastInsertRowid });
+  const startDate = b.start_date ? validDate(b.start_date) : null; const endDate = b.end_date ? validDate(b.end_date) : null; const deadline = b.result_submission_deadline ? validDate(b.result_submission_deadline) : null;
+  if ((b.start_date && !startDate) || (b.end_date && !endDate) || (b.result_submission_deadline && !deadline)) return err(res, 400, "Term dates must use YYYY-MM-DD.");
+  if (startDate && endDate && endDate < startDate) return err(res, 400, "Term end date cannot be before its start date.");
+  const status = ["upcoming", "active", "completed", "closed"].includes(cleanStr(b.status, 20).toLowerCase()) ? cleanStr(b.status, 20).toLowerCase() : "upcoming";
+  let id;
+  await db.transaction(async (tx) => {
+    if (status === "active") {
+      await tx.run("UPDATE terms SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=?", [m.id]);
+      await tx.run("UPDATE academic_sessions SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND id<>?", [m.id, s.id]);
+      await tx.run("UPDATE academic_sessions SET is_current=1,status='active',updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?", [s.id, m.id]);
+    }
+    const r = await tx.run(
+      "INSERT INTO terms (madrasa_id,session_id,position,name_en,name_ar,start_date,end_date,result_submission_deadline,status,is_current,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+      [m.id, s.id, pos, nameEn, cleanStr(b.name_ar, 60), startDate, endDate, deadline, status, status === "active" ? 1 : 0]
+    );
+    id = r.lastInsertRowid;
+    await tx.run("INSERT INTO academic_period_history (madrasa_id,entity_type,entity_id,action,from_status,to_status,note,changed_by) VALUES (?,'term',?,'created',NULL,?,?,?)", [m.id, id, status, cleanStr(b.note, 2000), req.user.id]);
+  });
+  logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "term.create", entity: "term", entityId: String(id), ip: req.ip });
+  ok(res, { ok: true, id });
 }));
 
 /* Update a term's names and dates. Term position is deliberately immutable
@@ -732,11 +774,39 @@ rootRouter.patch("/terms/:id", requireAuth, requireTenant, adminOrSupport, async
   const sets = []; const vals = [];
   if (b.name_en !== undefined) { const name = cleanStr(b.name_en, 60); if (!name) return err(res, 400, "English term name is required."); sets.push("name_en = ?"); vals.push(name); }
   if (b.name_ar !== undefined) { sets.push("name_ar = ?"); vals.push(cleanStr(b.name_ar, 60)); }
-  for (const field of ["start_date", "end_date"]) if (b[field] !== undefined) { sets.push(`${field} = ?`); vals.push(b[field] || null); }
-  if (!sets.length) return err(res, 400, "Nothing to update.");
-  vals.push(term.id);
-  await db.run(`UPDATE terms SET ${sets.join(", ")} WHERE id = ?`, vals);
-  ok(res, { ok: true });
+  let startDate = term.start_date ? String(term.start_date).slice(0, 10) : null; let endDate = term.end_date ? String(term.end_date).slice(0, 10) : null;
+  for (const field of ["start_date", "end_date", "result_submission_deadline"]) if (b[field] !== undefined) { const date = b[field] ? validDate(b[field]) : null; if (b[field] && !date) return err(res, 400, "Term dates must use YYYY-MM-DD."); if (field === "start_date") startDate = date; if (field === "end_date") endDate = date; sets.push(`${field}=?`); vals.push(date); }
+  if (startDate && endDate && endDate < startDate) return err(res, 400, "Term end date cannot be before its start date.");
+  let status = term.status || (Number(term.is_current) === 1 ? "active" : "upcoming");
+  if (b.status !== undefined) { const next = cleanStr(b.status, 20).toLowerCase(); if (!["upcoming", "active", "completed", "closed"].includes(next)) return err(res, 400, "Invalid term status."); status = next; sets.push("status=?"); vals.push(status); }
+  const makeCurrent = b.is_current === true || status === "active";
+  if (!sets.length && b.is_current === undefined) return err(res, 400, "Nothing to update.");
+  await db.transaction(async (tx) => {
+    if (makeCurrent) {
+      await tx.run("UPDATE terms SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND id<>?", [m.id, term.id]);
+      await tx.run("UPDATE academic_sessions SET is_current=0,status=CASE WHEN status='active' THEN 'completed' ELSE status END,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND id<>?", [m.id, term.session_id]);
+      await tx.run("UPDATE academic_sessions SET is_current=1,status='active',updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?", [term.session_id, m.id]);
+    }
+    if (b.is_current !== undefined || b.status !== undefined) { sets.push("is_current=?"); vals.push(makeCurrent ? 1 : 0); }
+    sets.push("updated_at=CURRENT_TIMESTAMP"); vals.push(term.id, m.id);
+    await tx.run(`UPDATE terms SET ${sets.join(",")} WHERE id=? AND madrasa_id=?`, vals);
+    await tx.run("INSERT INTO academic_period_history (madrasa_id,entity_type,entity_id,action,from_status,to_status,note,changed_by) VALUES (?,'term',?,'updated',?,?,?,?)", [m.id, term.id, term.status || null, status, cleanStr(b.note, 2000), req.user.id]);
+  });
+  logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "term.update", entity: "term", entityId: String(term.id), ip: req.ip });
+  ok(res, { ok: true, term: await db.get("SELECT * FROM terms WHERE id=? AND madrasa_id=?", [term.id, m.id]) });
+}));
+
+rootRouter.get("/sessions/:id/history", requireAuth, requireTenant, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res); if (!m) return;
+  const id = toNum(req.params.id, 0); if (!await db.get("SELECT id FROM academic_sessions WHERE id=? AND madrasa_id=?", [id, m.id])) return err(res, 404, "Session not found.");
+  const history = await db.all("SELECT h.*,u.full_name AS changed_by_name FROM academic_period_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.madrasa_id=? AND h.entity_type='session' AND h.entity_id=? ORDER BY h.id DESC", [m.id, id]);
+  ok(res, { history });
+}));
+rootRouter.get("/terms/:id/history", requireAuth, requireTenant, asyncHandler(async (req, res) => {
+  const m = await resolveMadrasa(req, res); if (!m) return;
+  const id = toNum(req.params.id, 0); if (!await db.get("SELECT id FROM terms WHERE id=? AND madrasa_id=?", [id, m.id])) return err(res, 404, "Term not found.");
+  const history = await db.all("SELECT h.*,u.full_name AS changed_by_name FROM academic_period_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.madrasa_id=? AND h.entity_type='term' AND h.entity_id=? ORDER BY h.id DESC", [m.id, id]);
+  ok(res, { history });
 }));
 
 /* ------------------------------ grading config ------------------------- */
@@ -772,21 +842,21 @@ rootRouter.put("/grading", requireAuth, requireTenant, adminOrSupport, asyncHand
       .map((x) => ({
         min: clampNum(x.min, 0, 100, 0),
         grade: cleanStr(x.grade, 5),
+        point: clampNum(x.point, 0, 20, 0),
         remark: cleanStr(x.remark, 60),
         remark_ar: cleanStr(x.remark_ar, 60),
       }))
       .sort((a, z) => z.min - a.min);
   }
-  const vals = [m.id, caMax, examMax, passMark, promoAvg, requirePass, JSON.stringify(bands)];
   if (existing) {
     await db.run(
       "UPDATE grading_config SET ca_max=?, exam_max=?, pass_mark=?, promotion_min_average=?, promotion_require_pass=?, grade_bands=? WHERE madrasa_id=?",
-      vals
+      [caMax, examMax, passMark, promoAvg, requirePass, JSON.stringify(bands), m.id]
     );
   } else {
     await db.run(
       "INSERT INTO grading_config (madrasa_id, ca_max, exam_max, pass_mark, promotion_min_average, promotion_require_pass, grade_bands) VALUES (?,?,?,?,?,?,?)",
-      vals
+      [m.id, caMax, examMax, passMark, promoAvg, requirePass, JSON.stringify(bands)]
     );
   }
   logActivity(db, { madrasaId: m.id, userId: req.user.id, action: "grading.update", entity: "grading", entityId: String(m.id), ip: req.ip });

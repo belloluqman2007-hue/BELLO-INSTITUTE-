@@ -30,6 +30,7 @@ const { router: resultsRouter } = require("./routes/results");
 const attendanceRouter = require("./routes/attendance");
 const feesRouter = require("./routes/fees");
 const announcementsRouter = require("./routes/announcements");
+const communicationRouter = require("./routes/communication");
 const portalRouter = require("./routes/portal");
 const publicRouter = require("./routes/public");
 const admissionsRouter = require("./routes/admissions");
@@ -198,6 +199,15 @@ function createApp() {
   api.use("/attendance", attendanceRouter);
   api.use("/fees", feesRouter);
   api.use("/announcements", announcementsRouter);
+  // Communication is a single tenant-scoped module. The short notification
+  // mount is retained for existing portal/integration clients; the admin UI
+  // uses /communication/* so announcements, messages, notifications and parent
+  // communication are one sidebar section.
+  api.use("/communication", communicationRouter);
+  // Announcements are the same canonical router under the Communication URL;
+  // this is only a compatibility mount, not a second data model or editor.
+  api.use("/communication/announcements", announcementsRouter);
+  api.use("/notifications", communicationRouter);
   api.use("/portal", portalRouter);
   api.use("/admissions", admissionsRouter);
   api.use("/timetable", timetableRouter);

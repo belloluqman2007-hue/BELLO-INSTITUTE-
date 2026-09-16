@@ -313,9 +313,12 @@ router.get("/:id", asyncHandler(async (req, res) => {
     s.class_id ? db.all("SELECT h.*, su.name_en AS subject_name FROM homework h LEFT JOIN subjects su ON su.id = h.subject_id WHERE h.madrasa_id = ? AND h.class_id = ? ORDER BY h.due_date DESC, h.id DESC LIMIT 100", [tid, s.class_id]) : [],
     s.source_request_id ? db.get("SELECT id, reference, status, created_at, reviewed_at, review_note FROM admission_requests WHERE id = ? AND madrasa_id = ?", [s.source_request_id, tid]) : null,
   ]);
-  const paid = payments.reduce((sum, p) => sum + Number(p.amount_ngn || 0), 0);
-  const feeTotal = await db.get("SELECT COALESCE(SUM(amount_ngn), 0) AS total FROM fee_items WHERE madrasa_id = ?", [tid]);
-  const messageHistory = await db.all("SELECT id, scope, author_name, body, created_at FROM messages WHERE madrasa_id = ? ORDER BY id DESC LIMIT 50", [tid]);
+  const paid = payments.filter((p) => !p.status || p.status === "successful").reduce((sum, p) => sum + Number(p.amount_ngn || 0), 0);
+  const assignedTotal = await db.get("SELECT COUNT(*) AS n, COALESCE(SUM(amount_due),0) AS total FROM fee_assignments WHERE madrasa_id = ? AND student_id = ?", [tid, s.id]);
+  const feeTotal = Number(assignedTotal && assignedTotal.n) > 0
+    ? assignedTotal
+    : await db.get("SELECT COALESCE(SUM(amount_ngn), 0) AS total FROM fee_items WHERE madrasa_id = ? AND status = 'active' AND (class_id IS NULL OR class_id = ?)", [tid, s.class_id]);
+  const messageHistory = await db.all("SELECT id, scope, author_name, body, created_at FROM messages WHERE madrasa_id = ? AND (scope != 'direct' OR user_id = ? OR recipient_user_id = ?) ORDER BY id DESC LIMIT 50", [tid, req.user.id, req.user.id]);
   ok(res, {
     student: Object.assign({}, s, { class_en: classRow ? classRow.name_en : "", class_ar: classRow ? classRow.name_ar : "", islamic_class_name: islamicClass ? islamicClass.name_en : "", western_class_name: westernClass ? westernClass.name_en : "" }),
     terms, results, attendance, payments, documents, groups, statusHistory, classHistory, communications, lifeRecords, homework,

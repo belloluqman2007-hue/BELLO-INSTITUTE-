@@ -25,6 +25,7 @@ const platformRouter = require("./routes/platform");
 const { router: madrasaRouter, rootRouter: madrasaRootRouter } = require("./routes/madrasa");
 const studentsRouter = require("./routes/students");
 const teachersRouter = require("./routes/teachers");
+const classesRouter = require("./routes/classes");
 const { router: resultsRouter } = require("./routes/results");
 const attendanceRouter = require("./routes/attendance");
 const feesRouter = require("./routes/fees");
@@ -188,7 +189,8 @@ function createApp() {
   api.use("/auth", authRouter);
   api.use("/platform", platformRouter);
   api.use("/madrasa", madrasaRouter);
-  api.use(madrasaRootRouter); // /api/classes, /api/subjects, /api/sessions, /api/grading
+  api.use("/classes", classesRouter);
+  api.use(madrasaRootRouter); // /api/subjects, /api/sessions, /api/grading + legacy class fallback
   api.use("/students", studentsRouter);
   api.use("/teachers", teachersRouter);
   api.use("/results", resultsRouter);

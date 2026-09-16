@@ -706,6 +706,9 @@
       if (["institution/pages", "website/homepage", "website/about", "website/programs", "website/teachers", "website/admissions", "website/news", "website/contact"].includes(route)) return await pageWebsiteContent(content, route);
 
       // Students, staff, classes and subjects
+      if (window.BelloTeacherClasses && window.BelloTeacherClasses.handles(route)) {
+        return await window.BelloTeacherClasses.render({ I, esc, T, go, toast, openModal, closeModal, statCard, fmtDate, options, emptyRow, pillFor, catalogue, state }, content, route);
+      }
       if (route === "students/all") return await pageStudents(content);
       if (route === "students/add") return await pageStudentForm(content);
       if (route === "students/applications") return await pageAdmissionApplications(content);

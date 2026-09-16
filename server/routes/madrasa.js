@@ -179,6 +179,9 @@ router.get("/public-site", adminOrSupport, asyncHandler(async (req, res) => {
       publicNotices: Number(notices.n),
     },
     urls: {
+      // `site` is the canonical institution website. Legacy integration keys
+      // remain for older portal clients and are not used for website links.
+      site: `/schools/${m.slug}`,
       directory: `/madrasa/${m.slug}`,
       results: `/results-check?madrasa=${m.slug}`,
       apply: `/apply/${m.slug}`,

@@ -101,9 +101,10 @@ router.post("/", ADMIN, asyncHandler(async (req, res) => {
   const audience = ["all", "students", "parents"].includes(target) ? target : (target === "institution" ? "all" : target);
   const r = await db.run(
     `INSERT INTO announcements
-      (madrasa_id,title,body,audience,is_active,created_by,publish_public,publish_until,status,scheduled_at,published_at,image_path,attachment_path,attachment_name,attachment_mime,target_type,target_ids,updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`,
-    [tid, title, body, audience, status === "published" ? 1 : 0, req.user.id, b.publish_public ? 1 : 0, validDate(b.publish_until), status, scheduledAt, publishedAt, cleanStr(b.image_path || b.image, 500), cleanStr(b.attachment_path || b.attachment, 500), cleanStr(b.attachment_name, 255), cleanStr(b.attachment_mime, 120), target, JSON.stringify(ids)]
+      (madrasa_id,title,body,audience,is_active,created_by,publish_public,publish_until,status,scheduled_at,published_at,image_path,attachment_path,attachment_name,attachment_mime,target_type,target_ids,category,event_date,event_location,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`,
+    [tid, title, body, audience, status === "published" ? 1 : 0, req.user.id, b.publish_public ? 1 : 0, validDate(b.publish_until), status, scheduledAt, publishedAt, cleanStr(b.image_path || b.image, 500), cleanStr(b.attachment_path || b.attachment, 500), cleanStr(b.attachment_name, 255), cleanStr(b.attachment_mime, 120), target, JSON.stringify(ids),
+     cleanStr(b.category, 60) || "Announcement", validDate(b.event_date), cleanStr(b.event_location, 255)]
   );
   const id = Number(r.lastInsertRowid);
   if (status === "published") await communication.notifyAudience(tid, { target_type: target, target_ids: ids }, { type: "announcement", title, body, entity_type: "announcement", entity_id: id });
@@ -123,6 +124,9 @@ router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
   }
   if (b.publish_public !== undefined) { sets.push("publish_public = ?"); vals.push(b.publish_public ? 1 : 0); }
   if (b.publish_until !== undefined) { sets.push("publish_until = ?"); vals.push(validDate(b.publish_until)); }
+  if (b.category !== undefined) { sets.push("category = ?"); vals.push(cleanStr(b.category, 60) || "Announcement"); }
+  if (b.event_date !== undefined) { sets.push("event_date = ?"); vals.push(validDate(b.event_date)); }
+  if (b.event_location !== undefined) { sets.push("event_location = ?"); vals.push(cleanStr(b.event_location, 255)); }
   for (const [key, max] of [["image_path",500],["attachment_path",500],["attachment_name",255],["attachment_mime",120]]) if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(cleanStr(b[key], max)); }
   if (b.scheduled_at !== undefined) { const date = scheduledDate(b.scheduled_at); if (b.scheduled_at && !date) return err(res, 400, "scheduled_at must be YYYY-MM-DD."); sets.push("scheduled_at = ?"); vals.push(date); }
   const next = requestedStatus(b, current.status || (current.is_active ? "published" : "archived"));

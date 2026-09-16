@@ -69,7 +69,7 @@ async function publicSettings() {
    details they chose to publish. */
 const CARD_SELECT = `
   SELECT m.id, m.slug, m.name_en, m.name_ar, m.motto_en, m.motto_ar, m.logo_path, m.hero_image_path,
-         m.brand_color, m.category, m.city, m.state_name, m.maps_link,
+         m.brand_color, m.category, m.city, m.state_name, m.maps_link, m.custom_domain,
          m.description_en, m.description_ar, m.founded_year, m.website, m.phone, m.email,
          m.public_listing, m.public_results, m.public_admissions,
          m.tagline, m.address, m.whatsapp, m.institution_type, m.badge_path, m.favicon_path,
@@ -99,12 +99,30 @@ function ifShown(flag, value) {
   return Number(flag) === 1 ? (value || "") : "";
 }
 
-function cardOut(m) {
+function publicPath(m) {
+  return "/schools/" + encodeURIComponent(String(m.slug || ""));
+}
+
+function publicUrl(req, m) {
+  const configured = String(m.custom_domain || "").trim();
+  if (configured) return "https://" + configured.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  const proto = req && (req.get("x-forwarded-proto") || req.protocol) || "https";
+  const host = req && req.get("host");
+  return host ? `${proto}://${host}${publicPath(m)}` : publicPath(m);
+}
+
+function cardOut(m, req) {
   const appearance = myInstitution.resolveAppearance(m);
   return {
     slug: m.slug,
     // Shareable per-school link: opens this school's own public page directly.
+    // `sharePath` is retained for older clients; it is still a direct,
+    // tenant-specific website alias. New links use the canonical publicPath.
     sharePath: "/s/" + m.slug,
+    legacySharePath: "/s/" + m.slug,
+    publicPath: publicPath(m),
+    websiteUrl: publicUrl(req, m),
+    customDomain: m.custom_domain || "",
     nameEn: m.name_en,
     nameAr: m.name_ar || "",
     mottoEn: m.motto_en || "",
@@ -214,7 +232,7 @@ router.get("/site", publicLimiter, asyncHandler(async (req, res) => {
     directoryEnabled: true,
     stats: { madaris: Number(totals.madaris), students: Number(totals.students), teachers: Number(totals.teachers) },
     cities: [...new Set(rows.map((r) => r.city).filter(Boolean))].sort(),
-    madaris: rows.map(cardOut),
+    madaris: rows.map((row) => cardOut(row, req)),
   });
 }));
 
@@ -226,10 +244,10 @@ router.get("/madaris", publicLimiter, asyncHandler(async (req, res) => {
   let rows = await db.all(CARD_SELECT + " WHERE m.status = 'active' AND m.public_listing = 1 ORDER BY m.name_en");
   if (q) rows = rows.filter((m) => [m.name_en, m.name_ar, m.slug, m.city, m.description_en, m.motto_en].filter(Boolean).join(" ").toLowerCase().includes(q));
   if (city) rows = rows.filter((m) => String(m.city || "").toLowerCase() === city);
-  ok(res, { madaris: rows.map(cardOut), cities: [...new Set(rows.map((m) => m.city).filter(Boolean))].sort() });
+  ok(res, { madaris: rows.map((row) => cardOut(row, req)), cities: [...new Set(rows.map((m) => m.city).filter(Boolean))].sort() });
 }));
 
-router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
+router.get(["/madaris/:slug", "/schools/:slug", "/institutions/:slug"], publicLimiter, asyncHandler(async (req, res) => {
   const m = await findPublicMadrasa(req.params.slug);
   if (!m || Number(m.public_listing) !== 1) return err(res, 404, "That madrasa page is not available.");
   // Admin → My Institution → Public Website can take the site offline without
@@ -241,7 +259,9 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
     db.all("SELECT id, name_en, name_ar FROM classes WHERE madrasa_id = ? AND is_active = 1 ORDER BY sort_order, id", [m.id]),
     db.all("SELECT name_en, name_ar FROM subjects WHERE madrasa_id = ? AND is_active = 1 ORDER BY name_en", [m.id]),
     db.all(
-      `SELECT a.id, a.title, a.body, a.created_at, a.publish_until FROM announcements a
+      `SELECT a.id, a.title, a.body, a.created_at, a.publish_until,
+              a.category, a.event_date, a.event_location, a.author_name, a.image_path
+       FROM announcements a
        WHERE a.madrasa_id = ? AND a.is_active = 1 AND a.publish_public = 1
          AND (a.publish_until IS NULL OR a.publish_until >= ?)
        ORDER BY a.created_at DESC, a.id DESC LIMIT 10`,
@@ -263,7 +283,10 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
           'website_about_title', 'website_about_content',
           'website_programs_title', 'website_programs_content',
           'website_teachers_title', 'website_teachers_content',
-          'website_admissions_title', 'website_admissions_content')`,
+          'website_admissions_title', 'website_admissions_content',
+          'admission_open', 'application_start_date', 'application_closing_date',
+          'available_programs', 'admission_requirements', 'application_process',
+          'admission_faqs', 'application_fee')`,
       [m.id]
     ),
   ]);
@@ -273,7 +296,7 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
   // Website Pages + Gallery, as configured under ADMIN → MY INSTITUTION.
   // Only records the administrator explicitly published are returned; an
   // unpublished page or album is invisible to the public API entirely.
-  const [sitePages, albums, media] = await Promise.all([
+  const [sitePages, albums, media, programs, teachers, achievements] = await Promise.all([
     db.all(
       `SELECT slug, title, summary, body, seo_title, seo_description, in_navigation, sort_order
          FROM website_pages WHERE madrasa_id = ? AND is_published = 1 ORDER BY sort_order, id`,
@@ -290,13 +313,74 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
          FROM gallery_images WHERE madrasa_id = ? AND is_published = 1 ORDER BY sort_order, id LIMIT 200`,
       [m.id]
     ),
+    db.all(
+      `SELECT id, title, description, education_track, category, level_name, duration,
+              image_path, is_featured, sort_order
+         FROM public_programs
+        WHERE madrasa_id = ? AND is_published = 1
+        ORDER BY sort_order, id`,
+      [m.id]
+    ),
+    // Only the deliberately public projection is selected. In particular,
+    // never return users.email/phone or private teacher profile columns.
+    db.all(
+      `SELECT u.id, u.full_name, u.full_name_ar, p.photo_path, p.position,
+              p.department, p.qualifications, p.specialization, p.public_bio,
+              p.public_subjects, p.education_track
+         FROM users u
+         JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id
+        WHERE u.madrasa_id = ? AND u.role = 'teacher' AND u.is_active = 1
+          AND p.status = 'active' AND p.public_display = 1
+        ORDER BY u.full_name`,
+      [m.id]
+    ),
+    db.all(
+      `SELECT id, title, description, achievement_date, image_path, is_featured, sort_order
+         FROM institution_achievements
+        WHERE madrasa_id = ? AND is_published = 1
+        ORDER BY sort_order, id`,
+      [m.id]
+    ),
   ]);
 
   ok(res, {
-    madrasa: cardOut(m),
+    madrasa: cardOut(m, req),
     classes,
     subjects,
     notices,
+    news: notices.filter((n) => String(n.category || "").toLowerCase() !== "event"),
+    events: notices.filter((n) => String(n.category || "").toLowerCase() === "event" || n.event_date),
+    programs: programs.map((program) => ({
+      id: program.id, title: program.title, description: program.description || "",
+      educationTrack: program.education_track || "both", category: program.category || "Other",
+      level: program.level_name || "", duration: program.duration || "",
+      imagePath: program.image_path || "", featured: Number(program.is_featured) === 1,
+    })),
+    teachers: teachers.map((teacher) => ({
+      id: teacher.id, name: teacher.full_name || teacher.full_name_ar || "",
+      nameAr: teacher.full_name_ar || "", photoPath: teacher.photo_path || "",
+      position: teacher.position || "", department: teacher.department || "",
+      qualification: teacher.qualifications || "", specialization: teacher.specialization || "",
+      subjects: teacher.public_subjects || "", biography: teacher.public_bio || "",
+      educationTrack: teacher.education_track || "both",
+    })),
+    achievements: achievements.map((achievement) => ({
+      id: achievement.id, title: achievement.title, description: achievement.description || "",
+      date: achievement.achievement_date || "", imagePath: achievement.image_path || "",
+      featured: Number(achievement.is_featured) === 1,
+    })),
+    admissions: {
+      status: m.admission_status || "open",
+      open: pageRows.find((row) => row.key_name === "admission_open")?.value !== "false",
+      session: m.current_session || "",
+      startDate: pageRows.find((row) => row.key_name === "application_start_date")?.value || "",
+      closingDate: pageRows.find((row) => row.key_name === "application_closing_date")?.value || "",
+      availablePrograms: (() => { try { const v = JSON.parse(pageRows.find((row) => row.key_name === "available_programs")?.value || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; } })(),
+      requirements: pageRows.find((row) => row.key_name === "admission_requirements")?.value || "",
+      process: pageRows.find((row) => row.key_name === "application_process")?.value || "",
+      faqs: pageRows.find((row) => row.key_name === "admission_faqs")?.value || "",
+      applicationFee: pageRows.find((row) => row.key_name === "application_fee")?.value || "",
+    },
     publishedTermCount: Number(summaryCount.n),
     pages,
     sitePages: sitePages.map((p) => ({
@@ -320,6 +404,10 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
         featured: Number(g.is_featured) === 1,
       })),
     },
+    publicWebsite: {
+      slug: m.slug, path: publicPath(m), url: publicUrl(req, m),
+      customDomain: m.custom_domain || "",
+    },
     // The administrator sign-in page — a real address (always asks for a
     // password) rather than the old hash route.
     loginUrl: "/login",
@@ -328,12 +416,14 @@ router.get("/madaris/:slug", publicLimiter, asyncHandler(async (req, res) => {
 
 /* ------------------------------ public notices ------------------------- */
 
-router.get("/madaris/:slug/notices", publicLimiter, asyncHandler(async (req, res) => {
+router.get(["/madaris/:slug/notices", "/schools/:slug/notices", "/institutions/:slug/notices"], publicLimiter, asyncHandler(async (req, res) => {
   const m = await findPublicMadrasa(req.params.slug);
   if (!m || Number(m.public_listing) !== 1) return err(res, 404, "That madrasa page is not available.");
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
   const rows = await db.all(
-    `SELECT a.id, a.title, a.body, a.created_at, a.publish_until FROM announcements a
+    `SELECT a.id, a.title, a.body, a.created_at, a.publish_until,
+              a.category, a.event_date, a.event_location, a.author_name, a.image_path
+     FROM announcements a
      WHERE a.madrasa_id = ? AND a.is_active = 1 AND a.publish_public = 1
        AND (a.publish_until IS NULL OR a.publish_until >= ?)
      ORDER BY a.created_at DESC, a.id DESC LIMIT ?`,
@@ -459,7 +549,7 @@ async function newReference(madrasaId) {
  * Only works when the madrasa turned on "Online admission". A hidden
  * `website` field (honeypot) traps automated spam.
  */
-router.post("/madaris/:slug/apply", publicWriteLimiter, asyncHandler(async (req, res) => {
+router.post(["/madaris/:slug/apply", "/schools/:slug/apply", "/institutions/:slug/apply"], publicWriteLimiter, asyncHandler(async (req, res) => {
   const b = req.body || {};
   if (cleanStr(b.website, 200)) {
     // Bot: pretend it worked so the form keeps getting filled with junk.
@@ -521,7 +611,7 @@ router.post("/madaris/:slug/apply", publicWriteLimiter, asyncHandler(async (req,
 }));
 
 /** GET /api/public/madaris/:slug/apply-status?reference=ADM-…&phone=… */
-router.get("/madaris/:slug/apply-status", publicLimiter, asyncHandler(async (req, res) => {
+router.get(["/madaris/:slug/apply-status", "/schools/:slug/apply-status", "/institutions/:slug/apply-status"], publicLimiter, asyncHandler(async (req, res) => {
   const m = await findPublicMadrasa(req.params.slug);
   if (!m || Number(m.public_admissions) !== 1) return err(res, 404, "Online admission is not open at this madrasa.");
   const reference = cleanStr(req.query.reference, 30).toUpperCase();
@@ -552,6 +642,30 @@ router.get("/madaris/:slug/apply-status", publicLimiter, asyncHandler(async (req
     resultsUrl: ["approved", "enrolled"].includes(row.status) && admissionNo && Number(m.public_results) === 1
       ? `/results-check?madrasa=${m.slug}&admissionNo=${encodeURIComponent(admissionNo)}` : "",
   });
+}));
+
+/* ---------------------------- website contact --------------------------- */
+
+router.post(["/madaris/:slug/contact", "/schools/:slug/contact", "/institutions/:slug/contact"], publicWriteLimiter, asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  if (cleanStr(b.website, 200)) return ok(res, { ok: true, queued: true });
+  const m = await findPublicMadrasa(req.params.slug);
+  if (!m || Number(m.public_listing) !== 1 || Number(m.website_published) === 0) {
+    return err(res, 404, "That institution website is not available.");
+  }
+  if (!m.contact_form_enabled) return err(res, 403, "This institution is not accepting website messages.");
+  const name = cleanStr(b.name, 160);
+  const email = cleanStr(b.email, 120);
+  const message = cleanStr(b.message, 4000);
+  if (!name || !email || !message) return err(res, 400, "Name, email and message are required.");
+  if (!validEmail(email)) return err(res, 400, "Enter a valid email address.");
+  await db.run(
+    `INSERT INTO website_contact_messages (madrasa_id, name, email, phone, subject, message)
+     VALUES (?,?,?,?,?,?)`,
+    [m.id, name, email, cleanStr(b.phone, 60), cleanStr(b.subject, 200), message]
+  );
+  await logActivity(db, { madrasaId: m.id, action: "website.contact_message", entity: "website_contact_message", ip: req.ip });
+  ok(res, { ok: true, message: "Your message has been sent to the institution." });
 }));
 
 /* ------------------------------ madrasa registration -------------------- */

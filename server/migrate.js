@@ -1642,6 +1642,94 @@ const MIGRATIONS = [
       `);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "024_public_institution_websites",
+    up: async (api, dialect) => {
+      // The public projection is deliberately made from tenant-owned records.
+      // These tables are not a second academic system: they are the small,
+      // publishable projection that lets an institution curate its website
+      // without exposing private student/staff records.
+      const ident = (name) => {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(name))) throw new Error("Unsafe identifier: " + name);
+        return name;
+      };
+      async function columnExists(table, name) {
+        if (dialect === "sqlite") {
+          const rows = await api.all(`PRAGMA table_info(${ident(table)})`);
+          return rows.some((row) => String(row.name).toLowerCase() === String(name).toLowerCase());
+        }
+        return (await api.all(`SHOW COLUMNS FROM ${ident(table)} LIKE ?`, [name])).length > 0;
+      }
+      async function addColumn(table, name, type) {
+        if (!await columnExists(table, name)) await api.run(`ALTER TABLE ${ident(table)} ADD COLUMN ${ident(name)} ${type}`);
+      }
+
+      // An optional verified custom host. The canonical /schools/:slug URL
+      // always remains available, so an invalid custom host can never leak a
+      // different institution's website.
+      await addColumn("madaris", "custom_domain", "VARCHAR(255) NOT NULL DEFAULT ''");
+      await api.run("CREATE INDEX idx_madaris_custom_domain ON madaris (custom_domain, status)");
+
+      // Only explicitly approved, public-facing teacher fields are projected.
+      // Address, phone, HR documents, salary and emergency details remain in
+      // the private profile columns and are never selected by public routes.
+      await addColumn("teacher_profiles", "public_display", "INT NOT NULL DEFAULT 0");
+      await addColumn("teacher_profiles", "public_bio", "TEXT");
+      await addColumn("teacher_profiles", "public_subjects", "VARCHAR(500) NOT NULL DEFAULT ''");
+      await api.run("CREATE INDEX idx_teacher_profiles_public ON teacher_profiles (madrasa_id, status, public_display, user_id)");
+
+      // Announcements remain the source of truth for news. These optional
+      // fields let a school also present an announcement as an event without
+      // creating a global events feed.
+      await addColumn("announcements", "category", "VARCHAR(60) NOT NULL DEFAULT 'Announcement'");
+      await addColumn("announcements", "event_date", "DATE");
+      await addColumn("announcements", "event_location", "VARCHAR(255) NOT NULL DEFAULT ''");
+      await addColumn("announcements", "author_name", "VARCHAR(160) NOT NULL DEFAULT ''");
+      await api.run("CREATE INDEX idx_announcements_public_site ON announcements (madrasa_id, publish_public, category, event_date, created_at)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS public_programs (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          title VARCHAR(160) NOT NULL, description TEXT,
+          education_track VARCHAR(20) NOT NULL DEFAULT 'both',
+          category VARCHAR(80) NOT NULL DEFAULT 'Other',
+          level_name VARCHAR(100) NOT NULL DEFAULT '',
+          duration VARCHAR(100) NOT NULL DEFAULT '',
+          image_path VARCHAR(500) NOT NULL DEFAULT '',
+          is_published INT NOT NULL DEFAULT 0,
+          is_featured INT NOT NULL DEFAULT 0,
+          sort_order INT NOT NULL DEFAULT 0,
+          created_by INT, created_at ${D.ts()}, updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_public_programs_site ON public_programs (madrasa_id, is_published, education_track, sort_order, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS institution_achievements (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          title VARCHAR(200) NOT NULL, description TEXT,
+          achievement_date DATE, image_path VARCHAR(500) NOT NULL DEFAULT '',
+          is_published INT NOT NULL DEFAULT 0, is_featured INT NOT NULL DEFAULT 0,
+          sort_order INT NOT NULL DEFAULT 0, created_by INT,
+          created_at ${D.ts()}, updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_institution_achievements_site ON institution_achievements (madrasa_id, is_published, sort_order, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS website_contact_messages (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          name VARCHAR(160) NOT NULL, email VARCHAR(120) NOT NULL,
+          phone VARCHAR(60) NOT NULL DEFAULT '', subject VARCHAR(200) NOT NULL DEFAULT '',
+          message TEXT NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'new',
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_website_contact_messages ON website_contact_messages (madrasa_id, status, created_at)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

@@ -107,6 +107,14 @@ function buildMadrasaUpdate(body, allowed) {
       sets.push(`${key} = ?`); vals.push(e);
       continue;
     }
+    if (key === "custom_domain") {
+      const domain = cleanStr(raw, 255).toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      if (domain && (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(domain))) {
+        return { error: "Custom domain must look like www.example.com." };
+      }
+      sets.push("custom_domain = ?"); vals.push(domain);
+      continue;
+    }
     if (["website", "maps_link", "facebook", "instagram", "twitter", "youtube", "linkedin", "tiktok"].includes(key)) {
       const max = key === "maps_link" ? 255 : (key === "website" ? 160 : 200);
       const u = safeUrl(raw, max);
@@ -275,6 +283,21 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     if (built.error) return err(res, 400, built.error);
     if (!built.sets.length) return err(res, 400, "Nothing to update.");
 
+    // A custom host is a tenant selector. Never allow two institutions to
+    // claim the same hostname, otherwise the first database row could decide
+    // which tenant a browser sees.
+    const customDomainSet = built.sets.findIndex((set) => set === "custom_domain = ?");
+    if (customDomainSet >= 0) {
+      const domain = String(built.vals[customDomainSet] || "").toLowerCase();
+      if (domain) {
+        const conflict = await db.get(
+          "SELECT id FROM madaris WHERE LOWER(custom_domain) = ? AND id <> ?",
+          [domain, m.id]
+        );
+        if (conflict) return err(res, 400, "That custom domain is already assigned to another institution.");
+      }
+    }
+
     built.sets.push("updated_at = CURRENT_TIMESTAMP");
     built.vals.push(m.id);
     await db.run(`UPDATE madaris SET ${built.sets.join(", ")} WHERE id = ?`, built.vals);
@@ -367,7 +390,9 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
         teachers: Number(counts.teachers),
       },
       urls: {
-        site: `/s/${m.slug}`,
+        site: `/schools/${m.slug}`,
+        legacySite: `/s/${m.slug}`,
+        website: `${req.protocol}://${req.get("host")}/schools/${m.slug}`,
         directory: `/madrasa/${m.slug}`,
         apply: `/apply/${m.slug}`,
         results: `/results-check?madrasa=${m.slug}`,
@@ -682,6 +707,110 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
       await db.run("UPDATE gallery_images SET sort_order = ? WHERE id = ? AND madrasa_id = ?", [position++, toNum(id, 0), m.id]);
     }
     ok(res, { ok: true, count: position });
+  }));
+
+  /* ========================================================================
+     Public programs and achievements
+     ======================================================================== */
+  router.get("/programs", asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const programs = await db.all(
+      "SELECT * FROM public_programs WHERE madrasa_id = ? ORDER BY sort_order, id", [m.id]
+    );
+    ok(res, { programs });
+  }));
+
+  router.post("/programs", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const b = req.body || {};
+    const title = cleanStr(b.title || b.name, 160);
+    if (!title) return err(res, 400, "Program title is required.");
+    const track = ["islamic", "western", "both"].includes(cleanStr(b.education_track || b.educationTrack, 20).toLowerCase())
+      ? cleanStr(b.education_track || b.educationTrack, 20).toLowerCase() : "both";
+    const last = await db.get("SELECT MAX(sort_order) AS n FROM public_programs WHERE madrasa_id = ?", [m.id]);
+    const r = await db.run(
+      `INSERT INTO public_programs
+        (madrasa_id, title, description, education_track, category, level_name, duration,
+         image_path, is_published, is_featured, sort_order, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [m.id, title, cleanStr(b.description, 6000), track, cleanStr(b.category, 80) || "Other",
+       cleanStr(b.level_name || b.level, 100), cleanStr(b.duration, 100), cleanStr(b.image_path, 500),
+       truthy(b.is_published) ? 1 : 0, truthy(b.is_featured) ? 1 : 0,
+       Number(last && last.n || 0) + 1, req.user.id]
+    );
+    ok(res, { ok: true, id: r.lastInsertRowid, program: await db.get("SELECT * FROM public_programs WHERE id = ? AND madrasa_id = ?", [r.lastInsertRowid, m.id]) });
+  }));
+
+  router.patch("/programs/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const row = await db.get("SELECT * FROM public_programs WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+    if (!row) return err(res, 404, "Program not found.");
+    const b = req.body || {}; const sets = []; const vals = [];
+    if (b.title !== undefined) { const title = cleanStr(b.title, 160); if (!title) return err(res, 400, "Program title is required."); sets.push("title = ?"); vals.push(title); }
+    for (const [key, max] of [["description", 6000], ["category", 80], ["level_name", 100], ["duration", 100], ["image_path", 500]]) {
+      if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(cleanStr(b[key], max)); }
+    }
+    if (b.education_track !== undefined) {
+      const track = cleanStr(b.education_track, 20).toLowerCase();
+      if (!["islamic", "western", "both"].includes(track)) return err(res, 400, "Education track must be Islamic, Western or both.");
+      sets.push("education_track = ?"); vals.push(track);
+    }
+    for (const key of ["is_published", "is_featured"]) if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(truthy(b[key]) ? 1 : 0); }
+    if (!sets.length) return err(res, 400, "Nothing to update.");
+    vals.push(row.id, m.id);
+    await db.run(`UPDATE public_programs SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?`, vals);
+    ok(res, { ok: true, program: await db.get("SELECT * FROM public_programs WHERE id = ? AND madrasa_id = ?", [row.id, m.id]) });
+  }));
+
+  router.delete("/programs/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    const r = await db.run("DELETE FROM public_programs WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+    if (!r.changes) return err(res, 404, "Program not found.");
+    ok(res, { ok: true });
+  }));
+
+
+  router.get("/achievements", asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res);
+    if (!m) return;
+    ok(res, { achievements: await db.all("SELECT * FROM institution_achievements WHERE madrasa_id = ? ORDER BY sort_order, id", [m.id]) });
+  }));
+
+  router.post("/achievements", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res); if (!m) return;
+    const b = req.body || {}; const title = cleanStr(b.title, 200);
+    if (!title) return err(res, 400, "Achievement title is required.");
+    const last = await db.get("SELECT MAX(sort_order) AS n FROM institution_achievements WHERE madrasa_id = ?", [m.id]);
+    const r = await db.run(
+      `INSERT INTO institution_achievements (madrasa_id,title,description,achievement_date,image_path,is_published,is_featured,sort_order,created_by)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [m.id, title, cleanStr(b.description, 6000), validDate(b.achievement_date), cleanStr(b.image_path, 500), truthy(b.is_published) ? 1 : 0, truthy(b.is_featured) ? 1 : 0, Number(last && last.n || 0) + 1, req.user.id]
+    );
+    ok(res, { ok: true, id: r.lastInsertRowid });
+  }));
+
+  router.patch("/achievements/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res); if (!m) return;
+    const row = await db.get("SELECT * FROM institution_achievements WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+    if (!row) return err(res, 404, "Achievement not found.");
+    const b = req.body || {}; const sets = []; const vals = [];
+    for (const [key, max] of [["title", 200], ["description", 6000], ["image_path", 500]]) if (b[key] !== undefined) { const value = cleanStr(b[key], max); if (key === "title" && !value) return err(res, 400, "Achievement title is required."); sets.push(`${key} = ?`); vals.push(value); }
+    if (b.achievement_date !== undefined) { sets.push("achievement_date = ?"); vals.push(validDate(b.achievement_date)); }
+    for (const key of ["is_published", "is_featured"]) if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(truthy(b[key]) ? 1 : 0); }
+    if (!sets.length) return err(res, 400, "Nothing to update.");
+    vals.push(row.id, m.id); await db.run(`UPDATE institution_achievements SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?`, vals);
+    ok(res, { ok: true });
+  }));
+
+  router.delete("/achievements/:id", adminOrSupport, asyncHandler(async (req, res) => {
+    const m = await resolveMadrasa(req, res); if (!m) return;
+    const result = await db.run("DELETE FROM institution_achievements WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
+    if (!result.changes) return err(res, 404, "Achievement not found.");
+    ok(res, { ok: true });
   }));
 
   return router;

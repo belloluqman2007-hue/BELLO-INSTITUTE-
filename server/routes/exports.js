@@ -321,4 +321,121 @@ router.get("/admissions.csv", ADMINS, asyncHandler(async (req, res) => {
   ]));
 }));
 
+/* ------------------------------ teachers ------------------------------- */
+
+router.get("/teachers.csv", ADMINS, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const where = ["u.madrasa_id = ?", "u.role = 'teacher'", "COALESCE(p.status, '') <> 'archived'"];
+  const params = [tid];
+  if (req.query.status) { where.push("COALESCE(p.status, CASE WHEN u.is_active = 1 THEN 'active' ELSE 'inactive' END) = ?"); params.push(cleanStr(req.query.status, 20)); }
+  if (req.query.department) { where.push("p.department = ?"); params.push(cleanStr(req.query.department, 120)); }
+  if (req.query.education_track) { where.push("p.education_track = ?"); params.push(cleanStr(req.query.education_track, 20)); }
+  if (req.query.employment_type) { where.push("p.employment_type = ?"); params.push(cleanStr(req.query.employment_type, 60)); }
+  if (req.query.classId) { where.push("EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.madrasa_id = u.madrasa_id AND ta.user_id = u.id AND ta.class_id = ?)"); params.push(toNum(req.query.classId, 0)); }
+  if (req.query.subjectId) { where.push("EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.madrasa_id = u.madrasa_id AND ta.user_id = u.id AND ta.subject_id = ?)"); params.push(toNum(req.query.subjectId, 0)); }
+  if (req.query.search) { const q = `%${cleanStr(req.query.search, 100).toLowerCase()}%`; where.push("(LOWER(u.full_name) LIKE ? OR LOWER(u.email) LIKE ? OR LOWER(u.phone) LIKE ? OR LOWER(p.staff_id) LIKE ? OR LOWER(p.position) LIKE ? OR LOWER(p.department) LIKE ?)"); params.push(q, q, q, q, q, q); }
+  const rows = await db.all(
+    `SELECT u.full_name, u.email, u.phone, u.username, u.is_active,
+            p.staff_id, p.gender, p.position, p.department, p.education_track, p.employment_type,
+            p.employment_date, p.status, p.qualifications, p.certifications, p.specialization,
+            GROUP_CONCAT(DISTINCT s.name_en) AS subjects,
+            GROUP_CONCAT(DISTINCT c.name_en) AS classes
+       FROM users u
+       LEFT JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id
+       LEFT JOIN teacher_assignments ta ON ta.user_id = u.id AND ta.madrasa_id = u.madrasa_id
+       LEFT JOIN subjects s ON s.id = ta.subject_id AND s.madrasa_id = ta.madrasa_id
+       LEFT JOIN classes c ON c.id = ta.class_id AND c.madrasa_id = ta.madrasa_id
+      WHERE ${where.join(" AND ")}
+      GROUP BY u.id ORDER BY u.full_name`, params);
+  csv.sendCsv(res, filename(req, "teachers"), csv.toCsv(rows, [
+    { label: "Staff ID", key: "staff_id" }, { label: "Full Name", key: "full_name" },
+    { label: "Gender", key: "gender" }, { label: "Phone", key: "phone" }, { label: "Email", key: "email" },
+    { label: "Position", key: "position" }, { label: "Department", key: "department" },
+    { label: "Subjects", key: "subjects" }, { label: "Classes", key: "classes" },
+    { label: "Education Track", key: "education_track" }, { label: "Employment Type", key: "employment_type" },
+    { label: "Employment Date", key: "employment_date" }, { label: "Status", key: "status" },
+    { label: "Qualifications", key: "qualifications" }, { label: "Certifications", key: "certifications" },
+    { label: "Specialization", key: "specialization" }, { label: "Username", key: "username" },
+  ]));
+}));
+
+/* ------------------------------- classes ------------------------------- */
+
+router.get("/classes.csv", STAFF, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const classIds = await teacherClassFilter(req, tid, toNum(req.query.classId, 0) || null);
+  if (classIds && !classIds.length) return csv.sendCsv(res, filename(req, "classes"), csv.toCsv([], []));
+  const where = ["c.madrasa_id = ?", "COALESCE(c.status, '') <> 'archived'"];
+  const params = [tid];
+  if (classIds) { where.push(`c.id IN (${inClause(classIds)})`); params.push(...classIds); }
+  if (req.query.status) { where.push("COALESCE(c.status, CASE WHEN c.is_active = 1 THEN 'active' ELSE 'inactive' END) = ?"); params.push(cleanStr(req.query.status, 20)); }
+  if (req.query.education_track) { where.push("c.education_track = ?"); params.push(cleanStr(req.query.education_track, 20)); }
+  if (req.query.program) { where.push("c.program = ?"); params.push(cleanStr(req.query.program, 120)); }
+  if (req.query.level) { where.push("c.level_name = ?"); params.push(cleanStr(req.query.level, 80)); }
+  if (req.query.sessionId) { where.push("c.session_id = ?"); params.push(toNum(req.query.sessionId, 0)); }
+  const rows = await db.all(
+    `SELECT c.*, sess.label AS session_label, term.name_en AS term_name,
+            ct.full_name AS class_teacher, at.full_name AS assistant_teacher,
+            (SELECT COUNT(*) FROM students s WHERE s.madrasa_id = c.madrasa_id AND s.class_id = c.id AND s.status IN ('active','promoted','suspended')) AS student_count,
+            (SELECT COUNT(*) FROM class_subjects cs WHERE cs.madrasa_id = c.madrasa_id AND cs.class_id = c.id) AS subject_count,
+            (SELECT GROUP_CONCAT(su.name_en) FROM class_subjects cs JOIN subjects su ON su.id = cs.subject_id WHERE cs.madrasa_id = c.madrasa_id AND cs.class_id = c.id) AS subjects
+       FROM classes c
+       LEFT JOIN academic_sessions sess ON sess.id = c.session_id
+       LEFT JOIN terms term ON term.id = c.term_id
+       LEFT JOIN users ct ON ct.id = c.class_teacher_id
+       LEFT JOIN users at ON at.id = c.assistant_teacher_id
+      WHERE ${where.join(" AND ")} ORDER BY c.sort_order, c.name_en`, params);
+  csv.sendCsv(res, filename(req, "classes"), csv.toCsv(rows, [
+    { label: "Class Name", key: "name_en" }, { label: "Class Code", key: "class_code" },
+    { label: "Education Track", key: "education_track" }, { label: "Program", key: "program" },
+    { label: "Level", key: "level_name" }, { label: "Section/Arm", key: "section_arm" },
+    { label: "Academic Session", key: "session_label" }, { label: "Current Term/Semester", key: "term_name" },
+    { label: "Students", key: "student_count" }, { label: "Class Teacher", key: "class_teacher" },
+    { label: "Assistant Teacher", key: "assistant_teacher" }, { label: "Subjects", key: "subject_count" },
+    { label: "Subject Names", key: "subjects" }, { label: "Capacity", key: "max_capacity" }, { label: "Status", key: "status" },
+    { label: "Description", key: "description" },
+  ]));
+}));
+
+/* ------------------------------ timetable ------------------------------- */
+
+router.get("/timetable.csv", STAFF, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const requestedClassId = toNum(req.query.classId, 0) || null;
+  const classIds = await teacherClassFilter(req, tid, requestedClassId);
+  if (classIds && !classIds.length) return csv.sendCsv(res, filename(req, "timetable"), csv.toCsv([], []));
+  const where = ["ts.madrasa_id = ?"];
+  const params = [tid];
+  if (classIds) { where.push(`ts.class_id IN (${inClause(classIds)})`); params.push(...classIds); }
+  if (req.query.termId) { where.push("ts.term_id = ?"); params.push(toNum(req.query.termId, 0)); }
+  if (req.query.teacherId) { where.push("ts.teacher_id = ?"); params.push(toNum(req.query.teacherId, 0)); }
+  const rows = await db.all(
+    `SELECT ts.day, ts.period, ts.start_time, ts.end_time, ts.room, ts.notes,
+            c.name_en AS class_name, c.class_code, term.name_en AS term_name, sess.label AS session_label,
+            su.name_en AS subject_name, u.full_name AS teacher_name, p.staff_id
+       FROM timetable_slots ts
+       JOIN classes c ON c.id = ts.class_id AND c.madrasa_id = ts.madrasa_id
+       LEFT JOIN terms term ON term.id = ts.term_id
+       LEFT JOIN academic_sessions sess ON sess.id = term.session_id
+       LEFT JOIN subjects su ON su.id = ts.subject_id AND su.madrasa_id = ts.madrasa_id
+       LEFT JOIN users u ON u.id = ts.teacher_id AND u.madrasa_id = ts.madrasa_id
+       LEFT JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY c.sort_order, c.name_en,
+        CASE ts.day WHEN 'Mon' THEN 1 WHEN 'Tue' THEN 2 WHEN 'Wed' THEN 3 WHEN 'Thu' THEN 4 WHEN 'Fri' THEN 5 WHEN 'Sat' THEN 6 ELSE 9 END,
+        ts.period`, params);
+  csv.sendCsv(res, filename(req, "timetable"), csv.toCsv(rows, [
+    { label: "Class", key: "class_name" }, { label: "Class Code", key: "class_code" },
+    { label: "Session", key: "session_label" }, { label: "Term/Semester", key: "term_name" },
+    { label: "Day", key: "day" }, { label: "Period", key: "period" },
+    { label: "Start", key: "start_time" }, { label: "End", key: "end_time" },
+    { label: "Subject", key: "subject_name" }, { label: "Teacher", key: "teacher_name" },
+    { label: "Staff ID", key: "staff_id" }, { label: "Classroom", key: "room" },
+    { label: "Notes", key: "notes" },
+  ]));
+}));
+
 module.exports = router;

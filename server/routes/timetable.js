@@ -92,6 +92,47 @@ async function teacherSlotConflicts(tid, termId, classId, slots) {
   }).filter(Boolean);
 }
 
+/** A physical room/classroom cannot host two different classes in the same period. */
+async function roomSlotConflicts(tid, termId, classId, slots) {
+  const requested = (slots || []).filter((slot) => cleanStr(slot.room, 60));
+  if (!requested.length) return [];
+  const otherSlots = await db.all(
+    `SELECT ts.day, ts.period, ts.room, c.name_en AS class_name
+       FROM timetable_slots ts
+       LEFT JOIN classes c ON c.id = ts.class_id
+      WHERE ts.madrasa_id = ? AND ts.class_id <> ? AND ts.room <> ''
+        AND ${termId ? "ts.term_id = ?" : "ts.term_id IS NULL"}`,
+    termId ? [tid, classId, termId] : [tid, classId]
+  );
+  const occupied = new Map(otherSlots.map((slot) => [`${String(slot.room).trim().toLowerCase()}:${slot.day}:${slot.period}`, slot]));
+  return requested.map((slot) => {
+    const roomKey = cleanStr(slot.room, 60).toLowerCase();
+    const clash = occupied.get(`${roomKey}:${slot.day}:${slot.period}`);
+    return clash ? {
+      day: slot.day,
+      period: Number(slot.period),
+      room: clash.room || slot.room,
+      className: clash.class_name || "another class",
+    } : null;
+  }).filter(Boolean);
+}
+
+async function insertIgnoreRow(api, table, columns, values) {
+  if (typeof api.insertIgnore === "function") return api.insertIgnore(table, columns, values);
+  const dialect = typeof api.dialect === "string" ? api.dialect : await db.dialect();
+  const verb = dialect === "sqlite" ? "INSERT OR IGNORE" : "INSERT IGNORE";
+  return api.run(`${verb} INTO ${table} (${columns}) VALUES (${values.map(() => "?").join(",")})`, values);
+}
+
+async function ensureTimetableAssignment(api, tid, classId, teacherId, subjectId) {
+  // A timetable slot must make the subject part of the class catalogue, because
+  // lessons/results need that class-subject link. It deliberately does NOT add
+  // a teacher permission row: a one-off substitution in the timetable should
+  // not silently grant class-register/results access. Administrators assign
+  // those durable responsibilities in Teachers/Class Teachers.
+  if (subjectId) await insertIgnoreRow(api, "class_subjects", "madrasa_id, class_id, subject_id", [tid, classId, subjectId]);
+}
+
 async function buildGrid(tid, classId, termId) {
   const slots = await db.all(
     `SELECT ts.*, su.name_en AS subject_en, su.name_ar AS subject_ar,
@@ -204,6 +245,11 @@ router.put("/", requireRole("madrasa_admin", "super_admin"), asyncHandler(async 
     const conflict = conflicts[0];
     return err(res, 400, `${conflict.teacherName} is already assigned to ${conflict.className} on ${conflict.day}, period ${conflict.period}. Choose a different teacher or period.`);
   }
+  const roomConflicts = await roomSlotConflicts(tid, termId, classId, clean);
+  if (roomConflicts.length) {
+    const conflict = roomConflicts[0];
+    return err(res, 400, `${conflict.room} is already assigned to ${conflict.className} on ${conflict.day}, period ${conflict.period}. Choose a different classroom or period.`);
+  }
 
   await db.transaction(async (tx) => {
     await tx.run("DELETE FROM timetable_slots WHERE madrasa_id = ? AND class_id = ? AND (term_id = ? OR (term_id IS NULL AND ? = 0))", [tid, classId, termId, termId]);
@@ -213,6 +259,8 @@ router.put("/", requireRole("madrasa_admin", "super_admin"), asyncHandler(async 
          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         [tid, classId, termId || null, s.day, s.period, s.start, s.end, s.subjectId, s.teacherId, s.room, s.notes]
       );
+      if (s.subjectId) await insertIgnoreRow(tx, "class_subjects", "madrasa_id, class_id, subject_id", [tid, classId, s.subjectId]);
+      await ensureTimetableAssignment(tx, tid, classId, s.teacherId, s.subjectId);
     }
   });
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: "timetable.save", entity: "class", entityId: String(classId), meta: { slots: clean.length }, ip: req.ip });
@@ -243,14 +291,19 @@ router.post("/copy", requireRole("madrasa_admin", "super_admin"), asyncHandler(a
   // an administrator to resolve. Direct saves are rejected above instead.
   const targetRows = [];
   let teacherConflicts = 0;
+  let roomConflicts = 0;
   for (const classId of targets) {
     const conflicts = await teacherSlotConflicts(tid, termId, classId, rows);
     const blocked = new Set(conflicts.map((c) => c.key));
     teacherConflicts += conflicts.length;
+    const roomClashes = await roomSlotConflicts(tid, termId, classId, rows);
+    const blockedRooms = new Set(roomClashes.map((c) => `${String(c.room || "").trim().toLowerCase()}:${c.day}:${c.period}`));
+    roomConflicts += roomClashes.length;
     targetRows.push({
       classId,
       rows: rows.map((row) => Object.assign({}, row, {
         teacher_id: blocked.has(`${row.teacher_id}:${row.day}:${row.period}`) ? null : row.teacher_id,
+        room: blockedRooms.has(`${String(row.room || "").trim().toLowerCase()}:${row.day}:${row.period}`) ? "" : row.room,
       })),
     });
   }
@@ -265,12 +318,14 @@ router.post("/copy", requireRole("madrasa_admin", "super_admin"), asyncHandler(a
            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
           [tid, target.classId, termId || null, r.day, r.period, r.start_time, r.end_time, r.subject_id, r.teacher_id, r.room, r.notes]
         );
+        if (r.subject_id) await insertIgnoreRow(tx, "class_subjects", "madrasa_id, class_id, subject_id", [tid, target.classId, r.subject_id]);
+        await ensureTimetableAssignment(tx, tid, target.classId, r.teacher_id, r.subject_id);
         inserted++;
       }
     }
   });
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "timetable.copy", entity: "class", entityId: String(from), meta: { to, inserted, teacherConflicts }, ip: req.ip });
-  ok(res, { ok: true, inserted, copiedTo: targets.length, rejected, teacherConflicts });
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "timetable.copy", entity: "class", entityId: String(from), meta: { to, inserted, teacherConflicts, roomConflicts }, ip: req.ip });
+  ok(res, { ok: true, inserted, copiedTo: targets.length, rejected, teacherConflicts, roomConflicts });
 }));
 
 /* ------------------------------ portal read ----------------------------- */

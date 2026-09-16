@@ -1054,6 +1054,206 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_admission_documents ON admission_documents (madrasa_id, application_id, id)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "020_teacher_class_modules",
+    up: async (api, dialect) => {
+      // Teachers remain normal `users` with role='teacher' so authentication,
+      // tenant isolation and teacher permissions continue to work. This
+      // profile table adds the professional directory fields and is one-to-one
+      // with users, not a separate teacher account system.
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+      const ident = (name) => {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(name))) throw new Error("Unsafe identifier in migration: " + name);
+        return name;
+      };
+      async function columnExists(table, name) {
+        if (dialect === "sqlite") {
+          const rows = await api.all(`PRAGMA table_info(${ident(table)})`);
+          return rows.some((r) => String(r.name).toLowerCase() === String(name).toLowerCase());
+        }
+        const rows = await api.all(`SHOW COLUMNS FROM ${ident(table)} LIKE ?`, [name]);
+        return rows.length > 0;
+      }
+      async function addColumn(table, name, type) {
+        if (!await columnExists(table, name)) await api.run(`ALTER TABLE ${ident(table)} ADD COLUMN ${ident(name)} ${type}`);
+      }
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS teacher_profiles (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          user_id INT NOT NULL,
+          staff_id VARCHAR(60),
+          first_name VARCHAR(100) NOT NULL DEFAULT '',
+          middle_name VARCHAR(100) NOT NULL DEFAULT '',
+          last_name VARCHAR(100) NOT NULL DEFAULT '',
+          photo_path VARCHAR(500) NOT NULL DEFAULT '',
+          gender VARCHAR(20) NOT NULL DEFAULT '',
+          date_of_birth DATE,
+          nationality VARCHAR(80) NOT NULL DEFAULT '',
+          state_name VARCHAR(80) NOT NULL DEFAULT '',
+          lga VARCHAR(80) NOT NULL DEFAULT '',
+          residential_address VARCHAR(255) NOT NULL DEFAULT '',
+          alternative_phone VARCHAR(60) NOT NULL DEFAULT '',
+          emergency_contact VARCHAR(160) NOT NULL DEFAULT '',
+          emergency_relationship VARCHAR(80) NOT NULL DEFAULT '',
+          employment_date DATE,
+          employment_type VARCHAR(60) NOT NULL DEFAULT '',
+          position VARCHAR(120) NOT NULL DEFAULT '',
+          department VARCHAR(120) NOT NULL DEFAULT '',
+          education_track VARCHAR(20) NOT NULL DEFAULT 'both',
+          qualifications TEXT,
+          certifications TEXT,
+          specialization VARCHAR(200) NOT NULL DEFAULT '',
+          years_experience INT NOT NULL DEFAULT 0,
+          academic_session_id INT,
+          available_days TEXT,
+          available_periods TEXT,
+          employment_history TEXT,
+          professional_development TEXT,
+          awards TEXT,
+          training TEXT,
+          achievements TEXT,
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          source_application_id INT,
+          archived_at ${nullableTs},
+          created_at ${D.ts()},
+          updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE UNIQUE INDEX idx_teacher_profiles_user ON teacher_profiles (madrasa_id, user_id)`);
+      await api.run(`CREATE UNIQUE INDEX idx_teacher_profiles_staff ON teacher_profiles (madrasa_id, staff_id)`);
+      await api.run(`CREATE INDEX idx_teacher_profiles_directory ON teacher_profiles (madrasa_id, status, department, education_track)`);
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS teacher_documents (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          user_id INT NOT NULL,
+          document_type VARCHAR(60) NOT NULL DEFAULT 'other',
+          document_name VARCHAR(200) NOT NULL,
+          storage_path VARCHAR(500) NOT NULL,
+          original_name VARCHAR(255) NOT NULL DEFAULT '',
+          mime_type VARCHAR(120) NOT NULL DEFAULT '',
+          file_size INT NOT NULL DEFAULT 0,
+          uploaded_by INT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_teacher_documents ON teacher_documents (madrasa_id, user_id, id)`);
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS teacher_status_history (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          user_id INT NOT NULL,
+          from_status VARCHAR(20),
+          to_status VARCHAR(20) NOT NULL,
+          reason VARCHAR(500) NOT NULL DEFAULT '',
+          changed_by INT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_teacher_status_history ON teacher_status_history (madrasa_id, user_id, id)`);
+
+      const applicationColumns = [
+        ["application_id", "VARCHAR(60)"],
+        ["first_name", "VARCHAR(100) NOT NULL DEFAULT ''"],
+        ["middle_name", "VARCHAR(100) NOT NULL DEFAULT ''"],
+        ["last_name", "VARCHAR(100) NOT NULL DEFAULT ''"],
+        ["application_date", "DATE"],
+        ["position_applied", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["subjects_specialization", "TEXT"],
+        ["qualifications", "TEXT"],
+        ["certifications", "TEXT"],
+        ["specialization", "VARCHAR(200) NOT NULL DEFAULT ''"],
+        ["experience_years", "INT NOT NULL DEFAULT 0"],
+        ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["employment_type", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["contact_details", "TEXT"],
+        ["documents_summary", "TEXT"],
+        ["interview_date", "DATE"],
+        ["interview_time", "VARCHAR(5) NOT NULL DEFAULT ''"],
+        ["interview_location", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["interview_panel", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        ["interview_notes", "TEXT"],
+        ["requested_information", "TEXT"],
+        ["updated_at", nullableTs],
+        ["archived_at", nullableTs],
+      ];
+      for (const [name, type] of applicationColumns) await addColumn("teacher_applications", name, type);
+      await api.run(`CREATE UNIQUE INDEX idx_teacher_applications_ref ON teacher_applications (madrasa_id, application_id)`);
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS teacher_application_history (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          application_id INT NOT NULL,
+          from_status VARCHAR(30),
+          to_status VARCHAR(30) NOT NULL,
+          note TEXT,
+          changed_by INT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_teacher_application_history ON teacher_application_history (madrasa_id, application_id, id)`);
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS teacher_application_documents (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          application_id INT NOT NULL,
+          document_type VARCHAR(60) NOT NULL DEFAULT 'other',
+          document_name VARCHAR(200) NOT NULL,
+          storage_path VARCHAR(500) NOT NULL,
+          original_name VARCHAR(255) NOT NULL DEFAULT '',
+          mime_type VARCHAR(120) NOT NULL DEFAULT '',
+          file_size INT NOT NULL DEFAULT 0,
+          uploaded_by INT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_teacher_application_documents ON teacher_application_documents (madrasa_id, application_id, id)`);
+
+      // Extend existing teaching assignments instead of replacing them. The
+      // original nullable class_id/subject_id contract remains the permission
+      // source for attendance, results, lessons and timetable access.
+      for (const [name, type] of [
+        ["role", "VARCHAR(40) NOT NULL DEFAULT 'subject_teacher'"],
+        ["academic_session_id", "INT"],
+        ["assigned_periods", "TEXT"],
+        ["notes", "VARCHAR(500) NOT NULL DEFAULT ''"],
+        ["created_at", nullableTs],
+      ]) await addColumn("teacher_assignments", name, type);
+      await api.run(`CREATE INDEX idx_teacher_assignments_class ON teacher_assignments (madrasa_id, class_id, user_id)`);
+
+      // Classes stay in the original `classes` table. These columns supply the
+      // class-directory metadata for Islamic, Western and dual-track programmes.
+      const classColumns = [
+        ["class_code", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["level_name", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["section_arm", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["session_id", "INT"],
+        ["term_id", "INT"],
+        ["class_teacher_id", "INT"],
+        ["assistant_teacher_id", "INT"],
+        ["max_capacity", "INT"],
+        ["description", "TEXT"],
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'active'"],
+        ["archived_at", nullableTs],
+        ["updated_at", nullableTs],
+      ];
+      for (const [name, type] of classColumns) await addColumn("classes", name, type);
+      await api.run(`UPDATE classes SET status = CASE WHEN is_active = 1 THEN 'active' ELSE 'inactive' END WHERE status = '' OR status IS NULL`);
+      await api.run(`CREATE INDEX idx_classes_directory ON classes (madrasa_id, status, education_track, program, level_name)`);
+      await api.run(`CREATE INDEX idx_classes_code ON classes (madrasa_id, class_code)`);
+
+      await api.run(`CREATE INDEX idx_timetable_room ON timetable_slots (madrasa_id, room, day, period)`);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

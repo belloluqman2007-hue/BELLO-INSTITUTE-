@@ -25,10 +25,12 @@ const FORMAT = "madrasa-platform-backup/1";
    transaction), and the tenant table before anything that references it. */
 const TABLE_ORDER = [
   "schema_migrations", "plans", "madaris", "users", "academic_sessions", "terms",
-  "classes", "subjects", "class_subjects", "teacher_assignments", "students",
+  "classes", "subjects", "class_subjects", "teacher_profiles", "teacher_documents",
+  "teacher_status_history", "teacher_assignments", "students",
   "parent_links", "fee_items", "fee_payments", "grading_config", "results",
-  "term_summaries", "attendance", "announcements", "settings", "platform_settings",
-  "admission_requests", "timetable_slots",
+  "term_summaries", "attendance", "teacher_attendance", "announcements", "settings", "platform_settings",
+  "admission_requests", "teacher_applications", "teacher_application_history",
+  "teacher_application_documents", "timetable_slots",
   // My Institution: albums before images, because an image may point at the
   // album that owns it (gallery_images.album_id).
   "website_pages", "gallery_albums", "gallery_images",

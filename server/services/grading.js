@@ -136,10 +136,15 @@ async function computeClassTerm(madrasaId, classId, termId, userId = null) {
 
     // Attendance for this term
     const att = await db.get(
-      "SELECT COUNT(*) AS days FROM attendance WHERE madrasa_id = ? AND student_id = ? AND term_id = ? AND status IN ('present','late')",
+      `SELECT COUNT(*) AS total_days,
+              SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present_days,
+              SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_days
+         FROM attendance WHERE madrasa_id = ? AND student_id = ? AND term_id = ?`,
       [madrasaId, studentId, termId]
     );
-    const attendanceDays = Number(att ? att.days : 0);
+    const attendanceTotal = Number(att ? att.total_days : 0);
+    const attendanceDays = Number(att ? att.present_days : 0) + Number(att ? att.late_days : 0);
+    const attendancePercentage = attendanceTotal ? Math.round((Number(att.present_days || 0) / attendanceTotal) * 10000) / 100 : 0;
 
     // Promotion
     let promotionStatus = "promoted";
@@ -156,6 +161,8 @@ async function computeClassTerm(madrasaId, classId, termId, userId = null) {
       overallRemarkAr: overall.remark_ar,
       subjectCount: subjects.length,
       attendanceDays,
+      attendanceTotal,
+      attendancePercentage,
       promotionStatus,
       subjects,
     });
@@ -182,15 +189,15 @@ async function computeClassTerm(madrasaId, classId, termId, userId = null) {
       await db.run(
         `UPDATE term_summaries
          SET class_id = ?, session_id = ?, subject_count = ?, total = ?, average = ?, overall_grade = ?,
-             position = ?, attendance_days = ?, promotion_status = ?
+             position = ?, attendance_days = ?, attendance_total = ?, attendance_percentage = ?, promotion_status = ?
          WHERE id = ?`,
-        [classId, term.session_id, s.subjectCount, s.total, s.average, s.overallGrade, s.position, s.attendanceDays, s.promotionStatus, existing.id]
+        [classId, term.session_id, s.subjectCount, s.total, s.average, s.overallGrade, s.position, s.attendanceDays, s.attendanceTotal, s.attendancePercentage, s.promotionStatus, existing.id]
       );
     } else {
       await db.run(
-        `INSERT INTO term_summaries (madrasa_id, student_id, class_id, session_id, term_id, subject_count, total, average, overall_grade, position, attendance_days, promotion_status)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [madrasaId, s.studentId, classId, term.session_id, termId, s.subjectCount, s.total, s.average, s.overallGrade, s.position, s.attendanceDays, s.promotionStatus]
+        `INSERT INTO term_summaries (madrasa_id, student_id, class_id, session_id, term_id, subject_count, total, average, overall_grade, position, attendance_days, attendance_total, attendance_percentage, promotion_status)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [madrasaId, s.studentId, classId, term.session_id, termId, s.subjectCount, s.total, s.average, s.overallGrade, s.position, s.attendanceDays, s.attendanceTotal, s.attendancePercentage, s.promotionStatus]
       );
     }
   }
@@ -271,12 +278,14 @@ async function reportCardData(madrasaId, studentId, termId) {
           overallGrade: summary.overall_grade,
           position: summary.position,
           attendanceDays: Number(summary.attendance_days),
+          attendanceTotal: Number(summary.attendance_total || 0),
+          attendancePercentage: Number(summary.attendance_percentage || 0),
           teacherComment: summary.teacher_comment,
           headComment: summary.head_comment,
           promotionStatus: summary.promotion_status,
           publishedAt: summary.published_at,
         }
-      : { total: 0, average: 0, overallGrade: "", position: null, attendanceDays: 0, teacherComment: "", headComment: "", promotionStatus: "pending" },
+      : { total: 0, average: 0, overallGrade: "", position: null, attendanceDays: 0, attendanceTotal: 0, attendancePercentage: 0, teacherComment: "", headComment: "", promotionStatus: "pending" },
   };
 }
 

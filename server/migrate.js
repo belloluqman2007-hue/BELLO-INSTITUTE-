@@ -1254,6 +1254,112 @@ const MIGRATIONS = [
       await api.run(`CREATE INDEX idx_timetable_room ON timetable_slots (madrasa_id, room, day, period)`);
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "021_academic_programs_and_attendance_detail",
+    up: async (api, dialect) => {
+      // The original platform already had one shared subjects table. Extend
+      // that table rather than introducing a second Islamic/Western catalogue.
+      // This keeps class subjects, teacher assignments, results and report
+      // cards on the same subject ids for dual-track institutions.
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+      const ident = (name) => {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(name))) throw new Error("Unsafe identifier in migration: " + name);
+        return name;
+      };
+      async function columnExists(table, name) {
+        if (dialect === "sqlite") {
+          const rows = await api.all(`PRAGMA table_info(${ident(table)})`);
+          return rows.some((r) => String(r.name).toLowerCase() === String(name).toLowerCase());
+        }
+        const rows = await api.all(`SHOW COLUMNS FROM ${ident(table)} LIKE ?`, [name]);
+        return rows.length > 0;
+      }
+      async function addColumn(table, name, type) {
+        if (!await columnExists(table, name)) await api.run(`ALTER TABLE ${ident(table)} ADD COLUMN ${ident(name)} ${type}`);
+      }
+
+      for (const [name, type] of [
+        ["subject_code", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["category", "VARCHAR(80) NOT NULL DEFAULT 'Other Subjects'"],
+        ["description", "TEXT"],
+        ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["academic_level", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["session_id", "INT"],
+        ["term_id", "INT"],
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'active'"],
+        ["archived_at", nullableTs],
+        ["created_at", nullableTs],
+        ["updated_at", nullableTs],
+      ]) await addColumn("subjects", name, type);
+      await api.run("UPDATE subjects SET status = CASE WHEN is_active = 1 THEN 'active' ELSE 'inactive' END WHERE status = '' OR status IS NULL");
+      await api.run("UPDATE subjects SET category = 'Other Subjects' WHERE category = '' OR category IS NULL");
+      // Backfill the catalogue rows seeded by older releases so the existing
+      // sidebar categories become real filters without duplicating subjects.
+      for (const [category, names] of Object.entries({
+        Mathematics: ["Mathematics"], English: ["English"], Sciences: ["Sciences", "Science", "Biology", "Chemistry", "Physics"],
+        "Computer Science": ["Computer Science"], Technology: ["Technology"], Business: ["Business"], Arts: ["Arts"],
+        "Social Sciences": ["Social Sciences"], Languages: ["Languages", "Arabic", "Arabic Language"],
+        "Other Subjects": ["Other Subjects", "Other"],
+      })) {
+        for (const name of names) await api.run("UPDATE subjects SET category = ? WHERE LOWER(name_en) = LOWER(?) AND category = 'Other Subjects'", [category, name]);
+      }
+      for (const name of ["Qur'an", "Qur'an Memorization", "Tajweed", "Hadith", "Fiqh", "Tawheed", "Aqeedah", "Seerah", "Nahw", "Sarf", "Islamic Studies", "Imla'", "Arabic Reading", "Arabic Expression"]) {
+        await api.run("UPDATE subjects SET education_track = 'islamic' WHERE LOWER(name_en) = LOWER(?) AND education_track = 'both'", [name]);
+      }
+      await api.run("CREATE INDEX idx_subjects_directory ON subjects (madrasa_id, category, education_track, status)");
+      await api.run("CREATE INDEX idx_subjects_code ON subjects (madrasa_id, subject_code)");
+
+      for (const [name, type] of [
+        ["session_id", "INT"], ["term_id", "INT"],
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'active'"], ["assigned_at", nullableTs],
+      ]) await addColumn("class_subjects", name, type);
+      await api.run("CREATE INDEX idx_class_subjects_term ON class_subjects (madrasa_id, class_id, session_id, term_id)");
+
+      for (const [name, type] of [
+        ["term_id", "INT"], ["status", "VARCHAR(20) NOT NULL DEFAULT 'active'"],
+      ]) await addColumn("teacher_assignments", name, type);
+      await api.run("CREATE INDEX idx_teacher_assignments_subject ON teacher_assignments (madrasa_id, subject_id, term_id)");
+
+      // Attendance keeps the existing student ledger and dedicated staff
+      // ledger. These fields make every record self-describing and editable.
+      for (const [name, type] of [
+        ["session_id", "INT"], ["attendance_note", "TEXT"], ["updated_at", nullableTs],
+      ]) await addColumn("attendance", name, type);
+      for (const [name, type] of [["attendance_total", "INT NOT NULL DEFAULT 0"], ["attendance_percentage", "DECIMAL(6,2) NOT NULL DEFAULT 0"]]) await addColumn("term_summaries", name, type);
+      await api.run("CREATE INDEX idx_attendance_reporting ON attendance (madrasa_id, day, class_id, term_id, session_id, status)");
+
+      for (const [name, type] of [
+        ["session_id", "INT"], ["term_id", "INT"], ["check_in", "VARCHAR(5) NOT NULL DEFAULT ''"],
+        ["check_out", "VARCHAR(5) NOT NULL DEFAULT ''"], ["notes", "TEXT"], ["updated_at", nullableTs],
+      ]) await addColumn("teacher_attendance", name, type);
+      await api.run("CREATE INDEX idx_teacher_attendance_reporting ON teacher_attendance (madrasa_id, day, term_id, session_id, status)");
+
+      // Exams are a first-class academic record. Exam marks continue to live
+      // in the shared results table so report cards do not need a duplicate
+      // result architecture.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS exams (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          title VARCHAR(200) NOT NULL,
+          description TEXT,
+          class_id INT NOT NULL,
+          subject_id INT NOT NULL,
+          session_id INT,
+          term_id INT,
+          exam_date DATE,
+          total_marks DECIMAL(7,2) NOT NULL DEFAULT 100,
+          status VARCHAR(20) NOT NULL DEFAULT 'draft',
+          created_by INT,
+          created_at ${D.ts()},
+          updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_exams_directory ON exams (madrasa_id, class_id, subject_id, session_id, term_id, exam_date)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

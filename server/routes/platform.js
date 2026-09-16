@@ -19,6 +19,13 @@ const institution = require("../services/institution");
 const router = express.Router();
 router.use(requireSuperAdmin);
 
+function catalogueSubjectMeta(category, name) {
+  const westernCategories = new Set(["Mathematics", "English", "Sciences", "Computer Science", "Technology", "Business", "Arts", "Social Sciences", "Languages"]);
+  const islamicLanguage = new Set(["Arabic", "Arabic Language", "Nahw", "Sarf", "Arabic Reading", "Arabic Expression"]);
+  if (category === "western") return { category: westernCategories.has(name) ? name : "Other Subjects", track: "western" };
+  return { category: islamicLanguage.has(name) ? "Languages" : "Other Subjects", track: "islamic" };
+}
+
 /* ------------------------------ stats ---------------------------------- */
 
 router.get("/stats", asyncHandler(async (req, res) => {
@@ -172,7 +179,8 @@ router.post("/madaris", asyncHandler(async (req, res) => {
         );
       }
       for (const subjectName of institution.subjectCatalogue(category)) {
-        await tx.run("INSERT INTO subjects (madrasa_id, name_en) VALUES (?,?)", [id, subjectName]);
+        const meta = catalogueSubjectMeta(category, subjectName);
+        await tx.run("INSERT INTO subjects (madrasa_id, name_en, category, education_track, status) VALUES (?,?,?,?,?)", [id, subjectName, meta.category, meta.track, "active"]);
       }
       return { id, adminCreated };
     });
@@ -412,7 +420,8 @@ router.post("/registrations/:id/approve", asyncHandler(async (req, res) => {
       // Seed subjects from the fixed catalogue for this category so the new
       // admin's Islamic Subjects / Academic Programs screens are populated.
       for (const subjectName of institution.subjectCatalogue(category)) {
-        await tx.run("INSERT INTO subjects (madrasa_id, name_en) VALUES (?,?)", [id, subjectName]);
+        const meta = catalogueSubjectMeta(category, subjectName);
+        await tx.run("INSERT INTO subjects (madrasa_id, name_en, category, education_track, status) VALUES (?,?,?,?,?)", [id, subjectName, meta.category, meta.track, "active"]);
       }
       return { id };
     });

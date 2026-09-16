@@ -415,7 +415,7 @@ function renderReportCard(d) {
       </tr>
       <tr>
         <td class="k">${esc(useArabicNames ? "الأكاديمية" : "Session")}</td><td>${esc(d.session)}</td>
-        <td class="k">${esc(useArabicNames ? "الحضور" : "Attendance")}</td><td>${esc(sum.attendanceDays)} days</td>
+        <td class="k">${esc(useArabicNames ? "الحضور" : "Attendance")}</td><td>${esc(sum.attendanceDays)} attended / ${esc(sum.attendanceTotal)} recorded (${esc(sum.attendancePercentage)}%)</td>
       </tr>
     </table>
     <table class="res">

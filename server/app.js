@@ -38,6 +38,7 @@ const exportsRouter = require("./routes/exports");
 const extrasRouter = require("./routes/extras");
 const backupsRouter = require("./routes/backups").router;
 const quranProgressRouter = require("./routes/quran-progress");
+const academicRouter = require("./routes/academic");
 const institution = require("./services/institution");
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
@@ -203,6 +204,10 @@ function createApp() {
   // Category-specific Islamic academic module. It shares the same session,
   // tenant and student data engine; the route itself refuses Western tenants.
   api.use("/quran-progress", quranProgressRouter);
+  api.use("/academic", academicRouter);
+  // Keep the short /api/exams address for integrations while the dashboard
+  // uses the grouped /api/academic/exams address.
+  api.use("/exams", academicRouter);
   api.use("/exports", exportsRouter);
   api.use("/", extrasRouter); // /api/chat, /api/homework, /api/notifications, /api/users
   // Backups & storage diagnostics (super admin). Mounted before /platform so

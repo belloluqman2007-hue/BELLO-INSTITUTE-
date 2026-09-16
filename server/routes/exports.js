@@ -213,6 +213,10 @@ router.get("/attendance.csv", STAFF, asyncHandler(async (req, res) => {
   const where = ["a.madrasa_id = ?"];
   const params = [tid];
   if (classId) { where.push("a.class_id = ?"); params.push(classId); }
+  if (req.query.sessionId) { where.push("a.session_id = ?"); params.push(toNum(req.query.sessionId, 0)); }
+  if (req.query.termId) { where.push("a.term_id = ?"); params.push(toNum(req.query.termId, 0)); }
+  if (req.query.educationTrack) { where.push("c.education_track = ?"); params.push(cleanStr(req.query.educationTrack, 20)); }
+  if (req.query.program) { where.push("c.program LIKE ?"); params.push(`%${cleanStr(req.query.program, 120)}%`); }
   if (from) { where.push("a.day >= ?"); params.push(from); }
   if (to) { where.push("a.day <= ?"); params.push(to); }
   const rows = await db.all(
@@ -239,6 +243,35 @@ router.get("/attendance.csv", STAFF, asyncHandler(async (req, res) => {
     { label: "Excused", value: (r) => Number(r.excused) },
     { label: "Sessions Recorded", value: (r) => Number(r.days) },
     { label: "Attendance %", value: (r) => (Number(r.days) ? csv.num(((Number(r.present) + Number(r.late)) / Number(r.days)) * 100, 1) : "") },
+  ]));
+}));
+
+/* ------------------------- teacher attendance --------------------------- */
+router.get("/teacher-attendance.csv", ADMINS, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : "0000-01-01";
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.to || "")) ? String(req.query.to) : "9999-12-31";
+  const where = ["ta.madrasa_id = ?", "ta.day >= ?", "ta.day <= ?"]; const params = [tid, from, to];
+  if (req.query.teacherId) { where.push("ta.user_id = ?"); params.push(toNum(req.query.teacherId, 0)); }
+  if (req.query.sessionId) { where.push("ta.session_id = ?"); params.push(toNum(req.query.sessionId, 0)); }
+  if (req.query.termId) { where.push("ta.term_id = ?"); params.push(toNum(req.query.termId, 0)); }
+  if (req.query.department) { where.push("tp.department = ?"); params.push(cleanStr(req.query.department, 120)); }
+  const rows = await db.all(`SELECT u.full_name, tp.department,
+      SUM(CASE WHEN ta.status = 'present' THEN 1 ELSE 0 END) AS present,
+      SUM(CASE WHEN ta.status = 'absent' THEN 1 ELSE 0 END) AS absent,
+      SUM(CASE WHEN ta.status = 'late' THEN 1 ELSE 0 END) AS late,
+      SUM(CASE WHEN ta.status = 'on_leave' THEN 1 ELSE 0 END) AS on_leave,
+      SUM(CASE WHEN ta.status = 'excused' THEN 1 ELSE 0 END) AS excused, COUNT(*) AS days
+    FROM teacher_attendance ta JOIN users u ON u.id = ta.user_id AND u.madrasa_id = ta.madrasa_id
+    LEFT JOIN teacher_profiles tp ON tp.user_id = ta.user_id AND tp.madrasa_id = ta.madrasa_id
+    WHERE ${where.join(" AND ")} GROUP BY ta.user_id, u.full_name, tp.department ORDER BY u.full_name`, params);
+  csv.sendCsv(res, filename(req, "teacher-attendance"), csv.toCsv(rows, [
+    { label: "Teacher", key: "full_name" }, { label: "Department", key: "department" },
+    { label: "Present", value: (r) => Number(r.present) }, { label: "Absent", value: (r) => Number(r.absent) },
+    { label: "Late", value: (r) => Number(r.late) }, { label: "On Leave", value: (r) => Number(r.on_leave) },
+    { label: "Excused", value: (r) => Number(r.excused) }, { label: "Days Recorded", value: (r) => Number(r.days) },
+    { label: "Attendance %", value: (r) => Number(r.days) ? csv.num((Number(r.present) / Number(r.days)) * 100, 1) : "" },
   ]));
 }));
 

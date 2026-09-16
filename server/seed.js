@@ -280,7 +280,7 @@ async function createDemoMadrasa(slug, names, city, planCode, prefix) {
   // Subjects (per madrasa, EN + AR)
   const subjectIds = {};
   for (const [en, ar] of DEMO_SUBJECTS) {
-    const st = await db.run("INSERT INTO subjects (madrasa_id, name_en, name_ar) VALUES (?,?,?)", [mid, en, ar]);
+    const st = await db.run("INSERT INTO subjects (madrasa_id, name_en, name_ar, category, education_track, status) VALUES (?,?,?,?,?,?)", [mid, en, ar, ["English", "Mathematics"].includes(en) ? en : "Other Subjects", ["English", "Mathematics"].includes(en) ? "both" : "islamic", "active"]);
     subjectIds[en] = st.lastInsertRowid;
   }
   // Every class gets Qur'an + Fiqh + Arabic Language + English + Maths

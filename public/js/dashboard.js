@@ -732,6 +732,12 @@
       // navigation never exposes these routes and the backend enforces it too.
       if (route.startsWith("quran/")) return await pageQuranProgress(content, route);
 
+      // The complete Academic + Admissions workspace is isolated in its own
+      // module but renders inside this unchanged dashboard shell/design system.
+      if (window.BelloAcademicAdmissions && window.BelloAcademicAdmissions.handles(route)) {
+        return await window.BelloAcademicAdmissions.render({ I, esc, go, toast, openModal, closeModal, statCard, fmtDate, options, emptyRow, pillFor, catalogue, allTerms, todayIso, bindRouteButtons, state }, content, route);
+      }
+
       // Attendance and academics
       if (route === "attendance/students") return await pageAttendanceStudents(content);
       if (route === "attendance/teachers") return await pageTeacherAttendance(content);

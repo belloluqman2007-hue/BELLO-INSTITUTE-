@@ -8,14 +8,39 @@
                   and read printable report cards within the tenant.
    ========================================================================== */
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const db = require("../db");
+const config = require("../config");
 const { asyncHandler, err, ok, toNum, clampNum, logActivity } = require("../util");
 const { requireAuth, requireTenant } = require("../middleware/auth");
 const { effectiveTenantId, getTeacherAssignments, teacherCanAccess } = require("../middleware/tenant");
 const grading = require("../services/grading");
+const { fileUploader } = require("../middleware/upload");
+const resultImport = fileUploader("imports", "file", { dir: path.join(config.DATA_DIR, "private-result-imports"), extensions: [".csv"], mimeTypes: ["text/csv", "application/vnd.ms-excel", "text/plain", "application/csv"], maxMb: 5 });
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
+
+function parseCsv(text) {
+  const rows = []; let row = []; let cell = ""; let quoted = false;
+  const source = String(text || "").replace(/^\uFEFF/, "");
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    if (quoted) {
+      if (char === '"' && source[i + 1] === '"') { cell += '"'; i++; }
+      else if (char === '"') quoted = false;
+      else cell += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ",") { row.push(cell); cell = ""; }
+    else if (char === "\n") { row.push(cell.replace(/\r$/, "")); if (row.some((value) => value !== "")) rows.push(row); row = []; cell = ""; }
+    else cell += char;
+  }
+  if (cell || row.length) { row.push(cell.replace(/\r$/, "")); if (row.some((value) => value !== "")) rows.push(row); }
+  if (!rows.length) return [];
+  const headers = rows.shift().map((value) => value.trim().toLowerCase().replace(/[\s-]+/g, "_"));
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] === undefined ? "" : values[index].trim()])));
+}
 
 async function tenantId(req, res) {
   const tid = effectiveTenantId(req);
@@ -64,11 +89,16 @@ router.get("/roster", asyncHandler(async (req, res) => {
   const subject = await db.get("SELECT id, name_en, name_ar FROM subjects WHERE id = ? AND madrasa_id = ?", [subjectId, tid]);
   if (!subject) return err(res, 404, "Subject not found.");
   const rows = await db.all(
-    `SELECT s.id AS student_id, s.admission_no, s.first_name, s.last_name, s.name_ar,
-            r.id AS result_id, r.ca, r.exam, r.total
+    `SELECT s.id AS student_id, s.student_code, s.admission_no, s.first_name, s.last_name, s.name_ar,
+            r.id AS result_id, r.ca, r.exam, r.total, r.status, r.grade, r.grade_point,
+            r.teacher_remark, r.entered_by, r.modified_by, r.submitted_at, r.approved_at, r.published_at,
+            eu.full_name AS entered_by_name, mu.full_name AS modified_by_name, au.full_name AS approved_by_name
        FROM students s
        LEFT JOIN results r ON r.madrasa_id = s.madrasa_id AND r.student_id = s.id
             AND r.term_id = ? AND r.subject_id = ?
+       LEFT JOIN users eu ON eu.id = r.entered_by
+       LEFT JOIN users mu ON mu.id = r.modified_by
+       LEFT JOIN users au ON au.id = r.approved_by
       WHERE s.madrasa_id = ? AND s.class_id = ? AND s.status IN ('active','promoted','suspended')
       ORDER BY s.admission_no`,
     [termId, subjectId, tid, classId]
@@ -78,7 +108,9 @@ router.get("/roster", asyncHandler(async (req, res) => {
     ca: r.ca === null || r.ca === undefined ? "" : Number(r.ca),
     exam: r.exam === null || r.exam === undefined ? "" : Number(r.exam),
     total: r.total === null || r.total === undefined ? "" : Number(r.total),
-  })), config: { caMax: cfg.caMax, examMax: cfg.examMax, passMark: cfg.passMark } });
+    gradePoint: r.grade_point === null || r.grade_point === undefined ? "" : Number(r.grade_point),
+    status: r.result_id ? (r.status || "approved") : "not_entered",
+  })), config: { caMax: cfg.caMax, examMax: cfg.examMax, passMark: cfg.passMark, bands: cfg.bands } });
 }));
 
 /* ------------------------------ read class results --------------------- */
@@ -144,30 +176,117 @@ router.put("/", asyncHandler(async (req, res) => {
     (await db.all("SELECT id FROM students WHERE madrasa_id = ? AND class_id = ? AND status IN ('active','promoted','suspended')", [tid, classId])).map((r) => r.id)
   );
 
-  let updated = 0;
+  const requestedStatus = ["draft", "submitted"].includes(String(b.status || "draft").toLowerCase())
+    ? String(b.status || "draft").toLowerCase() : "draft";
+  const prepared = [];
   const errors = [];
-  for (const e of entries) {
-    const studentId = toNum(e.studentId, 0);
-    if (!classStudents.has(studentId)) { errors.push(`student ${studentId} not in class`); continue; }
-    const ca = clampNum(e.ca, 0, cfg.caMax, 0);
-    const exam = clampNum(e.exam, 0, cfg.examMax, 0);
+  for (const entry of entries) {
+    const studentId = toNum(entry.studentId || entry.student_id, 0);
+    if (!classStudents.has(studentId)) { errors.push(`Student ${studentId} is not in this class.`); continue; }
+    const ca = Number(entry.ca === "" || entry.ca === null || entry.ca === undefined ? 0 : entry.ca);
+    const exam = Number(entry.exam === "" || entry.exam === null || entry.exam === undefined ? 0 : entry.exam);
+    if (!Number.isFinite(ca) || ca < 0 || ca > cfg.caMax) errors.push(`CA for student ${studentId} must be between 0 and ${cfg.caMax}.`);
+    if (!Number.isFinite(exam) || exam < 0 || exam > cfg.examMax) errors.push(`Exam score for student ${studentId} must be between 0 and ${cfg.examMax}.`);
+    if (errors.length) continue;
     const total = Math.round((ca + exam) * 100) / 100;
-    const existing = await db.get(
-      "SELECT id FROM results WHERE madrasa_id = ? AND student_id = ? AND term_id = ? AND subject_id = ?",
-      [tid, studentId, termId, subjectId]
-    );
-    if (existing) {
-      await db.run("UPDATE results SET ca = ?, exam = ?, total = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [ca, exam, total, existing.id]);
-    } else {
-      await db.run(
-        "INSERT INTO results (madrasa_id, student_id, class_id, session_id, term_id, subject_id, ca, exam, total) VALUES (?,?,?,?,?,?,?,?,?)",
-        [tid, studentId, classId, (await db.get("SELECT session_id FROM terms WHERE id = ?", [termId])).session_id, termId, subjectId, ca, exam, total]
-      );
-    }
-    updated++;
+    const pct = grading.pctOf(cfg, total);
+    const grade = grading.gradeForPct(cfg, pct);
+    prepared.push({ studentId, ca, exam, total, grade: grade.grade, point: grade.point, remark: String(entry.teacherRemark || entry.teacher_remark || "").slice(0, 5000) });
   }
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "results.entry", entity: "results", meta: { class_id: classId, term_id: termId, subject_id: subjectId, updated }, ip: req.ip });
-  ok(res, { ok: true, updated, errors });
+  if (errors.length) return err(res, 400, errors.join(" "));
+  const term = await db.get("SELECT session_id FROM terms WHERE id = ? AND madrasa_id = ?", [termId, tid]);
+  await db.transaction(async (tx) => {
+    for (const entry of prepared) {
+      const existing = await tx.get(
+        "SELECT id, entered_by FROM results WHERE madrasa_id = ? AND student_id = ? AND term_id = ? AND subject_id = ?",
+        [tid, entry.studentId, termId, subjectId]
+      );
+      if (existing) {
+        await tx.run(`UPDATE results SET ca=?, exam=?, total=?, grade=?, grade_point=?, teacher_remark=?, status=?,
+          entered_by=COALESCE(entered_by,?), modified_by=?, submitted_at=?, approved_by=NULL, approved_at=NULL, published_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+        [entry.ca, entry.exam, entry.total, entry.grade, entry.point, entry.remark, requestedStatus, req.user.id, req.user.id, requestedStatus === "submitted" ? new Date().toISOString().slice(0, 19).replace("T", " ") : null, existing.id]);
+      } else {
+        await tx.run(`INSERT INTO results (madrasa_id,student_id,class_id,session_id,term_id,subject_id,ca,exam,total,status,grade,grade_point,teacher_remark,entered_by,modified_by,submitted_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [tid, entry.studentId, classId, term.session_id, termId, subjectId, entry.ca, entry.exam, entry.total, requestedStatus, entry.grade, entry.point, entry.remark, req.user.id, req.user.id, requestedStatus === "submitted" ? new Date().toISOString().slice(0, 19).replace("T", " ") : null]);
+      }
+    }
+  });
+  const updated = prepared.length;
+  if (updated) await db.run("UPDATE term_summaries SET published_at=NULL WHERE madrasa_id=? AND class_id=? AND term_id=?", [tid, classId, termId]);
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: requestedStatus === "submitted" ? "results.submit" : "results.entry", entity: "results", meta: { class_id: classId, term_id: termId, subject_id: subjectId, updated }, ip: req.ip });
+  ok(res, { ok: true, updated, errors: [], status: requestedStatus });
+}));
+
+/* ------------------------------ CSV import ----------------------------- */
+router.post("/import", resultImport, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  if (!req.file) return err(res, 400, "Choose a CSV file.");
+  try {
+    const classId = toNum(req.body && (req.body.classId || req.body.class_id), 0);
+    const termId = toNum(req.body && (req.body.termId || req.body.term_id), 0);
+    const subjectId = toNum(req.body && (req.body.subjectId || req.body.subject_id), 0);
+    if (!classId || !termId || !subjectId) return err(res, 400, "Class, term and subject are required for import.");
+    const cls = await guardAccess(req, res, tid, classId, subjectId, termId); if (!cls) return;
+    const cfg = await grading.getGradingConfig(tid);
+    const parsed = parseCsv(fs.readFileSync(req.file.path, "utf8"));
+    if (!parsed.length || parsed.length > 1000) return err(res, 400, "CSV must contain between 1 and 1000 data rows.");
+    const students = await db.all("SELECT id,admission_no,student_code FROM students WHERE madrasa_id=? AND class_id=? AND status IN ('active','promoted','suspended')", [tid, classId]);
+    const byCode = new Map(); students.forEach((student) => { byCode.set(String(student.id), student); byCode.set(String(student.admission_no || "").toLowerCase(), student); byCode.set(String(student.student_code || "").toLowerCase(), student); });
+    const entries = []; const errors = [];
+    parsed.forEach((row, index) => {
+      const key = String(row.student_id || row.student_code || row.admission_no || "").toLowerCase(); const student = byCode.get(key);
+      const ca = Number(row.ca); const exam = Number(row.exam || row.examination_score);
+      if (!student) errors.push(`Row ${index + 2}: student was not found in this class.`);
+      else if (!Number.isFinite(ca) || ca < 0 || ca > cfg.caMax) errors.push(`Row ${index + 2}: CA must be between 0 and ${cfg.caMax}.`);
+      else if (!Number.isFinite(exam) || exam < 0 || exam > cfg.examMax) errors.push(`Row ${index + 2}: exam must be between 0 and ${cfg.examMax}.`);
+      else entries.push({ studentId: Number(student.id), ca, exam, remark: String(row.teacher_remark || row.remark || "").slice(0, 5000) });
+    });
+    if (errors.length) return res.status(400).json({ error: "Import validation failed.", errors });
+    const term = await db.get("SELECT session_id FROM terms WHERE id=? AND madrasa_id=?", [termId, tid]); const status = req.body.status === "submitted" ? "submitted" : "draft";
+    await db.transaction(async (tx) => { for (const entry of entries) {
+      const total = Math.round((entry.ca + entry.exam) * 100) / 100; const grade = grading.gradeForPct(cfg, grading.pctOf(cfg, total));
+      const current = await tx.get("SELECT id FROM results WHERE madrasa_id=? AND student_id=? AND term_id=? AND subject_id=?", [tid, entry.studentId, termId, subjectId]);
+      if (current) await tx.run("UPDATE results SET ca=?,exam=?,total=?,grade=?,grade_point=?,teacher_remark=?,status=?,modified_by=?,submitted_at=?,approved_by=NULL,approved_at=NULL,published_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?", [entry.ca, entry.exam, total, grade.grade, grade.point, entry.remark, status, req.user.id, status === "submitted" ? new Date().toISOString().slice(0,19).replace("T"," ") : null, current.id]);
+      else await tx.run("INSERT INTO results (madrasa_id,student_id,class_id,session_id,term_id,subject_id,ca,exam,total,status,grade,grade_point,teacher_remark,entered_by,modified_by,submitted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [tid, entry.studentId, classId, term.session_id, termId, subjectId, entry.ca, entry.exam, total, status, grade.grade, grade.point, entry.remark, req.user.id, req.user.id, status === "submitted" ? new Date().toISOString().slice(0,19).replace("T"," ") : null]);
+    }});
+    await db.run("UPDATE term_summaries SET published_at=NULL WHERE madrasa_id=? AND class_id=? AND term_id=?", [tid, classId, termId]);
+    logActivity(db, { madrasaId: tid, userId: req.user.id, action: "results.import", entity: "results", entityId: `${classId}:${termId}:${subjectId}`, meta: { imported: entries.length }, ip: req.ip });
+    ok(res, { ok: true, imported: entries.length, status });
+  } finally { try { if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (_) { /* cleanup only */ } }
+}));
+
+/* ------------------------------ moderation workflow -------------------- */
+router.post("/workflow", asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const b = req.body || {};
+  const classId = toNum(b.classId || b.class_id, 0);
+  const termId = toNum(b.termId || b.term_id, 0);
+  const subjectId = toNum(b.subjectId || b.subject_id, 0);
+  const action = String(b.action || "").toLowerCase();
+  if (!classId || !termId || !subjectId || !["submit", "approve", "publish", "unpublish"].includes(action)) {
+    return err(res, 400, "classId, termId, subjectId and a valid workflow action are required.");
+  }
+  const cls = await guardAccess(req, res, tid, classId, subjectId, termId); if (!cls) return;
+  const adminOnly = ["approve", "publish", "unpublish"].includes(action);
+  if (adminOnly && !["madrasa_admin", "super_admin"].includes(req.user.role)) return err(res, 403, "Only administrators may approve or publish results.");
+  const transitions = {
+    submit: { from: ["draft"], to: "submitted", stamp: "submitted_at=CURRENT_TIMESTAMP" },
+    approve: { from: ["draft", "submitted"], to: "approved", stamp: "approved_by=?,approved_at=CURRENT_TIMESTAMP" },
+    publish: { from: ["approved"], to: "published", stamp: "published_at=CURRENT_TIMESTAMP" },
+    unpublish: { from: ["published"], to: "approved", stamp: "published_at=NULL" },
+  };
+  const transition = transitions[action];
+  const placeholders = transition.from.map(() => "?").join(",");
+  const params = [transition.to];
+  if (action === "approve") params.push(req.user.id);
+  params.push(req.user.id, tid, classId, termId, subjectId, ...transition.from);
+  const result = await db.run(`UPDATE results SET status=?,${transition.stamp},modified_by=?,updated_at=CURRENT_TIMESTAMP
+    WHERE madrasa_id=? AND class_id=? AND term_id=? AND subject_id=? AND status IN (${placeholders})`, params);
+  if (!result.changes) return err(res, 400, `No results are ready to ${action}.`);
+  if (action === "unpublish") await db.run("UPDATE term_summaries SET published_at=NULL WHERE madrasa_id=? AND class_id=? AND term_id=?", [tid, classId, termId]);
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: `results.${action}`, entity: "results", entityId: `${classId}:${termId}:${subjectId}`, meta: { count: result.changes }, ip: req.ip });
+  ok(res, { ok: true, action, status: transition.to, count: result.changes });
 }));
 
 /* ------------------------------ compute term --------------------------- */
@@ -226,7 +345,10 @@ router.put("/summary/:studentId", asyncHandler(async (req, res) => {
   if (b.promotion_status !== undefined && ["promoted", "repeating", "graduated", "pending"].includes(b.promotion_status)) {
     sets.push("promotion_status = ?"); vals.push(b.promotion_status);
   }
-  if (b.publish === true) sets.push("published_at = CURRENT_TIMESTAMP");
+  if (b.publish !== undefined) {
+    if (!["madrasa_admin", "super_admin"].includes(req.user.role)) return err(res, 403, "Only administrators may publish report cards.");
+    sets.push(b.publish ? "published_at = CURRENT_TIMESTAMP" : "published_at = NULL");
+  }
   if (!sets.length) return err(res, 400, "Nothing to update.");
   vals.push(row.id);
   await db.run(`UPDATE term_summaries SET ${sets.join(", ")} WHERE id = ?`, vals);
@@ -260,7 +382,10 @@ async function publishSummaries(req, res) {
 
   let count = 0;
   if (publish) {
+    const pending = await db.get("SELECT COUNT(*) AS n FROM results WHERE madrasa_id=? AND class_id=? AND term_id=? AND status NOT IN ('approved','published')", [tid, classId, termId]);
+    if (Number(pending && pending.n || 0) > 0) return err(res, 409, "Submit and approve every result before publishing report cards.");
     await grading.computeClassTerm(tid, classId, termId, req.user.id);
+    await db.run("UPDATE results SET status='published',published_at=CURRENT_TIMESTAMP,modified_by=?,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND class_id=? AND term_id=? AND status='approved'", [req.user.id, tid, classId, termId]);
     await db.run(
       `UPDATE term_summaries SET published_at = CURRENT_TIMESTAMP
        WHERE madrasa_id = ? AND class_id = ? AND term_id = ?`,
@@ -273,6 +398,7 @@ async function publishSummaries(req, res) {
     count = n ? Number(n.n) : 0;
     if (!count) return err(res, 400, "No results to publish for this class and term yet.");
   } else {
+    await db.run("UPDATE results SET status='approved',published_at=NULL,modified_by=?,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND class_id=? AND term_id=? AND status='published'", [req.user.id, tid, classId, termId]);
     await db.run(
       "UPDATE term_summaries SET published_at = NULL WHERE madrasa_id = ? AND class_id = ? AND term_id = ?",
       [tid, classId, termId]
@@ -305,7 +431,7 @@ async function loadReportData(req, res, studentId, termId) {
   // Teacher may only see report cards for assigned classes
   if (req.user.role === "teacher") {
     const scope = await getTeacherAssignments(tid, req.user.id);
-    if (!scope.anyClassAnySubject && !scope.assignedClassIds.includes(Number(data.student.classId || 0))) {
+    if (!scope.anyClassAnySubject && !scope.assignedClassIds.has(Number(data.student.classId || 0))) {
       res.status(404).json({ error: "Not found." });
       return null;
     }
@@ -317,6 +443,26 @@ router.get("/report-card-data/:studentId/:termId", asyncHandler(async (req, res)
   const data = await loadReportData(req, res, toNum(req.params.studentId, 0), toNum(req.params.termId, 0));
   if (!data) return;
   ok(res, data);
+}));
+
+/** A single printable document containing every eligible report card. */
+router.get("/report-cards/bulk", asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const classId = toNum(req.query.classId, 0); const termId = toNum(req.query.termId, 0);
+  if (!classId || !termId) return err(res, 400, "classId and termId are required.");
+  if (!await db.get("SELECT id FROM classes WHERE id=? AND madrasa_id=?", [classId, tid])) return err(res, 404, "Class not found.");
+  if (req.user.role === "teacher") {
+    const scope = await getTeacherAssignments(tid, req.user.id);
+    if (!scope.anyClassAnySubject && !scope.assignedClassIds.has(classId)) return err(res, 404, "Class not found.");
+  }
+  const summaries = await db.all("SELECT student_id,published_at FROM term_summaries WHERE madrasa_id=? AND class_id=? AND term_id=? ORDER BY position,student_id", [tid, classId, termId]);
+  const cards = [];
+  for (const summary of summaries) {
+    const data = await grading.reportCardData(tid, summary.student_id, termId);
+    if (data && data.subjects.length) cards.push(data);
+  }
+  if (!cards.length) return err(res, 404, "No approved results are available for report cards.");
+  res.type("html").send(renderBulkReportCards(cards));
 }));
 
 /** Printable report card HTML (standalone document; print to PDF in browser). */
@@ -345,6 +491,7 @@ function renderReportCard(d) {
       <td>${esc(s.total)}</td>
       <td>${esc(s.pct)}%</td>
       <td class="grade">${esc(s.grade)}</td>
+      <td>${esc(s.gradePoint)}</td>
       <td>${esc(remark)}</td>
     </tr>`;
   }).join("");
@@ -427,6 +574,7 @@ function renderReportCard(d) {
           <th>${esc(useArabicNames ? "المجموع" : "Total")}</th>
           <th>%</th>
           <th>${esc(useArabicNames ? "الدرجة" : "Grade")}</th>
+          <th>${esc(useArabicNames ? "النقاط" : "Point")}</th>
           <th>${esc(useArabicNames ? "ملاحظة" : "Remark")}</th>
         </tr>
       </thead>
@@ -453,4 +601,16 @@ function renderReportCard(d) {
 </html>`;
 }
 
-module.exports = { router, renderReportCard };
+function renderBulkReportCards(cards) {
+  const documents = cards.map(renderReportCard);
+  const style = (documents[0].match(/<style>[\s\S]*?<\/style>/) || ["<style></style>"])[0]
+    .replace("</style>", ".bulk-page{break-after:page;page-break-after:always}.bulk-page:last-child{break-after:auto;page-break-after:auto}</style>");
+  const bodies = documents.map((doc) => {
+    const start = doc.indexOf('<div class="card">');
+    const end = doc.lastIndexOf("</body>");
+    return `<section class="bulk-page">${doc.slice(start, end)}</section>`;
+  }).join("");
+  return `<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bulk report cards</title>${style}</head><body><div class="noprint"><button onclick="window.print()">Print / Save all as PDF</button></div>${bodies}</body></html>`;
+}
+
+module.exports = { router, renderReportCard, renderBulkReportCards };

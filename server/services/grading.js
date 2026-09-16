@@ -19,12 +19,12 @@
 const db = require("../db");
 
 const DEFAULT_BANDS = [
-  { min: 75, grade: "A", remark: "Excellent", remark_ar: "ممتاز" },
-  { min: 65, grade: "B", remark: "Very Good", remark_ar: "جيد جداً" },
-  { min: 55, grade: "C", remark: "Good", remark_ar: "جيد" },
-  { min: 45, grade: "D", remark: "Fair", remark_ar: "مقبول" },
-  { min: 40, grade: "E", remark: "Weak", remark_ar: "ضعيف" },
-  { min: 0, grade: "F", remark: "Fail", remark_ar: "راسب" },
+  { min: 75, grade: "A", point: 5, remark: "Excellent", remark_ar: "ممتاز" },
+  { min: 65, grade: "B", point: 4, remark: "Very Good", remark_ar: "جيد جداً" },
+  { min: 55, grade: "C", point: 3, remark: "Good", remark_ar: "جيد" },
+  { min: 45, grade: "D", point: 2, remark: "Fair", remark_ar: "مقبول" },
+  { min: 40, grade: "E", point: 1, remark: "Weak", remark_ar: "ضعيف" },
+  { min: 0, grade: "F", point: 0, remark: "Fail", remark_ar: "راسب" },
 ];
 
 async function getGradingConfig(madrasaId) {
@@ -51,7 +51,13 @@ async function getGradingConfig(madrasaId) {
   bands = bands
     .slice()
     .sort((a, b) => Number(b.min) - Number(a.min))
-    .map((b) => ({ min: Number(b.min) || 0, grade: String(b.grade || "F"), remark: b.remark || "", remark_ar: b.remark_ar || "" }));
+    .map((b, index, all) => ({
+      min: Number(b.min) || 0,
+      grade: String(b.grade || "F"),
+      point: Number.isFinite(Number(b.point)) ? Number(b.point) : Math.max(0, all.length - index - 1),
+      remark: b.remark || "",
+      remark_ar: b.remark_ar || "",
+    }));
   return {
     caMax: Number(row.ca_max) || 40,
     examMax: Number(row.exam_max) || 60,
@@ -76,10 +82,14 @@ function pctOf(cfg, total) {
 /** Grade + remark for a percentage, using the madrasa's bands. */
 function gradeForPct(cfg, pct) {
   for (const b of cfg.bands) {
-    if (pct >= b.min) return { grade: b.grade, remark: b.remark, remarkAr: b.remark_ar };
+    if (pct >= b.min) return { grade: b.grade, point: Number(b.point || 0), remark: b.remark, remarkAr: b.remark_ar };
   }
   const last = cfg.bands[cfg.bands.length - 1];
-  return { grade: last.grade, remark: last.remark, remarkAr: last.remark_ar };
+  return { grade: last.grade, point: Number(last.point || 0), remark: last.remark, remarkAr: last.remark_ar };
+}
+
+function gradePointForPct(cfg, pct) {
+  return gradeForPct(cfg, pct).point;
 }
 
 function subjectScore(cfg, ca, exam) {
@@ -88,7 +98,7 @@ function subjectScore(cfg, ca, exam) {
   const total = Math.round((caN + examN) * 100) / 100;
   const pct = pctOf(cfg, total);
   const g = gradeForPct(cfg, pct);
-  return { ca: caN, exam: examN, total, pct: Math.round(pct * 10) / 10, grade: g.grade, remark: g.remark, remarkAr: g.remark_ar, pass: pct >= cfg.passMark };
+  return { ca: caN, exam: examN, total, pct: Math.round(pct * 10) / 10, grade: g.grade, gradePoint: g.point, remark: g.remark, remarkAr: g.remarkAr, pass: pct >= cfg.passMark };
 }
 
 /**
@@ -107,7 +117,8 @@ async function computeClassTerm(madrasaId, classId, termId, userId = null) {
             r.subject_id, r.ca, r.exam
      FROM results r
      JOIN students s ON s.id = r.student_id
-     WHERE r.madrasa_id = ? AND r.term_id = ? AND r.class_id = ?`,
+     WHERE r.madrasa_id = ? AND r.term_id = ? AND r.class_id = ?
+       AND r.status IN ('approved','published')`,
     [madrasaId, termId, classId]
   );
 
@@ -223,9 +234,11 @@ async function reportCardData(madrasaId, studentId, termId) {
   const classRow = student.class_id ? await db.get("SELECT * FROM classes WHERE id = ? AND madrasa_id = ?", [student.class_id, madrasaId]) : null;
   const summary = await db.get("SELECT * FROM term_summaries WHERE madrasa_id = ? AND student_id = ? AND term_id = ?", [madrasaId, studentId, termId]);
   const results = await db.all(
-    `SELECT r.subject_id, r.ca, r.exam, r.total, su.name_en, su.name_ar
+    `SELECT r.subject_id, r.ca, r.exam, r.total, r.grade, r.grade_point, r.teacher_remark, r.status,
+            su.name_en, su.name_ar
      FROM results r JOIN subjects su ON su.id = r.subject_id
      WHERE r.madrasa_id = ? AND r.student_id = ? AND r.term_id = ?
+       AND r.status IN ('approved','published')
      ORDER BY su.name_en`,
     [madrasaId, studentId, termId]
   );
@@ -240,9 +253,11 @@ async function reportCardData(madrasaId, studentId, termId) {
       exam: sc.exam,
       total: sc.total,
       pct: sc.pct,
-      grade: sc.grade,
-      remark: sc.remark,
-      remarkAr: sc.remark_ar,
+      grade: r.grade || sc.grade,
+      gradePoint: r.grade_point === null || r.grade_point === undefined ? sc.gradePoint : Number(r.grade_point),
+      remark: r.teacher_remark || sc.remark,
+      remarkAr: sc.remarkAr,
+      status: r.status,
       pass: sc.pass,
     };
   });
@@ -260,10 +275,14 @@ async function reportCardData(madrasaId, studentId, termId) {
       phone: madrasa.phone,
     },
     student: {
+      id: Number(student.id),
+      studentCode: student.student_code || student.admission_no,
       name: `${student.first_name} ${student.last_name}`.trim(),
       nameAr: student.name_ar,
       admissionNo: student.admission_no,
+      photoPath: student.photo_path || "",
       gender: student.gender,
+      classId: student.class_id ? Number(student.class_id) : null,
       classEn: classRow ? classRow.name_en : "",
       classAr: classRow ? classRow.name_ar : "",
     },
@@ -295,6 +314,7 @@ module.exports = {
   totalMaxOf,
   pctOf,
   gradeForPct,
+  gradePointForPct,
   subjectScore,
   computeClassTerm,
   reportCardData,

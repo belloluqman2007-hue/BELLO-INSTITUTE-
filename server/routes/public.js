@@ -438,8 +438,20 @@ router.get("/results/report/:token", publicLimiter, asyncHandler(async (req, res
 
 /* ------------------------------ applications --------------------------- */
 
-function newReference() {
-  return "ADM-" + new Date().getFullYear() + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
+async function newReference(madrasaId) {
+  if (!madrasaId) return "ADM-" + new Date().getFullYear() + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
+  const setting = await db.get("SELECT value FROM settings WHERE madrasa_id=? AND key_name='application_number_format'", [madrasaId]);
+  const format = cleanStr(setting && setting.value, 80);
+  if (!format) return "ADM-" + new Date().getFullYear() + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
+  const year = String(new Date().getFullYear());
+  const count = await db.get("SELECT COUNT(*) AS n FROM admission_requests WHERE madrasa_id=?", [madrasaId]);
+  let seq = Number(count && count.n || 0) + 1;
+  for (let attempt = 0; attempt < 1000; attempt++, seq++) {
+    const match = format.match(/\{SEQ(?::(\d+))?\}/i); const width = match ? Math.min(10, Math.max(1, Number(match[1] || 5))) : 5;
+    const candidate = format.replace(/\{YYYY\}/gi, year).replace(/\{YY\}/gi, year.slice(-2)).replace(/\{SEQ(?::\d+)?\}/gi, String(seq).padStart(width, "0")).replace(/[^A-Za-z0-9/_-]/g, "").slice(0, 30).toUpperCase();
+    if (candidate && !await db.get("SELECT id FROM admission_requests WHERE madrasa_id=? AND reference=?", [madrasaId, candidate])) return candidate;
+  }
+  return "ADM-" + year + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
 }
 
 /**
@@ -451,10 +463,16 @@ router.post("/madaris/:slug/apply", publicWriteLimiter, asyncHandler(async (req,
   const b = req.body || {};
   if (cleanStr(b.website, 200)) {
     // Bot: pretend it worked so the form keeps getting filled with junk.
-    return ok(res, { ok: true, reference: newReference(), queued: true });
+    return ok(res, { ok: true, reference: await newReference(), queued: true });
   }
   const m = await findPublicMadrasa(req.params.slug);
   if (!m || Number(m.public_admissions) !== 1) return err(res, 404, "Online admission is not open at this madrasa.");
+  const admissionSettingsRows = await db.all("SELECT key_name,value FROM settings WHERE madrasa_id=? AND key_name IN ('admission_open','application_start_date','application_closing_date','available_session_ids','available_class_ids','available_programs')", [m.id]);
+  const admissionSettings = {}; admissionSettingsRows.forEach((row) => { admissionSettings[row.key_name] = row.value; });
+  if (admissionSettings.admission_open === "false") return err(res, 403, "Admissions are currently closed.");
+  const todayDate = new Date().toISOString().slice(0, 10);
+  if (admissionSettings.application_start_date && todayDate < admissionSettings.application_start_date) return err(res, 403, `Applications open on ${admissionSettings.application_start_date}.`);
+  if (admissionSettings.application_closing_date && todayDate > admissionSettings.application_closing_date) return err(res, 403, "The application period has closed.");
 
   const firstName = cleanStr(b.first_name, 100);
   const parentName = cleanStr(b.parent_name, 160);
@@ -476,22 +494,28 @@ router.post("/madaris/:slug/apply", publicWriteLimiter, asyncHandler(async (req,
   const classId = b.class_id ? Number(b.class_id) : null;
   const classRow = classId ? await db.get("SELECT id FROM classes WHERE id = ? AND madrasa_id = ? AND is_active = 1", [classId, m.id]) : null;
   if (classId && !classRow) return err(res, 400, "Unknown class.");
+  const parseList = (value) => { try { const out = JSON.parse(value || "[]"); return Array.isArray(out) ? out : []; } catch (_) { return []; } };
+  const availableClasses = parseList(admissionSettings.available_class_ids).map(Number);
+  if (classId && availableClasses.length && !availableClasses.includes(classId)) return err(res, 400, "That class is not currently open for admission.");
+  const desiredSessionId = b.desired_session_id ? Number(b.desired_session_id) : null;
+  if (desiredSessionId && !await db.get("SELECT id FROM academic_sessions WHERE id=? AND madrasa_id=?", [desiredSessionId, m.id])) return err(res, 400, "Unknown academic session.");
+  const availableSessions = parseList(admissionSettings.available_session_ids).map(Number);
+  if (desiredSessionId && availableSessions.length && !availableSessions.includes(desiredSessionId)) return err(res, 400, "That academic session is not currently accepting applications.");
+  const availablePrograms = parseList(admissionSettings.available_programs).map((x) => String(x).toLowerCase());
+  if (b.program && availablePrograms.length && !availablePrograms.includes(cleanStr(b.program,120).toLowerCase())) return err(res, 400, "That program is not currently accepting applications.");
 
-  const reference = newReference();
-  const r = await db.run(
-    `INSERT INTO admission_requests
-      (madrasa_id, reference, status, first_name, middle_name, last_name, preferred_name, name_ar, gender, date_of_birth,
-       nationality, state_of_origin, lga, religion, class_id, previous_school, quran_level, program, education_track,
-       desired_session_id, parent_name, father_name, mother_name, guardian_name, guardian_relationship, parent_phone,
-       alternative_phone, parent_email, address, emergency_contact, additional_info, message, ip)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [
-      m.id, reference, "pending", firstName, cleanStr(b.middle_name, 100), cleanStr(b.last_name, 100), cleanStr(b.preferred_name, 100), cleanStr(b.name_ar, 160), gender, dob,
-      cleanStr(b.nationality, 80), cleanStr(b.state_of_origin, 80), cleanStr(b.lga, 80), cleanStr(b.religion, 60), classRow ? classRow.id : null, cleanStr(b.previous_school, 200), cleanStr(b.quran_level, 80), cleanStr(b.program, 120), cleanStr(b.education_track, 20) || "both",
-      b.desired_session_id ? Number(b.desired_session_id) : null, parentName, cleanStr(b.father_name, 160), cleanStr(b.mother_name, 160), cleanStr(b.guardian_name, 160), cleanStr(b.guardian_relationship, 80), parentPhone,
-      cleanStr(b.alternative_phone, 60), cleanStr(b.parent_email, 120), cleanStr(b.address, 255), cleanStr(b.emergency_contact, 160), cleanStr(b.additional_info, 2000), cleanStr(b.message, 2000), cleanStr(req.ip, 64),
-    ]
-  );
+  const reference = await newReference(m.id);
+  const columns = ["madrasa_id","reference","status","first_name","middle_name","last_name","preferred_name","name_ar","gender","date_of_birth",
+    "nationality","state_of_origin","lga","religion","class_id","previous_school","previous_class","quran_level","program","education_track",
+    "desired_session_id","parent_name","father_name","mother_name","guardian_name","guardian_relationship","parent_phone","alternative_phone","parent_email",
+    "contact_phone","contact_email","address","emergency_contact","additional_info","message","ip"];
+  const values = [
+    m.id, reference, "pending", firstName, cleanStr(b.middle_name,100), cleanStr(b.last_name,100), cleanStr(b.preferred_name,100), cleanStr(b.name_ar,160), gender, dob,
+    cleanStr(b.nationality,80), cleanStr(b.state_of_origin,80), cleanStr(b.lga,80), cleanStr(b.religion,60), classRow?classRow.id:null, cleanStr(b.previous_school,200), cleanStr(b.previous_class,120), cleanStr(b.quran_level,80), cleanStr(b.program,120), ["islamic","western","both"].includes(cleanStr(b.education_track,20).toLowerCase())?cleanStr(b.education_track,20).toLowerCase():"both",
+    desiredSessionId, parentName, cleanStr(b.father_name,160), cleanStr(b.mother_name,160), cleanStr(b.guardian_name,160), cleanStr(b.guardian_relationship,80), parentPhone, cleanStr(b.alternative_phone,60), cleanStr(b.parent_email,120),
+    cleanStr(b.contact_phone,60), cleanStr(b.contact_email,120), cleanStr(b.address,255), cleanStr(b.emergency_contact,160), cleanStr(b.additional_info,2000), cleanStr(b.message,2000), cleanStr(req.ip,64),
+  ];
+  const r = await db.run(`INSERT INTO admission_requests (${columns.join(",")}) VALUES (${columns.map(()=>"?").join(",")})`, values);
   await logActivity(db, { madrasaId: m.id, action: "admission.public_apply", entity: "admission_request", entityId: String(r.lastInsertRowid), meta: { reference }, ip: req.ip });
   ok(res, { ok: true, reference, submittedAt: new Date().toISOString(), madrasaSlug: m.slug, madrasaName: m.name_en });
 }));
@@ -525,7 +549,7 @@ router.get("/madaris/:slug/apply-status", publicLimiter, asyncHandler(async (req
     submittedAt: row.created_at,
     // Once admitted, the family needs this number to read results later on.
     admissionNo,
-    resultsUrl: row.status === "approved" && admissionNo && Number(m.public_results) === 1
+    resultsUrl: ["approved", "enrolled"].includes(row.status) && admissionNo && Number(m.public_results) === 1
       ? `/results-check?madrasa=${m.slug}&admissionNo=${encodeURIComponent(admissionNo)}` : "",
   });
 }));

@@ -163,6 +163,7 @@ router.get("/announcements", asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const aud = req.user.role === "student" ? "students" : "parents";
+  await db.run("UPDATE announcements SET status='published', is_active=1, published_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND status='scheduled' AND scheduled_at IS NOT NULL AND scheduled_at<=CURRENT_TIMESTAMP", [tid]);
   const candidates = await db.all(
     "SELECT id, title, body, audience, target_type, target_ids, created_at FROM announcements WHERE madrasa_id = ? AND is_active = 1 AND status = 'published' AND (scheduled_at IS NULL OR scheduled_at <= CURRENT_TIMESTAMP) ORDER BY COALESCE(published_at, created_at) DESC, id DESC LIMIT 200",
     [tid]

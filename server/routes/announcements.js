@@ -47,9 +47,18 @@ function visibleForRole(req) {
   if (req.user.role === "teacher") return "teachers";
   return null;
 }
+async function publishDue(tid) {
+  const due = await db.all("SELECT * FROM announcements WHERE madrasa_id = ? AND status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= CURRENT_TIMESTAMP", [tid]);
+  for (const a of due) {
+    await db.run("UPDATE announcements SET status='published', is_active=1, published_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=? AND status='scheduled'", [a.id, tid]);
+    let ids = []; try { ids = JSON.parse(a.target_ids || "[]"); } catch (_) {}
+    await communication.notifyAudience(tid, { target_type: a.target_type || a.audience, target_ids: ids }, { type: "announcement", title: a.title, body: a.body, entity_type: "announcement", entity_id: a.id });
+  }
+}
 
 router.get("/", asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
+  await publishDue(tid);
   const audience = visibleForRole(req);
   const limit = Math.min(200, Math.max(1, toNum(req.query.limit, 100)));
   let rows;

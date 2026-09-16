@@ -16,6 +16,7 @@ const { requireAuth, requireTenant, requireRole } = require("../middleware/auth"
 const { effectiveTenantId, getTeacherAssignments, teacherCanAccess } = require("../middleware/tenant");
 const { fileUploader } = require("../middleware/upload");
 const grading = require("../services/grading");
+const communication = require("../services/communication");
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -159,6 +160,9 @@ async function createItem(req, res, kind) {
   await db.insertIgnore("class_subjects", "madrasa_id, class_id, subject_id, session_id, term_id", [tid, refs.classId, refs.subjectId, refs.sessionId, refs.termId]);
   await addHistory(tid, kind, r.lastInsertRowid, "created", req.user.id, null, status, title);
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: `${kind}.create`, entity: kind, entityId: String(r.lastInsertRowid), ip: req.ip });
+  if (kind === "assignment" && status === "published") {
+    await communication.notifyAudience(tid, { target_type: "specific_class", target_ids: [refs.classId] }, { type: "new_assignment", title: "New assignment published", body: `${title} is available for your class${dueDate ? ` until ${dueDate}` : ""}.`, entity_type: "assignment", entity_id: Number(r.lastInsertRowid) });
+  }
   ok(res, { ok: true, id: r.lastInsertRowid, item: await db.get("SELECT * FROM homework WHERE id=? AND madrasa_id=?", [r.lastInsertRowid, tid]) });
 }
 router.post("/lessons", asyncHandler((req, res) => createItem(req, res, "lesson")));
@@ -367,6 +371,7 @@ router.post(["/exams", "/"], ADMIN, asyncHandler(async(req,res)=>{
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[tid,title,cleanStr(b.description,5000),input.classId,input.subjectId,input.sessionId,input.termId,input.examDate,totalMarks,input.status,req.user.id,input.startTime,input.endTime,input.durationMinutes,input.invigilatorId,input.classroom,cleanStr(b.instructions,10000),trackOf(b.education_track||input.subject?.education_track),input.status==="published"?new Date().toISOString().slice(0,19).replace("T"," "):null,input.status==="cancelled"?new Date().toISOString().slice(0,19).replace("T"," "):null]);
   await db.insertIgnore("class_subjects","madrasa_id,class_id,subject_id,session_id,term_id",[tid,input.classId,input.subjectId,input.sessionId,input.termId]);
   await addHistory(tid,"exam",r.lastInsertRowid,"created",req.user.id,null,input.status,title);logActivity(db,{madrasaId:tid,userId:req.user.id,action:"exam.create",entity:"exam",entityId:String(r.lastInsertRowid),ip:req.ip});
+  if (["scheduled", "published"].includes(input.status)) await communication.notifyAudience(tid,{target_type:"specific_class",target_ids:[input.classId]},{type:"examination_scheduled",title:"Examination scheduled",body:`${title} is scheduled for ${input.examDate}.`,entity_type:"exam",entity_id:Number(r.lastInsertRowid)});
   ok(res,{ok:true,id:r.lastInsertRowid,exam:await db.get("SELECT * FROM exams WHERE id=? AND madrasa_id=?",[r.lastInsertRowid,tid])});
 }));
 router.get(["/exams/:id", "/:id"], STAFF, asyncHandler(async(req,res)=>{

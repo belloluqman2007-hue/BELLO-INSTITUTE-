@@ -5,6 +5,7 @@ const db = require("../db");
 const { asyncHandler, err, ok, toNum, cleanStr, validDate, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId, getTeacherAssignments, teacherCanMarkAttendance } = require("../middleware/tenant");
+const communication = require("../services/communication");
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -96,6 +97,13 @@ router.post("/mark", asyncHandler(async (req, res) => {
       await db.run("UPDATE attendance SET status = ?, class_id = ?, term_id = ?, session_id = ?, attendance_note = ?, recorded_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?", [value.status, classId, context.termId, context.sessionId, value.note, req.user.id, existing.id, tid]);
     } else {
       await db.run("INSERT INTO attendance (madrasa_id, student_id, class_id, term_id, session_id, day, status, attendance_note, recorded_by) VALUES (?,?,?,?,?,?,?,?,?)", [tid, studentId, classId, context.termId, context.sessionId, day, value.status, value.note, req.user.id]);
+    }
+    if (value.status === "absent" || value.status === "late") {
+      const recipients = await db.all("SELECT user_id FROM parent_links WHERE madrasa_id = ? AND student_id = ?", [tid, studentId]);
+      const studentUser = await db.get("SELECT id FROM users WHERE madrasa_id = ? AND student_id = ? AND is_active = 1", [tid, studentId]);
+      const recipientIds = recipients.map((r) => r.user_id).concat(studentUser ? [studentUser.id] : []);
+      await communication.createNotifications(tid, recipientIds, { type: value.status === "absent" ? "student_absent" : "student_late", title: value.status === "absent" ? "Student absent" : "Student late", body: `Attendance recorded as ${value.status} for ${day}.`, entity_type: "attendance", entity_id: studentId });
+      for (const recipientId of [...new Set(recipientIds)]) await communication.recordCommunication(tid, { student_id: studentId, recipient_user_id: recipientId, parent_user_id: recipientId, channel: "in_app", message_type: value.status === "absent" ? "attendance_alert" : "attendance_alert", subject: "Attendance alert", message: `Attendance recorded as ${value.status} for ${day}.`, sent_by: req.user.id });
     }
     saved++;
   }

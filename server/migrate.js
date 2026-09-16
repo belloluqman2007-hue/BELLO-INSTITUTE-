@@ -1518,6 +1518,130 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_admission_pipeline ON admission_requests (madrasa_id, desired_session_id, education_track, class_id, status, created_at)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "023_communication_and_finance",
+    up: async (api, dialect) => {
+      // Communication is one tenant-scoped system. The original announcements
+      // and chat tables remain the source tables; these columns and the
+      // conversation/recipient tables add the workflow without creating a
+      // second website, parent account or student relationship.
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+      const add = async (table, column, type) => {
+        // This migration is applied once per database. Keeping the DDL here
+        // deliberately boring makes it safe for both SQLite and MySQL.
+        await api.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+      };
+
+      for (const [name, type] of [
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'published'"],
+        ["scheduled_at", nullableTs], ["published_at", nullableTs], ["archived_at", nullableTs],
+        ["image_path", "VARCHAR(500) NOT NULL DEFAULT ''"],
+        ["attachment_path", "VARCHAR(500) NOT NULL DEFAULT ''"],
+        ["attachment_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        ["attachment_mime", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["target_type", "VARCHAR(40) NOT NULL DEFAULT 'all'"],
+        ["target_ids", "TEXT"], ["updated_at", nullableTs],
+      ]) await add("announcements", name, type);
+      await api.run("CREATE INDEX idx_announcements_delivery ON announcements (madrasa_id, status, target_type, created_at)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS communication_conversations (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          subject VARCHAR(200) NOT NULL DEFAULT '', kind VARCHAR(20) NOT NULL DEFAULT 'individual',
+          created_by INT, status VARCHAR(20) NOT NULL DEFAULT 'active',
+          archived_at ${nullableTs}, created_at ${D.ts()}, updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run(`CREATE INDEX idx_comm_conversations ON communication_conversations (madrasa_id, status, updated_at)`);
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS communication_participants (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, conversation_id INT NOT NULL,
+          user_id INT NOT NULL, participant_role VARCHAR(30) NOT NULL DEFAULT '',
+          last_read_at ${nullableTs}, archived_at ${nullableTs},
+          UNIQUE (madrasa_id, conversation_id, user_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_comm_participants ON communication_participants (madrasa_id, user_id, conversation_id)");
+      for (const [name, type] of [
+        ["conversation_id", "INT"], ["recipient_user_id", "INT"],
+        ["message_type", "VARCHAR(20) NOT NULL DEFAULT 'direct'"],
+        ["read_at", nullableTs], ["archived_at", nullableTs],
+        ["attachment_path", "VARCHAR(500) NOT NULL DEFAULT ''"],
+        ["attachment_name", "VARCHAR(255) NOT NULL DEFAULT ''"],
+        ["attachment_mime", "VARCHAR(120) NOT NULL DEFAULT ''"],
+      ]) await add("messages", name, type);
+      await api.run("CREATE INDEX idx_direct_messages ON messages (madrasa_id, conversation_id, recipient_user_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, recipient_user_id INT NOT NULL,
+          type VARCHAR(50) NOT NULL, title VARCHAR(200) NOT NULL, body TEXT NOT NULL,
+          entity_type VARCHAR(50) NOT NULL DEFAULT '', entity_id INT,
+          channel VARCHAR(20) NOT NULL DEFAULT 'in_app', read_at ${nullableTs},
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_notifications_recipient ON notifications (madrasa_id, recipient_user_id, read_at, id)");
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS notification_preferences (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, user_id INT NOT NULL,
+          notification_type VARCHAR(50) NOT NULL DEFAULT '*', in_app INT NOT NULL DEFAULT 1,
+          email INT NOT NULL DEFAULT 0, sms INT NOT NULL DEFAULT 0, whatsapp INT NOT NULL DEFAULT 0,
+          UNIQUE (madrasa_id, user_id, notification_type)
+        )${D.engine(dialect)}
+      `);
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS communication_history (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, student_id INT,
+          recipient_user_id INT, parent_user_id INT, channel VARCHAR(20) NOT NULL DEFAULT 'in_app',
+          message_type VARCHAR(50) NOT NULL, subject VARCHAR(200) NOT NULL DEFAULT '',
+          message TEXT NOT NULL, delivery_status VARCHAR(20) NOT NULL DEFAULT 'recorded',
+          sent_by INT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_communication_history ON communication_history (madrasa_id, student_id, recipient_user_id, id)");
+
+      // Fee structures keep the existing fee_items table as the canonical fee
+      // catalogue. Assignments are the per-student ledger; payments reference
+      // assignments when one exists and still support legacy general payments.
+      for (const [name, type] of [
+        ["session_id", "INT"], ["class_id", "INT"], ["program", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["education_track", "VARCHAR(20) NOT NULL DEFAULT 'both'"],
+        ["student_category", "VARCHAR(60) NOT NULL DEFAULT ''"],
+        ["description", "TEXT"], ["due_date", "DATE"],
+        ["is_required", "INT NOT NULL DEFAULT 1"], ["status", "VARCHAR(20) NOT NULL DEFAULT 'active'"],
+        ["archived_at", nullableTs], ["created_by", "INT"], ["updated_at", nullableTs],
+      ]) await add("fee_items", name, type);
+      await api.run("CREATE INDEX idx_fee_structures ON fee_items (madrasa_id, session_id, term_id, class_id, status)");
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS fee_assignments (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, fee_item_id INT NOT NULL,
+          student_id INT NOT NULL, amount_due DECIMAL(12,2) NOT NULL DEFAULT 0,
+          due_date DATE, status VARCHAR(20) NOT NULL DEFAULT 'due', assigned_by INT,
+          created_at ${D.ts()}, updated_at ${D.ts()},
+          UNIQUE (madrasa_id, fee_item_id, student_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_fee_assignments ON fee_assignments (madrasa_id, student_id, status, due_date)");
+      for (const [name, type] of [
+        ["parent_user_id", "INT"], ["session_id", "INT"], ["term_id", "INT"],
+        ["transaction_number", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["status", "VARCHAR(20) NOT NULL DEFAULT 'successful'"],
+        ["receipt_number", "VARCHAR(100) NOT NULL DEFAULT ''"], ["fee_assignment_id", "INT"],
+        ["notes", "TEXT"], ["updated_at", nullableTs], ["refunded_at", nullableTs],
+      ]) await add("fee_payments", name, type);
+      await api.run("CREATE INDEX idx_fee_payments_reporting ON fee_payments (madrasa_id, payment_date, status, session_id, term_id, method)");
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS fee_assignment_history (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, fee_assignment_id INT NOT NULL,
+          action VARCHAR(30) NOT NULL, amount DECIMAL(12,2), changed_by INT,
+          details TEXT, created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+    },
+  },
 ];
 
 async function migrate(options = {}) {

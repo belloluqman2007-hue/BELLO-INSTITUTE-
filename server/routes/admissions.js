@@ -28,6 +28,7 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const { effectiveTenantId } = require("../middleware/tenant");
 const admission = require("../services/admission");
 const { fileUploader, imageUploader } = require("../middleware/upload");
+const communication = require("../services/communication");
 
 const applicationDocumentUploader = fileUploader("files", "document", {
   dir: path.join(config.DATA_DIR, "private-student-documents"),
@@ -328,6 +329,8 @@ async function approveApplication(req, res) {
     return err(res, 500, "Could not admit this student. Nothing was saved — please try again.");
   }
 
+  const applicant = row.parent_email ? await db.get("SELECT id FROM users WHERE madrasa_id = ? AND is_active = 1 AND LOWER(email) = LOWER(?)", [tid, row.parent_email]) : null;
+  if (applicant) await communication.createNotifications(tid, [applicant.id], { type: "admission_update", title: "Admission accepted", body: `Application ${row.reference} has been accepted.`, entity_type: "admission_request", entity_id: row.id });
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: "admission.approve", entity: "student", entityId: String(out.studentId), meta: { reference: row.reference, admissionNo }, ip: req.ip });
   ok(res, { ok: true, status: finalStatus, studentId: out.studentId, admissionNo, portalCreated: out.portalCreated, username: out.username, parentUsername: out.parentUsername || "" });
 }
@@ -346,6 +349,8 @@ async function setStatus(req, res, status) {
     );
     await tx.run("INSERT INTO admission_application_history (madrasa_id, application_id, from_status, to_status, note, changed_by) VALUES (?,?,?,?,?,?)", [row.madrasa_id, row.id, row.status, status, note, req.user.id]);
   });
+  const applicant = row.parent_email ? await db.get("SELECT id FROM users WHERE madrasa_id = ? AND is_active = 1 AND LOWER(email) = LOWER(?)", [row.madrasa_id, row.parent_email]) : null;
+  if (applicant) await communication.createNotifications(row.madrasa_id, [applicant.id], { type: "admission_update", title: "Admission application updated", body: `Application ${row.reference} is now ${status.replace(/_/g, " ")}.`, entity_type: "admission_request", entity_id: row.id });
   logActivity(db, { madrasaId: row.madrasa_id, userId: req.user.id, action: "admission." + status, entity: "admission_request", entityId: String(row.id), meta: { reference: row.reference, note }, ip: req.ip });
   ok(res, { ok: true, status });
 }

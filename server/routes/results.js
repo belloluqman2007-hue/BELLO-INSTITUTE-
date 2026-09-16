@@ -17,6 +17,7 @@ const { requireAuth, requireTenant } = require("../middleware/auth");
 const { effectiveTenantId, getTeacherAssignments, teacherCanAccess } = require("../middleware/tenant");
 const grading = require("../services/grading");
 const { fileUploader } = require("../middleware/upload");
+const communication = require("../services/communication");
 const resultImport = fileUploader("imports", "file", { dir: path.join(config.DATA_DIR, "private-result-imports"), extensions: [".csv"], mimeTypes: ["text/csv", "application/vnd.ms-excel", "text/plain", "application/csv"], maxMb: 5 });
 
 const router = express.Router();
@@ -414,6 +415,7 @@ async function publishSummaries(req, res) {
     action: publish ? "results.publish" : "results.unpublish",
     entity: "term_summary", entityId: `${classId}:${termId}`, meta: { count }, ip: req.ip,
   });
+  if (publish) await communication.notifyAudience(tid, { target_type: "specific_class", target_ids: [classId] }, { type: "result_published", title: "Result published", body: "A report card result is now available in the student and parent portal.", entity_type: "term_summary", entity_id: termId });
   ok(res, { ok: true, published: publish, count });
 }
 

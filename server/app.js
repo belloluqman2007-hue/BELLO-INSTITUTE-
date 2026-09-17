@@ -43,6 +43,7 @@ const extrasRouter = require("./routes/extras");
 const backupsRouter = require("./routes/backups").router;
 const quranProgressRouter = require("./routes/quran-progress");
 const academicRouter = require("./routes/academic");
+const libraryRouter = require("./routes/library");
 const institution = require("./services/institution");
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
@@ -253,6 +254,7 @@ function createApp() {
   // tenant and student data engine; the route itself refuses Western tenants.
   api.use("/quran-progress", quranProgressRouter);
   api.use("/academic", academicRouter);
+  api.use("/library", libraryRouter);
   // Keep the short /api/exams address for integrations while the dashboard
   // uses the grouped /api/academic/exams address.
   api.use("/exams", academicRouter);

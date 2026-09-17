@@ -1798,6 +1798,81 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_salary_advances ON salary_advances (madrasa_id, user_id, balance)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "026_staff_leave",
+    up: async (api, dialect) => {
+      // Staff leave for tenant administrators. Three tenant-scoped tables that
+      // reuse the EXISTING staff identity (users.id where role = 'teacher'),
+      // the existing academic_sessions calendar and the existing
+      // teacher_attendance register — no second staff table, no second
+      // attendance ledger:
+      //   leave_types     — the admin-configurable catalogue per madrasa
+      //                     (annual, sick, maternity/paternity, study,
+      //                     emergency, unpaid), each with a default
+      //                     days-per-year entitlement and a paid flag.
+      //   leave_requests  — one application per staff member:
+      //                     pending → approved | rejected | cancelled.
+      //   leave_balances  — the per (staff, type, session) ledger row. It is
+      //                     deliberately a maintained table rather than a
+      //                     database VIEW or TRIGGER: views/triggers differ
+      //                     between SQLite and MySQL, and this project keeps
+      //                     one dialect-neutral schema. server/routes/leave.js
+      //                     recomputes the row from leave_requests whenever a
+      //                     request changes, so the stored numbers can never
+      //                     drift from the approved requests they summarise.
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS leave_types (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          name VARCHAR(80) NOT NULL,
+          name_ar VARCHAR(80) NOT NULL DEFAULT '',
+          code VARCHAR(40) NOT NULL DEFAULT '',
+          days_per_year INT NOT NULL DEFAULT 0,
+          paid INT NOT NULL DEFAULT 1,
+          description VARCHAR(500) NOT NULL DEFAULT '',
+          colour VARCHAR(20) NOT NULL DEFAULT '',
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          sort_order INT NOT NULL DEFAULT 0,
+          created_by INT, created_at ${D.ts()}, updated_at ${D.ts()},
+          UNIQUE (madrasa_id, name)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_leave_types ON leave_types (madrasa_id, status, sort_order, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS leave_requests (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          user_id INT NOT NULL, type_id INT NOT NULL,
+          session_id INT,
+          start_date DATE NOT NULL, end_date DATE NOT NULL,
+          days INT NOT NULL DEFAULT 0,
+          reason TEXT,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          reviewed_by INT, review_note TEXT, reviewed_at ${nullableTs},
+          created_by INT,
+          created_at ${D.ts()}, updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_leave_requests ON leave_requests (madrasa_id, status, start_date, end_date)");
+      await api.run("CREATE INDEX idx_leave_requests_staff ON leave_requests (madrasa_id, user_id, session_id, type_id, status)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS leave_balances (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+          user_id INT NOT NULL, type_id INT NOT NULL, session_id INT NOT NULL,
+          entitlement INT NOT NULL DEFAULT 0,
+          taken INT NOT NULL DEFAULT 0,
+          remaining INT NOT NULL DEFAULT 0,
+          updated_at ${D.ts()},
+          UNIQUE (madrasa_id, user_id, type_id, session_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_leave_balances ON leave_balances (madrasa_id, session_id, user_id, type_id)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

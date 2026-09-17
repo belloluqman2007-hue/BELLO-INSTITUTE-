@@ -277,3 +277,8 @@ router.get(["/report", "/reports"], ADMIN, asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+// Additive export (the router itself is unchanged): the staff-leave module
+// resolves the same term/session context when it writes 'on_leave' rows into
+// this register, instead of duplicating the resolution rules.
+module.exports.termContext = termContext;
+module.exports.TEACHER_STATUSES = TEACHER_STATUSES;

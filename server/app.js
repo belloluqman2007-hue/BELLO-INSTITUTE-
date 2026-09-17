@@ -30,6 +30,7 @@ const { router: resultsRouter } = require("./routes/results");
 const attendanceRouter = require("./routes/attendance");
 const feesRouter = require("./routes/fees");
 const payrollRouter = require("./routes/payroll");
+const leaveRouter = require("./routes/leave");
 const announcementsRouter = require("./routes/announcements");
 const communicationRouter = require("./routes/communication");
 const portalRouter = require("./routes/portal");
@@ -225,6 +226,11 @@ function createApp() {
   // tenant-scoped admin ledger that follows the same mount/guard conventions
   // as the fees module above.
   api.use("/payroll", payrollRouter);
+  // Staff leave (types, requests, approvals, balances, calendar). Same
+  // tenant/role conventions as payroll above; it reuses the existing staff
+  // accounts, academic sessions and teacher_attendance register rather than
+  // introducing a parallel HR system.
+  api.use("/leave", leaveRouter);
   api.use("/announcements", announcementsRouter);
   // Communication is a single tenant-scoped module. The short notification
   // mount is retained for existing portal/integration clients; the admin UI

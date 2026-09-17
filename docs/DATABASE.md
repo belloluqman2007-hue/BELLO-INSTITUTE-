@@ -49,6 +49,9 @@ Current schema (tenant = `madrasa_id` on every madrasa-owned row):
 - `students`, `results`
 - `attendance`, `fee_items`, `fee_payments`
 - `salary_structures`, `pay_periods`, `pay_slips`, `salary_advances` (payroll)
+- `leave_types`, `leave_requests`, `leave_balances` (staff leave — approved
+  leave is also written into `teacher_attendance` as `on_leave`, and
+  `leave_balances` is a maintained summary recomputed from the requests)
 - `announcements`, `grading_config`, `settings`, `platform_settings`
 - `activity_log`
 

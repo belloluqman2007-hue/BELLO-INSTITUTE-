@@ -28,7 +28,11 @@ const TABLE_ORDER = [
   "classes", "subjects", "class_subjects", "teacher_profiles", "teacher_documents",
   "teacher_status_history", "teacher_assignments", "students",
   "parent_links", "fee_items", "fee_payments", "grading_config", "results",
-  "term_summaries", "attendance", "teacher_attendance", "announcements", "settings", "platform_settings",
+  "term_summaries", "attendance", "teacher_attendance",
+  // Staff leave: the type catalogue must exist before the requests and
+  // balances that reference it.
+  "leave_types", "leave_requests", "leave_balances",
+  "announcements", "settings", "platform_settings",
   "admission_requests", "teacher_applications", "teacher_application_history",
   "teacher_application_documents", "timetable_slots",
   // My Institution: albums before images, because an image may point at the

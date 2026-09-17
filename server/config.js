@@ -223,6 +223,80 @@ const AI = {
   get enabled() { return !!(this.apiKey && this.baseUrl); },
 };
 
+/* ---------------------------------------------------------------------------
+   OPTIONAL: OUTBOUND MESSAGE DELIVERY (email / SMS / WhatsApp)
+   Every provider defaults to "none": with no configuration the platform keeps
+   creating in-app notifications and recording communication history, and the
+   external send* calls are silent no-ops. Nothing here is ever exposed to the
+   browser — the admin UI only receives a configured/not-configured flag.
+--------------------------------------------------------------------------- */
+const pick = (value, allowed, fallback) => {
+  const v = String(value || fallback).trim().toLowerCase();
+  return allowed.includes(v) ? v : fallback;
+};
+const EMAIL_PROVIDER = pick(process.env.EMAIL_PROVIDER, ["none", "smtp", "sendgrid", "mailgun"], "none");
+const SMTP_HOST = String(process.env.SMTP_HOST || "").trim();
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_USER = String(process.env.SMTP_USER || "").trim();
+const SMTP_PASS = String(process.env.SMTP_PASS || "");
+const SMTP_FROM = String(process.env.SMTP_FROM || "").trim();
+const SENDGRID_API_KEY = String(process.env.SENDGRID_API_KEY || "").trim();
+const SENDGRID_FROM = String(process.env.SENDGRID_FROM || "").trim();
+const MAILGUN_API_KEY = String(process.env.MAILGUN_API_KEY || "").trim();
+const MAILGUN_DOMAIN = String(process.env.MAILGUN_DOMAIN || "").trim();
+const MAILGUN_FROM = String(process.env.MAILGUN_FROM || "").trim();
+
+// "twillio" is accepted as a spelling variant and normalised to "twilio".
+const SMS_PROVIDER = (() => {
+  const v = pick(process.env.SMS_PROVIDER, ["none", "termii", "twilio", "twillio", "africastalking"], "none");
+  return v === "twillio" ? "twilio" : v;
+})();
+const TERMII_API_KEY = String(process.env.TERMII_API_KEY || "").trim();
+const TERMII_SENDER_ID = String(process.env.TERMII_SENDER_ID || "").trim();
+const TWILIO_ACCOUNT_SID = String(process.env.TWILIO_ACCOUNT_SID || "").trim();
+const TWILIO_AUTH_TOKEN = String(process.env.TWILIO_AUTH_TOKEN || "").trim();
+const TWILIO_FROM = String(process.env.TWILIO_FROM || "").trim();
+const AFRICASTALKING_API_KEY = String(process.env.AFRICASTALKING_API_KEY || "").trim();
+const AFRICASTALKING_USERNAME = String(process.env.AFRICASTALKING_USERNAME || "").trim();
+const AFRICASTALKING_FROM = String(process.env.AFRICASTALKING_FROM || "").trim();
+const WHATSAPP_PROVIDER = pick(process.env.WHATSAPP_PROVIDER, ["none", "twilio"], "none");
+const WHATSAPP_FROM = String(process.env.WHATSAPP_FROM || TWILIO_FROM || "").trim();
+
+const DELIVERY = {
+  email: {
+    provider: EMAIL_PROVIDER,
+    smtp: { host: SMTP_HOST, port: SMTP_PORT, user: SMTP_USER, pass: SMTP_PASS, from: SMTP_FROM },
+    sendgrid: { apiKey: SENDGRID_API_KEY, from: SENDGRID_FROM },
+    mailgun: { apiKey: MAILGUN_API_KEY, domain: MAILGUN_DOMAIN, from: MAILGUN_FROM },
+    get configured() {
+      if (this.provider === "smtp") return !!(this.smtp.host && this.smtp.from);
+      if (this.provider === "sendgrid") return !!(this.sendgrid.apiKey && this.sendgrid.from);
+      if (this.provider === "mailgun") return !!(this.mailgun.apiKey && this.mailgun.domain && this.mailgun.from);
+      return false;
+    },
+  },
+  sms: {
+    provider: SMS_PROVIDER,
+    termii: { apiKey: TERMII_API_KEY, senderId: TERMII_SENDER_ID },
+    twilio: { accountSid: TWILIO_ACCOUNT_SID, authToken: TWILIO_AUTH_TOKEN, from: TWILIO_FROM },
+    africastalking: { apiKey: AFRICASTALKING_API_KEY, username: AFRICASTALKING_USERNAME, from: AFRICASTALKING_FROM },
+    get configured() {
+      if (this.provider === "termii") return !!(this.termii.apiKey && this.termii.senderId);
+      if (this.provider === "twilio") return !!(this.twilio.accountSid && this.twilio.authToken && this.twilio.from);
+      if (this.provider === "africastalking") return !!(this.africastalking.apiKey && this.africastalking.username);
+      return false;
+    },
+  },
+  whatsapp: {
+    provider: WHATSAPP_PROVIDER,
+    twilio: { accountSid: TWILIO_ACCOUNT_SID, authToken: TWILIO_AUTH_TOKEN, from: WHATSAPP_FROM },
+    get configured() {
+      if (this.provider === "twilio") return !!(this.twilio.accountSid && this.twilio.authToken && this.twilio.from);
+      return false;
+    },
+  },
+};
+
 /**
  * Production validation.
  * A misconfigured production database must fail loudly at boot instead of
@@ -392,6 +466,29 @@ module.exports = {
   FLUTTERWAVE_PUBLIC_KEY,
   PAYMENT_GATEWAY,
   PAYMENT_CALLBACK_URL,
+  EMAIL_PROVIDER,
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_FROM,
+  SENDGRID_API_KEY,
+  SENDGRID_FROM,
+  MAILGUN_API_KEY,
+  MAILGUN_DOMAIN,
+  MAILGUN_FROM,
+  SMS_PROVIDER,
+  TERMII_API_KEY,
+  TERMII_SENDER_ID,
+  TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN,
+  TWILIO_FROM,
+  AFRICASTALKING_API_KEY,
+  AFRICASTALKING_USERNAME,
+  AFRICASTALKING_FROM,
+  WHATSAPP_PROVIDER,
+  WHATSAPP_FROM,
+  DELIVERY,
   LOGIN_RATE_LIMIT,
   API_RATE_LIMIT,
   UPLOAD_DIR,

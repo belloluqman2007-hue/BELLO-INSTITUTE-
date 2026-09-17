@@ -7,6 +7,12 @@
  */
 const db = require("../db");
 const { cleanStr, toNum } = require("../util");
+const delivery = require("./delivery");
+
+/* Event types that may leave the dashboard through an external provider. The
+ * in-app notification is ALWAYS created first and is never conditional on a
+ * provider being configured. */
+const DELIVERABLE_TYPES = new Set(["fee_reminder", "payment_received", "announcement", "result_published", "admission_decision"]);
 
 const STAFF_ROLES = ["madrasa_admin", "teacher"];
 const RECIPIENT_ROLES = ["madrasa_admin", "teacher", "student", "parent"];
@@ -89,8 +95,77 @@ async function createNotifications(madrasaId, userIds, payload = {}) {
       [madrasaId, userId, cleanStr(payload.type, 50) || "school_notice", title, body, cleanStr(payload.entity_type, 50), payload.entity_id ? toNum(payload.entity_id, 0) : null, cleanStr(payload.channel, 20) || "in_app"]
     );
     out.push(Number(r.lastInsertRowid));
+    // The in-app notification above is the source of truth; external delivery
+    // is best-effort and can never fail this loop.
+    await dispatchExternal(madrasaId, userId, { type: payload.type, title, body, student_id: payload.student_id || null, sent_by: payload.sent_by || null });
   }
   return out;
+}
+
+/* Historic type names already written by existing routes, mapped onto the
+ * deliverable event list so no caller has to change its payload. */
+const TYPE_ALIASES = { admission_update: "admission_decision", payment_confirmation: "payment_received", school_notice: "announcement" };
+function deliverableType(type) {
+  const t = String(type || "").toLowerCase();
+  const canonical = TYPE_ALIASES[t] || t;
+  return DELIVERABLE_TYPES.has(canonical) ? canonical : "";
+}
+
+/** Preference row for a user: the exact type wins, otherwise the "*" default. */
+async function preferencesFor(madrasaId, userId, type) {
+  const rows = await db.all(
+    "SELECT * FROM notification_preferences WHERE madrasa_id = ? AND user_id = ? AND notification_type IN (?, '*')",
+    [madrasaId, userId, type]
+  );
+  return rows.find((r) => r.notification_type === type) || rows.find((r) => r.notification_type === "*") || null;
+}
+
+/**
+ * Fan an already-created in-app notification out to the recipient's chosen
+ * external channels. Never throws and never blocks the in-app notification:
+ * a failure is recorded in communication_history with status "failed".
+ */
+async function dispatchExternal(madrasaId, userId, payload = {}) {
+  const results = [];
+  try {
+    const type = deliverableType(payload.type);
+    if (!type) return results;
+    const prefs = await preferencesFor(madrasaId, userId, type);
+    if (!prefs) return results;
+    const user = await db.get("SELECT id, full_name, email, phone FROM users WHERE id = ? AND madrasa_id = ? AND is_active = 1", [userId, madrasaId]);
+    if (!user) return results;
+
+    const subject = cleanStr(payload.title, 200) || "School notification";
+    const message = cleanStr(payload.body, 5000);
+    const wanted = [];
+    if (Number(prefs.email) === 1 && delivery.validEmail(user.email)) wanted.push(["email", delivery.validEmail(user.email)]);
+    if (Number(prefs.sms) === 1 && delivery.normalisePhone(user.phone)) wanted.push(["sms", delivery.normalisePhone(user.phone)]);
+    if (Number(prefs.whatsapp) === 1 && delivery.normalisePhone(user.phone)) wanted.push(["whatsapp", delivery.normalisePhone(user.phone)]);
+
+    for (const [channel, address] of wanted) {
+      const r = await delivery.send(channel, address, { subject, message });
+      if (r.skipped) continue; // provider "none" — graceful no-op, nothing logged as failed
+      results.push({ channel, address, result: r });
+      await recordCommunication(madrasaId, {
+        recipient_user_id: userId,
+        parent_user_id: payload.parent_user_id || null,
+        student_id: payload.student_id || null,
+        channel,
+        message_type: type,
+        subject,
+        message,
+        delivery_status: r.ok ? "sent" : "failed",
+        error_message: r.error,
+        provider: r.provider,
+        provider_message_id: r.messageId,
+        recipient_address: address,
+        sent_by: payload.sent_by || null,
+      });
+    }
+  } catch (e) {
+    console.error("[communication] external dispatch failed:", e.message);
+  }
+  return results;
 }
 
 async function notifyAudience(madrasaId, target, payload) {
@@ -103,11 +178,13 @@ async function recordCommunication(madrasaId, payload = {}) {
   const parentId = payload.parent_user_id ? toNum(payload.parent_user_id, 0) : null;
   const r = await db.run(
     `INSERT INTO communication_history
-      (madrasa_id, student_id, recipient_user_id, parent_user_id, channel, message_type, subject, message, delivery_status, sent_by)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [madrasaId, studentId || null, recipientId || null, parentId || null, cleanStr(payload.channel, 20) || "in_app", cleanStr(payload.message_type, 50) || "notice", cleanStr(payload.subject, 200), cleanStr(payload.message, 5000), cleanStr(payload.delivery_status, 20) || "recorded", payload.sent_by ? toNum(payload.sent_by, 0) : null]
+      (madrasa_id, student_id, recipient_user_id, parent_user_id, channel, message_type, subject, message, delivery_status, sent_by,
+       error_message, provider, provider_message_id, recipient_address)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [madrasaId, studentId || null, recipientId || null, parentId || null, cleanStr(payload.channel, 20) || "in_app", cleanStr(payload.message_type, 50) || "notice", cleanStr(payload.subject, 200), cleanStr(payload.message, 5000), cleanStr(payload.delivery_status, 20) || "recorded", payload.sent_by ? toNum(payload.sent_by, 0) : null,
+     cleanStr(payload.error_message, 500), cleanStr(payload.provider, 30), cleanStr(payload.provider_message_id, 160), cleanStr(payload.recipient_address, 255)]
   );
   return Number(r.lastInsertRowid);
 }
 
-module.exports = { STAFF_ROLES, RECIPIENT_ROLES, asIds, audienceUserIds, createNotifications, notifyAudience, recordCommunication };
+module.exports = { STAFF_ROLES, RECIPIENT_ROLES, DELIVERABLE_TYPES, asIds, audienceUserIds, createNotifications, notifyAudience, recordCommunication, dispatchExternal, preferencesFor, deliverableType };

@@ -7,6 +7,7 @@ const { asyncHandler, err, ok, cleanStr, toNum, logActivity } = require("../util
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId } = require("../middleware/tenant");
 const comm = require("../services/communication");
+const delivery = require("../services/delivery");
 const { fileUploader } = require("../middleware/upload");
 const messageAttachment = fileUploader("message-attachments", "attachment", { extensions: [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".jpg", ".jpeg", ".png", ".webp"], maxMb: 15 });
 
@@ -212,6 +213,125 @@ router.get("/history", STAFF, asyncHandler(async (req, res) => {
   const studentId = toNum(req.query.studentId,0); const parentId = toNum(req.query.parentId,0);
   const where = ["madrasa_id = ?"]; const params = [tid]; if (studentId) { where.push("student_id = ?"); params.push(studentId); } if (parentId) { where.push("(parent_user_id = ? OR recipient_user_id = ?)"); params.push(parentId,parentId); }
   ok(res, { history: await db.all(`SELECT * FROM communication_history WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT 500`, params) });
+}));
+
+/* ------------------------- external delivery providers ------------------ */
+/* Read-only provider status. Deliberately returns booleans only — an API key
+ * or password must never reach the browser. */
+router.get("/delivery/providers", ADMIN, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  ok(res, { providers: delivery.providerStatus() });
+}));
+
+/* Delivery log = the existing communication_history table filtered to the
+ * channels that leave the platform (plus in-app rows when asked). */
+router.get("/delivery/log", STAFF, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const where = ["h.madrasa_id = ?"]; const params = [tid];
+  const channel = cleanStr(req.query.channel, 20).toLowerCase();
+  if (channel && channel !== "all") { where.push("h.channel = ?"); params.push(channel); }
+  else where.push("h.channel <> 'in_app'");
+  const status = cleanStr(req.query.status, 20).toLowerCase();
+  if (status && status !== "all") { where.push("h.delivery_status = ?"); params.push(status); }
+  const limit = Math.min(500, Math.max(1, toNum(req.query.limit, 200)));
+  const rows = await db.all(
+    `SELECT h.id, h.channel, h.message_type, h.subject, h.message, h.delivery_status, h.error_message,
+            h.provider, h.provider_message_id, h.recipient_address, h.created_at AS sent_at, h.recipient_user_id,
+            u.full_name AS recipient_name, u.username AS recipient_username
+       FROM communication_history h
+       LEFT JOIN users u ON u.id = h.recipient_user_id AND u.madrasa_id = h.madrasa_id
+      WHERE ${where.join(" AND ")} ORDER BY h.id DESC LIMIT ?`, params.concat([limit])
+  );
+  const totals = await db.all(
+    "SELECT delivery_status AS status, COUNT(*) AS n FROM communication_history WHERE madrasa_id = ? AND channel <> 'in_app' GROUP BY delivery_status",
+    [tid]
+  );
+  ok(res, { log: rows, totals });
+}));
+
+/* Send a single test message to the administrator's own address/number. */
+router.post("/delivery/test", ADMIN, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const b = req.body || {};
+  const channel = cleanStr(b.channel, 20).toLowerCase();
+  if (!["email", "sms", "whatsapp"].includes(channel)) return err(res, 400, "Choose email, sms or whatsapp.");
+  const me = await userInTenant(tid, req.user.id);
+  const recipient = cleanStr(b.to, 255) || (channel === "email" ? (me && me.email) || "" : (me && me.phone) || "");
+  if (!recipient) return err(res, 400, `Add a destination ${channel === "email" ? "email address" : "phone number"} first.`);
+  const message = cleanStr(b.message, 500) || "Test message from your school dashboard. Delivery is working.";
+  const subject = cleanStr(b.subject, 200) || "Delivery test";
+  const result = await delivery.send(channel, recipient, { subject, message });
+  await comm.recordCommunication(tid, {
+    recipient_user_id: req.user.id, channel, message_type: "delivery_test", subject, message,
+    delivery_status: result.ok ? "sent" : result.skipped ? "skipped" : "failed",
+    error_message: result.error || result.reason || "", provider: result.provider,
+    provider_message_id: result.messageId, recipient_address: recipient, sent_by: req.user.id,
+  });
+  await logActivity(db, { madrasaId: tid, userId: req.user.id, action: "delivery.test", entity: "communication", entityId: channel, meta: { ok: !!result.ok }, ip: req.ip });
+  ok(res, { ok: !!result.ok, skipped: !!result.skipped, provider: result.provider, messageId: result.messageId, error: result.error || result.reason || "" });
+}));
+
+/* -------------------------------- bulk send ----------------------------- */
+async function resolveBulkRecipients(tid, target) {
+  const t = cleanStr(target, 60) || "all_parents";
+  if (t.startsWith("class:")) {
+    const classId = toNum(t.slice(6), 0);
+    if (!classId) return [];
+    return db.all(
+      `SELECT DISTINCT u.id, u.full_name, u.username, u.email, u.phone
+         FROM parent_links pl
+         JOIN students s ON s.id = pl.student_id AND s.madrasa_id = pl.madrasa_id
+         JOIN users u ON u.id = pl.user_id AND u.madrasa_id = pl.madrasa_id
+        WHERE pl.madrasa_id = ? AND s.class_id = ? AND u.is_active = 1`, [tid, classId]
+    );
+  }
+  if (t === "outstanding_fees") {
+    const { buildBalances } = require("./fees");
+    const rows = await buildBalances(tid, {});
+    const ids = [...new Set(rows.filter((r) => r.outstanding_balance > 0 && r.parent_user_id).map((r) => Number(r.parent_user_id)))];
+    if (!ids.length) return [];
+    return db.all(
+      `SELECT id, full_name, username, email, phone FROM users WHERE madrasa_id = ? AND is_active = 1 AND id IN (${ids.map(() => "?").join(",")})`,
+      [tid].concat(ids)
+    );
+  }
+  return db.all("SELECT id, full_name, username, email, phone FROM users WHERE madrasa_id = ? AND role = 'parent' AND is_active = 1", [tid]);
+}
+
+router.post("/bulk", ADMIN, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const b = req.body || {};
+  const channel = cleanStr(b.channel, 20).toLowerCase();
+  if (!["sms", "email", "whatsapp"].includes(channel)) return err(res, 400, "Channel must be sms, email or whatsapp.");
+  const target = cleanStr(b.target, 60) || "all_parents";
+  if (!(target === "all_parents" || target === "outstanding_fees" || /^class:\d+$/.test(target))) return err(res, 400, "Unknown target audience.");
+  const message = cleanStr(b.message, 5000);
+  if (!message) return err(res, 400, "Message is required.");
+  const subject = cleanStr(b.subject, 200) || "School message";
+
+  const recipients = await resolveBulkRecipients(tid, target);
+  let sent = 0, failed = 0, skipped = 0;
+  const results = [];
+  for (const user of recipients) {
+    const address = channel === "email" ? delivery.validEmail(user.email) : delivery.normalisePhone(user.phone);
+    if (!address) {
+      failed++;
+      results.push({ user_id: user.id, name: user.full_name || user.username, status: "failed", error: "No contact detail on file." });
+      await comm.recordCommunication(tid, { recipient_user_id: user.id, parent_user_id: user.id, channel, message_type: "bulk_message", subject, message, delivery_status: "failed", error_message: "No contact detail on file.", sent_by: req.user.id });
+      continue;
+    }
+    const r = await delivery.send(channel, address, { subject, message });
+    const status = r.ok ? "sent" : r.skipped ? "skipped" : "failed";
+    if (r.ok) sent++; else if (r.skipped) skipped++; else failed++;
+    results.push({ user_id: user.id, name: user.full_name || user.username, status, error: r.error || r.reason || "" });
+    await comm.recordCommunication(tid, {
+      recipient_user_id: user.id, parent_user_id: user.id, channel, message_type: "bulk_message", subject, message,
+      delivery_status: status, error_message: r.error || r.reason || "", provider: r.provider,
+      provider_message_id: r.messageId, recipient_address: address, sent_by: req.user.id,
+    });
+  }
+  await logActivity(db, { madrasaId: tid, userId: req.user.id, action: "communication.bulk", entity: "communication", entityId: target, meta: { channel, sent, failed, skipped }, ip: req.ip });
+  ok(res, { ok: true, sent, failed, skipped, recipients: recipients.length, results });
 }));
 
 /* Friendly aliases used by integrations while the admin UI keeps the

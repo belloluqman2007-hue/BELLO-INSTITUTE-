@@ -52,6 +52,7 @@
     file: `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
     download: `<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>`,
     refresh: `<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/></svg>`,
+    leave: `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/><path d="m9 15.5 2 2 4-4"/></svg>`,
   };
 
   /* --------------------------------------------------------------------
@@ -146,6 +147,13 @@
         // category terms.
         key: "payroll", label: "Payroll", icon: "payroll",
         items: [["Salary Structures", "payroll/structures"], ["Pay Periods", "payroll/periods"], ["Payslips", "payroll/payslips"], ["Advances & Loans", "payroll/advances"]],
+      },
+      {
+        // Staff leave sits beside payroll as the other staff/HR ledger. Both
+        // institution categories get the identical module — only wording
+        // varies through the category terms.
+        key: "hr", label: "Staff Leave", icon: "leave",
+        items: [["Leave Requests", "hr/requests"], ["Leave Calendar", "hr/calendar"], ["Leave Balances", "hr/balances"], ["Leave Types", "hr/types"], ["My Leave", "hr/my-leave"]],
       },
       {
         key: "settings", label: "Settings", icon: "settings",
@@ -557,7 +565,7 @@
       dashboard: "Dashboard", institution: t.myInstitutionLabel, students: "Students",
       teachers: "Teachers", classes: "Classes", subjects: t.subjectsLabel, attendance: "Attendance",
       academic: "Academic", quran: "Qur'an / Islamic Education", admissions: "Admissions",
-      communication: "Communication", finance: "Finance", payroll: "Payroll", website: "Website", settings: "Settings",
+      communication: "Communication", finance: "Finance", payroll: "Payroll", hr: "Staff Leave", website: "Website", settings: "Settings",
     };
     return map[top] || "Dashboard";
   }
@@ -770,6 +778,12 @@
       // design system, exactly like the Academic & Admissions workspace.
       if (window.BelloPayroll && window.BelloPayroll.handles(route)) {
         return await window.BelloPayroll.render({ I, esc, T, go, toast, openModal, closeModal, statCard, fmtDate, fmtMoney, options, emptyRow, pillFor, catalogue, allTerms, todayIso, bindRouteButtons, state }, content, route);
+      }
+
+      // Staff leave (requests, approvals, calendar, balances, self-service)
+      // renders through the same contract as the payroll workspace above.
+      if (window.BelloLeave && window.BelloLeave.handles(route)) {
+        return await window.BelloLeave.render({ I, esc, T, go, toast, openModal, closeModal, statCard, fmtDate, fmtMoney, options, emptyRow, pillFor, catalogue, allTerms, todayIso, bindRouteButtons, state }, content, route);
       }
 
       // Account, access controls and notification preferences

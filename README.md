@@ -126,7 +126,8 @@ server/            Express API (Node 22, no framework magic)
   routes/          auth, platform, madrasa, students, teachers, classes/
                    subjects/sessions/grading, results, attendance, fees,
                    announcements, portal, public (logged-out site),
-                   admissions, timetable, exports, backups
+                   admissions, timetable, payroll, leave (staff leave),
+                   exports, backups
   services/        grading engine (configurable per madrasa), admissions,
                    analytics (dashboard aggregates, tenant- and platform-wide),
                    persistence (storage probe), backup (snapshot/restore),
@@ -219,7 +220,7 @@ render.yaml        NEW Render service definition (production)
 ## Future SaaS roadmap (designed for, NOT built)
 
 Subscriptions and public payment, provider-backed SMS/WhatsApp/email delivery,
-certificates, ID cards, library, expenses, payroll and a native mobile app.
-(Timetables, online admissions, assignments and public result checking are now
-built; public *payment* of fees is not.) The schema and routes are shaped so
+certificates, ID cards, library, expenses and a native mobile app.
+(Timetables, online admissions, assignments, public result checking, payroll
+and staff leave are now built; public *payment* of fees is not.) The schema and routes are shaped so
 these can be added without re-architecture — no payment gateway is connected.

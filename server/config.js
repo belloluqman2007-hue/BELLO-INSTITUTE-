@@ -188,6 +188,12 @@ const PUBLIC_URL = String(process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "
 //   e.g.   -> https://api.your-new-domain for a separately hosted API
 const API_BASE_URL = String(process.env.API_BASE_URL || "").trim().replace(/\/+$/, "");
 const EFFECTIVE_API_BASE = API_BASE_URL || "/api";
+const PAYSTACK_SECRET_KEY = String(process.env.PAYSTACK_SECRET_KEY || "").trim();
+const PAYSTACK_PUBLIC_KEY = String(process.env.PAYSTACK_PUBLIC_KEY || "").trim();
+const FLUTTERWAVE_SECRET_KEY = String(process.env.FLUTTERWAVE_SECRET_KEY || "").trim();
+const FLUTTERWAVE_PUBLIC_KEY = String(process.env.FLUTTERWAVE_PUBLIC_KEY || "").trim();
+const PAYMENT_GATEWAY = ["paystack", "flutterwave", "none"].includes(String(process.env.PAYMENT_GATEWAY || "none").toLowerCase()) ? String(process.env.PAYMENT_GATEWAY || "none").toLowerCase() : "none";
+const PAYMENT_CALLBACK_URL = String(process.env.PAYMENT_CALLBACK_URL || "").trim();
 const CORS_ORIGINS = String(process.env.CORS_ORIGINS || "")
   .split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
 
@@ -380,6 +386,12 @@ module.exports = {
   SUPER_ADMIN_PASSWORD,
   PUBLIC_URL,
   CORS_ORIGINS,
+  PAYSTACK_SECRET_KEY,
+  PAYSTACK_PUBLIC_KEY,
+  FLUTTERWAVE_SECRET_KEY,
+  FLUTTERWAVE_PUBLIC_KEY,
+  PAYMENT_GATEWAY,
+  PAYMENT_CALLBACK_URL,
   LOGIN_RATE_LIMIT,
   API_RATE_LIMIT,
   UPLOAD_DIR,

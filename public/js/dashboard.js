@@ -29,6 +29,7 @@
     admissions: `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>`,
     chat: `<svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
     money: `<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v0M18 18v0"/></svg>`,
+    payroll: `<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18M16 7V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2M16 15.5h2"/></svg>`,
     globe: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.4 3.7 5.4 3.7 9s-1.3 6.6-3.7 9c-2.4-2.4-3.7-5.4-3.7-9S9.6 5.4 12 3Z"/></svg>`,
     settings: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1Z"/></svg>`,
     plus: `<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
@@ -138,6 +139,13 @@
       {
         key: "finance", label: "Finance", icon: "money",
         items: [[t.feesLabel, "finance/fees"], ["Payments", "finance/payments"], ["Outstanding Fees", "finance/outstanding"], ["Fee Records", "finance/records"], ["Financial Reports", "finance/reports"]],
+      },
+      {
+        // Payroll is the staff-salary ledger. Both institution categories
+        // share the same engine and screens; only copy varies through the
+        // category terms.
+        key: "payroll", label: "Payroll", icon: "payroll",
+        items: [["Salary Structures", "payroll/structures"], ["Pay Periods", "payroll/periods"], ["Payslips", "payroll/payslips"], ["Advances & Loans", "payroll/advances"]],
       },
       {
         key: "settings", label: "Settings", icon: "settings",
@@ -549,7 +557,7 @@
       dashboard: "Dashboard", institution: t.myInstitutionLabel, students: "Students",
       teachers: "Teachers", classes: "Classes", subjects: t.subjectsLabel, attendance: "Attendance",
       academic: "Academic", quran: "Qur'an / Islamic Education", admissions: "Admissions",
-      communication: "Communication", finance: "Finance", website: "Website", settings: "Settings",
+      communication: "Communication", finance: "Finance", payroll: "Payroll", website: "Website", settings: "Settings",
     };
     return map[top] || "Dashboard";
   }
@@ -756,6 +764,13 @@
       if (route === "finance/payments" || route === "finance/records") return await pagePayments(content);
       if (route === "finance/outstanding") return await pageOutstandingFees(content);
       if (route === "finance/reports") return await pageFinanceReport(content);
+
+      // Payroll (salary structures, pay periods, payslips, advances) is a
+      // self-contained module that renders inside this unchanged shell and
+      // design system, exactly like the Academic & Admissions workspace.
+      if (window.BelloPayroll && window.BelloPayroll.handles(route)) {
+        return await window.BelloPayroll.render({ I, esc, T, go, toast, openModal, closeModal, statCard, fmtDate, fmtMoney, options, emptyRow, pillFor, catalogue, allTerms, todayIso, bindRouteButtons, state }, content, route);
+      }
 
       // Account, access controls and notification preferences
       if (route === "settings/account" || route === "settings/security") return await pageAccountSettings(content);

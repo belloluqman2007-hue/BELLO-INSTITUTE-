@@ -48,6 +48,7 @@ Current schema (tenant = `madrasa_id` on every madrasa-owned row):
 - `classes`, `subjects`, `class_subjects`, `teacher_assignments`
 - `students`, `results`
 - `attendance`, `fee_items`, `fee_payments`
+- `salary_structures`, `pay_periods`, `pay_slips`, `salary_advances` (payroll)
 - `announcements`, `grading_config`, `settings`, `platform_settings`
 - `activity_log`
 

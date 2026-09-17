@@ -36,7 +36,7 @@ router.get("/csrf-token", (req, res) => {
 function csrfGuard(req, res, next) {
   if (!["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) return next();
   const path = req.path;
-  if (path.startsWith("/auth/login") || path.startsWith("/csrf-token")) return next();
+  if (path.startsWith("/auth/login") || path.startsWith("/csrf-token") || path.endsWith("/fees/payment/webhook")) return next();
   const token = String(req.get("x-csrf-token") || "");
   if (!token || token !== (req.session && req.session.csrfToken)) {
     return res.status(403).json({ error: "CSRF token missing or invalid. Refresh the page and try again." });

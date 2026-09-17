@@ -1873,6 +1873,15 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_leave_balances ON leave_balances (madrasa_id, session_id, user_id, type_id)");
     },
   },
+  {
+    id: "025_online_fee_payments",
+    up: async (api, dialect) => {
+      for (const [name, type] of [["gateway", "VARCHAR(30) NOT NULL DEFAULT 'none'"], ["gateway_event_id", "VARCHAR(160) NOT NULL DEFAULT ''"]]) {
+        try { await api.run(`ALTER TABLE fee_payments ADD COLUMN ${name} ${type}`); } catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      }
+      await api.run("CREATE INDEX idx_fee_payment_reference ON fee_payments (madrasa_id, reference, transaction_number)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

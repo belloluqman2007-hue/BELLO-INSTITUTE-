@@ -29,6 +29,7 @@ const classesRouter = require("./routes/classes");
 const { router: resultsRouter } = require("./routes/results");
 const attendanceRouter = require("./routes/attendance");
 const feesRouter = require("./routes/fees");
+const paymentRouter = require("./routes/payment");
 const payrollRouter = require("./routes/payroll");
 const leaveRouter = require("./routes/leave");
 const announcementsRouter = require("./routes/announcements");
@@ -183,6 +184,7 @@ function createApp() {
       apiBase: config.EFFECTIVE_API_BASE,
       appName: "Multi-Madrasa Management Platform",
       env: config.NODE_ENV,
+      paymentGateway: config.PAYMENT_GATEWAY,
     });
   });
 
@@ -221,6 +223,9 @@ function createApp() {
   api.use("/teachers", teachersRouter);
   api.use("/results", resultsRouter);
   api.use("/attendance", attendanceRouter);
+  // Payment callback/webhook are intentionally mounted before the authenticated API
+  // router; initiate/status still enforce session and tenant guards themselves.
+  api.use("/fees/payment", paymentRouter);
   api.use("/fees", feesRouter);
   // Payroll (salary structures, pay periods, payslips, advances) is a separate
   // tenant-scoped admin ledger that follows the same mount/guard conventions

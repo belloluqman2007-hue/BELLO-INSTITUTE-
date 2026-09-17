@@ -1883,6 +1883,37 @@ const MIGRATIONS = [
     },
   },
   {
+    id: "028_library_module",
+    up: async (api, dialect) => {
+      await api.run(`CREATE TABLE IF NOT EXISTS library_books (
+        id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL,
+        title VARCHAR(240) NOT NULL, author VARCHAR(180) NOT NULL DEFAULT '',
+        isbn VARCHAR(40) NOT NULL DEFAULT '', publisher VARCHAR(160) NOT NULL DEFAULT '',
+        year INT, subject_id INT, category VARCHAR(100) NOT NULL DEFAULT '',
+        language VARCHAR(60) NOT NULL DEFAULT '', total_copies INT NOT NULL DEFAULT 1,
+        available_copies INT NOT NULL DEFAULT 1, cover_image_path VARCHAR(255) NOT NULL DEFAULT '',
+        description TEXT, is_archived INT NOT NULL DEFAULT 0, created_at ${D.ts()}
+      )${D.engine(dialect)}`);
+      await api.run("CREATE INDEX idx_library_books_catalogue ON library_books (madrasa_id, is_archived, category, subject_id)");
+      await api.run(`CREATE TABLE IF NOT EXISTS library_loans (
+        id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, book_id INT NOT NULL,
+        borrower_user_id INT NOT NULL, borrower_type VARCHAR(20) NOT NULL,
+        issued_by INT NOT NULL, issue_date DATE NOT NULL, due_date DATE NOT NULL,
+        return_date DATE, status VARCHAR(20) NOT NULL DEFAULT 'active',
+        fine_ngn DECIMAL(10,2) NOT NULL DEFAULT 0, notes TEXT, created_at ${D.ts()}
+      )${D.engine(dialect)}`);
+      await api.run("CREATE INDEX idx_library_loans_active ON library_loans (madrasa_id, status, due_date, book_id)");
+      await api.run("CREATE INDEX idx_library_loans_borrower ON library_loans (madrasa_id, borrower_user_id, borrower_type)");
+      await api.run(`CREATE TABLE IF NOT EXISTS library_fines (
+        id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, loan_id INT NOT NULL,
+        student_id INT, amount_ngn DECIMAL(10,2) NOT NULL DEFAULT 0,
+        paid INT NOT NULL DEFAULT 0, paid_at ${dialect === "mysql" ? "TIMESTAMP NULL" : "TIMESTAMP"},
+        created_at ${D.ts()}, UNIQUE (madrasa_id, loan_id)
+      )${D.engine(dialect)}`);
+      await api.run("CREATE INDEX idx_library_fines_status ON library_fines (madrasa_id, paid, created_at)");
+    },
+  },
+  {
     // Outbound delivery (email/SMS/WhatsApp) reuses the existing
     // communication_history table as the delivery log — no new table. These
     // columns record what an external provider did with each attempt.

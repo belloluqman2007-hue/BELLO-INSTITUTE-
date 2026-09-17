@@ -134,6 +134,10 @@
         items: [["Applications", "admissions/applications"], ["Admission Status", "admissions/status"], ["Admission Requirements", "admissions/requirements"], ["Admission Settings", "admissions/settings"]],
       },
       {
+        key: "library", label: "Library", icon: "book",
+        items: [["Book Catalogue", "library/catalogue"], ["Issue Book", "library/issue"], ["Active Loans", "library/loans"], ["Overdue & Fines", "library/overdue"], ["Library Reports", "library/reports"]],
+      },
+      {
         key: "communication", label: "Communication", icon: "chat",
         items: [["Announcements", "communication/announcements"], ["Messages", "communication/messages"], ["Notifications", "communication/notifications"], ["Parent Communication", "communication/parents"]],
       },
@@ -748,6 +752,12 @@
       // module but renders inside this unchanged dashboard shell/design system.
       if (window.BelloAcademicAdmissions && window.BelloAcademicAdmissions.handles(route)) {
         return await window.BelloAcademicAdmissions.render({ I, esc, go, toast, openModal, closeModal, statCard, fmtDate, options, emptyRow, pillFor, catalogue, allTerms, todayIso, bindRouteButtons, state }, content, route);
+      }
+
+      // Library is shared by Islamic and Western institutions. It uses the
+      // same tenant-scoped API and dashboard design system in both categories.
+      if (window.BelloLibrary && window.BelloLibrary.handles(route)) {
+        return await window.BelloLibrary.render({ I, esc, go, toast, openModal, closeModal, statCard, fmtDate, state }, content, route);
       }
 
       // Attendance and academics

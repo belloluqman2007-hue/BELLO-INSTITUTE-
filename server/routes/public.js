@@ -510,6 +510,31 @@ router.post("/results/verify", verifyLimiter, asyncHandler(async (req, res) => {
   });
 }));
 
+/**
+ * The ID-card QR target is a deliberately small, signed public projection.
+ * It reveals only the same identity fields printed on the card and expires
+ * after 15 minutes; it never exposes guardian, finance or academic records.
+ */
+router.get("/student-profile/:token", publicLimiter, asyncHandler(async (req, res) => {
+  const payload = tokens.verify(req.params.token, "public-student-profile");
+  if (!payload) return err(res, 403, "This profile link has expired.");
+  const student = await db.get(`
+    SELECT s.first_name, s.middle_name, s.last_name, s.admission_no, s.photo_path,
+           c.name_en AS class_name, a.label AS session_label,
+           m.name_en AS institution_name, m.logo_path, m.motto_en
+    FROM students s
+    LEFT JOIN classes c ON c.id=s.class_id AND c.madrasa_id=s.madrasa_id
+    LEFT JOIN academic_sessions a ON a.id=s.session_id AND a.madrasa_id=s.madrasa_id
+    JOIN madaris m ON m.id=s.madrasa_id
+    WHERE s.id=? AND s.madrasa_id=? AND m.status='active'
+  `, [Number(payload.s), Number(payload.m)]);
+  if (!student) return err(res, 404, "Student profile not found.");
+  const esc = (value) => String(value === null || value === undefined ? "" : value).replace(/[&<>\"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;", "'": "&#39;" }[c]));
+  const asset = (value) => /^\/uploads\/[A-Za-z0-9_./-]+$/.test(String(value || "")) ? String(value) : "";
+  const name = [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ");
+  res.type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Student profile — ${esc(name)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f6fa;color:#182133;font:16px Arial,sans-serif}.profile{width:min(420px,calc(100% - 32px));background:#fff;border:1px solid #d8e0eb;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px #1b315018}.head{display:flex;align-items:center;gap:12px;padding:18px;background:#1f3154;color:#fff}.head img{width:48px;height:48px;object-fit:contain;background:#fff;border-radius:50%}.head h1{font-size:18px;margin:0}.head p{margin:4px 0 0;opacity:.8;font-size:12px}.body{text-align:center;padding:24px}.photo{width:120px;height:145px;object-fit:cover;border-radius:10px;background:#e8edf4}.body h2{font-size:23px;margin:16px 0 6px}.body p{color:#667085;margin:6px}.label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#718096;margin-top:18px}</style></head><body><main class="profile"><header class="head">${asset(student.logo_path) ? `<img src="${esc(asset(student.logo_path))}" alt="School logo">` : ""}<div><h1>${esc(student.institution_name)}</h1><p>${esc(student.motto_en || "Student profile")}</p></div></header><section class="body">${asset(student.photo_path) ? `<img class="photo" src="${esc(asset(student.photo_path))}" alt="">` : ""}<h2>${esc(name)}</h2><p class="label">Admission number</p><p>${esc(student.admission_no)}</p><p class="label">Class · session</p><p>${esc(student.class_name || "Not assigned")} · ${esc(student.session_label || "Not set")}</p></section></main></body></html>`);
+}));
+
 /** Serves a report card for a verified, still-valid token (no session needed). */
 router.get("/results/report/:token", publicLimiter, asyncHandler(async (req, res) => {
   const payload = tokens.verify(req.params.token, "public-report");

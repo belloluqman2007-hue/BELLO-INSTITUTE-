@@ -44,6 +44,7 @@ const backupsRouter = require("./routes/backups").router;
 const quranProgressRouter = require("./routes/quran-progress");
 const academicRouter = require("./routes/academic");
 const libraryRouter = require("./routes/library");
+const documentsRouter = require("./routes/documents");
 const institution = require("./services/institution");
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
@@ -259,6 +260,10 @@ function createApp() {
   // uses the grouped /api/academic/exams address.
   api.use("/exams", academicRouter);
   api.use("/exports", exportsRouter);
+  // Server-rendered ID cards and certificates. This mount remains inside the
+  // authenticated API/session stack, while the route module applies its own
+  // staff/admin role guards and tenant predicates.
+  api.use("/documents", documentsRouter);
   api.use("/", extrasRouter); // /api/chat, /api/homework, /api/notifications, /api/users
   // Backups & storage diagnostics (super admin). Mounted before /platform so
   // the platform router never sees these paths.

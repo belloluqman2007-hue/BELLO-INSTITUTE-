@@ -1932,6 +1932,45 @@ const MIGRATIONS = [
       catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "029_documents_certificates",
+    up: async (api, dialect) => {
+      // Printable documents use the existing students, classes, sessions and
+      // institution records. These two tenant-owned tables only store the
+      // reusable template and the issued certificate metadata.
+      const templateType = dialect === "mysql"
+        ? "ENUM('graduation','achievement','completion','participation','custom') NOT NULL DEFAULT 'custom'"
+        : "VARCHAR(30) NOT NULL DEFAULT 'custom'";
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS certificate_templates (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          name VARCHAR(160) NOT NULL,
+          type ${templateType},
+          html_template TEXT NOT NULL,
+          archived_at ${dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT"},
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_certificate_templates_tenant ON certificate_templates (madrasa_id, archived_at, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS certificates (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          student_id INT NOT NULL,
+          template_id INT NOT NULL,
+          custom_fields ${dialect === "mysql" ? "JSON NOT NULL" : "TEXT NOT NULL"},
+          issued_date DATE NOT NULL,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_certificates_student ON certificates (madrasa_id, student_id, issued_date, id)");
+      await api.run("CREATE INDEX idx_certificates_template ON certificates (madrasa_id, template_id, id)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

@@ -1730,6 +1730,74 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_website_contact_messages ON website_contact_messages (madrasa_id, status, created_at)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "025_payroll",
+    up: async (api, dialect) => {
+      // Payroll for tenant administrators. Four tenant-scoped tables:
+      //   salary_structures — grade, base salary and the allowance/deduction
+      //                      catalogue per teacher (users.user_id)
+      //   pay_periods      — one calendar month inside an academic session;
+      //                      draft → processed → paid
+      //   pay_slips        — computed gross/deductions/net per teacher per
+      //                      period (deductions is JSON, incl. advance
+      //                      repayments so re-processing can restore balances)
+      //   salary_advances  — loans/advances repaid automatically from monthly
+      //                      payslips until the balance reaches zero
+      // TEXT/JSON columns carry NO database default (MySQL rejects DEFAULT on
+      // TEXT); the application always supplies '{}' / computed JSON.
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS salary_structures (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, user_id INT NOT NULL,
+          grade VARCHAR(60) NOT NULL DEFAULT '',
+          base_ngn DECIMAL(12,2) NOT NULL DEFAULT 0,
+          allowances TEXT, deductions TEXT,
+          effective_from DATE,
+          created_by INT, created_at ${D.ts()}, updated_at ${D.ts()},
+          UNIQUE (madrasa_id, user_id, effective_from)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_salary_structures ON salary_structures (madrasa_id, user_id, effective_from)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS pay_periods (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, session_id INT NOT NULL,
+          month INT NOT NULL, year INT NOT NULL,
+          status VARCHAR(20) NOT NULL DEFAULT 'draft',
+          created_by INT, created_at ${D.ts()}, updated_at ${D.ts()},
+          UNIQUE (madrasa_id, year, month)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_pay_periods ON pay_periods (madrasa_id, session_id, status)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS pay_slips (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, pay_period_id INT NOT NULL,
+          user_id INT NOT NULL,
+          gross DECIMAL(12,2) NOT NULL DEFAULT 0,
+          deductions TEXT, net DECIMAL(12,2) NOT NULL DEFAULT 0,
+          paid_at ${nullableTs},
+          created_by INT, created_at ${D.ts()}, updated_at ${D.ts()},
+          UNIQUE (madrasa_id, pay_period_id, user_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_pay_slips ON pay_slips (madrasa_id, pay_period_id, user_id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS salary_advances (
+          id ${D.autoInc(dialect)}, madrasa_id INT NOT NULL, user_id INT NOT NULL,
+          amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+          reason VARCHAR(255) NOT NULL DEFAULT '',
+          repayment_months INT NOT NULL DEFAULT 1,
+          balance DECIMAL(12,2) NOT NULL DEFAULT 0,
+          created_by INT, created_at ${D.ts()}, updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_salary_advances ON salary_advances (madrasa_id, user_id, balance)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

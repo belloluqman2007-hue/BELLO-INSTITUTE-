@@ -1766,9 +1766,47 @@
   }
   async function pageParentCommunication(content) {
     const [directory, students] = await Promise.all([window.API.get("/communication/parents"), window.API.get("/students?perPage=200")]); const parents = directory.parents || [];
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Communication</div><h2>Parent Communication</h2><p>Use the existing parent/guardian links to contact one family, a class or a student. Every delivery is recorded in communication history.</p></div><button class="dash-btn dash-btn-primary" id="messageParents">${I.plus} Contact parents</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Parent / guardian</th><th>Contact</th><th>Linked student(s)</th><th></th></tr></thead><tbody>${parents.length ? parents.map((p) => `<tr><td><strong>${esc(p.full_name || p.username)}</strong><small>@${esc(p.username)}</small></td><td>${esc(p.phone || p.email || "—")}</td><td>${esc((p.children || []).map((c) => `${c.first_name} ${c.last_name}`.trim()).join(", ") || "No linked students")}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-parent-id="${p.id}">History</button></td></tr>`).join("") : emptyRow(4, "No parent portal accounts yet. Use the existing student-parent relationship workflow to link families.")}</tbody></table></div></div><p class="hint" style="margin-top:12px">${students.total || 0} student record(s) are available for parent linking. Email, SMS and WhatsApp delivery remain provider-controlled; in-app delivery is recorded now.</p>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Communication</div><h2>Parent Communication</h2><p>Use the existing parent/guardian links to contact one family, a class or a student. Every delivery is recorded in communication history.</p></div><button class="dash-btn dash-btn-primary" id="messageParents">${I.plus} Contact parents</button></div><div class="dash-tabs" style="margin-bottom:14px"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-comm-tab="directory">Parent directory</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-comm-tab="bulk">Bulk send</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-comm-tab="log">Delivery log</button></div><div id="commTabPanel"></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Parent / guardian</th><th>Contact</th><th>Linked student(s)</th><th></th></tr></thead><tbody>${parents.length ? parents.map((p) => `<tr><td><strong>${esc(p.full_name || p.username)}</strong><small>@${esc(p.username)}</small></td><td>${esc(p.phone || p.email || "—")}</td><td>${esc((p.children || []).map((c) => `${c.first_name} ${c.last_name}`.trim()).join(", ") || "No linked students")}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-parent-id="${p.id}">History</button></td></tr>`).join("") : emptyRow(4, "No parent portal accounts yet. Use the existing student-parent relationship workflow to link families.")}</tbody></table></div></div><p class="hint" style="margin-top:12px">${students.total || 0} student record(s) are available for parent linking. Email, SMS and WhatsApp delivery remain provider-controlled; in-app delivery is recorded now.</p>`;
     content.querySelector("#messageParents").addEventListener("click", async () => { const modal=openModal("Contact parents", `<form id="parentMessageForm"><div class="dash-form-grid"><div class="dash-field"><label>Parent(s)</label><select name="parent_ids" multiple size="5">${parents.map((p)=>`<option value="${p.id}">${esc(p.full_name||p.username)}</option>`).join("")}</select></div><div class="dash-field"><label>Class (optional)</label><select name="class_id"><option value="">Choose a class</option></select></div><div class="dash-field"><label>Student (optional)</label><select name="student_id"><option value="">Choose a student</option>${(students.students||[]).map((s)=>`<option value="${s.id}">${esc(s.admission_no)} — ${esc(s.first_name)} ${esc(s.last_name)}</option>`).join("")}</select></div><div class="dash-field"><label>Type</label><select name="message_type"><option value="parent_message">General message</option><option value="attendance_alert">Attendance alert</option><option value="fee_reminder">Fee reminder</option><option value="result_notification">Result notification</option><option value="admission_update">Admission update</option></select></div><div class="dash-field" style="grid-column:1/-1"><label>Message</label><textarea name="message" required rows="6"></textarea></div></div><button class="dash-btn dash-btn-primary" type="submit">${I.check} Send and record</button></form>`); const classes=await window.API.get("/classes").catch(()=>({classes:[]})); modal.querySelector("[name=class_id]").innerHTML='<option value="">Choose a class</option>'+options(classes.classes||[]); modal.querySelector("#parentMessageForm").addEventListener("submit",async(e)=>{e.preventDefault();const f=e.target;try{await window.API.post("/communication/parents/send",{parent_ids:[...f.elements.parent_ids.selectedOptions].map((x)=>Number(x.value)),class_id:f.elements.class_id.value,student_id:f.elements.student_id.value,message_type:f.elements.message_type.value,message:f.elements.message.value});toast("Parent communication sent and recorded.","success");closeModal();pageParentCommunication(content);}catch(err){toast(err.message||"Could not contact parents.","error");}}); });
     content.querySelectorAll("[data-parent-id]").forEach((b)=>b.addEventListener("click",async()=>{try{const d=await window.API.get(`/communication/parents/${b.dataset.parentId}/history`);openModal("Communication history",`<div class="dash-message-list">${(d.history||[]).map((h)=>`<article class="dash-note"><strong>${esc(h.subject||h.message_type)}</strong><p>${esc(h.message)}</p><small>${esc(h.channel)} · ${fmtDate(h.created_at)}</small></article>`).join("")||'<p class="hint">No communication recorded.</p>'}</div>`);}catch(err){toast(err.message||"Could not load history.","error");}}));
+    const panel = content.querySelector("#commTabPanel");
+    const tabs = content.querySelectorAll("[data-comm-tab]");
+    const showTab = async (name) => {
+      tabs.forEach((t) => t.classList.toggle("dash-btn-primary", t.dataset.commTab === name));
+      if (name === "directory") { panel.innerHTML = ""; return; }
+      if (name === "bulk") return renderBulkSend(panel, () => showTab("log"));
+      return renderDeliveryLog(panel);
+    };
+    tabs.forEach((t) => t.addEventListener("click", () => showTab(t.dataset.commTab)));
+    showTab("directory");
+  }
+
+  /* Bulk send uses the same delivery service as every automatic notification;
+   * only the audience differs. Admin-only on the server. */
+  async function renderBulkSend(panel, onSent) {
+    let classes = [];
+    try { classes = (await window.API.get("/classes")).classes || []; } catch (e) { classes = []; }
+    panel.innerHTML = `<div class="dash-card"><div class="dash-card-head"><h3>Bulk send</h3></div><div class="dash-card-pad"><form id="bulkSendForm"><div class="dash-form-grid"><div class="dash-field"><label>Audience</label><select name="target"><option value="all_parents">All parents</option><option value="outstanding_fees">Parents with outstanding fees</option>${classes.map((c) => `<option value="class:${c.id}">Class — ${esc(c.name_en)}</option>`).join("")}</select></div><div class="dash-field"><label>Channel</label><select name="channel"><option value="sms">SMS</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option></select></div><div class="dash-field"><label>Subject</label><input name="subject" placeholder="School message"></div><div class="dash-field" style="grid-column:1/-1"><label>Message</label><textarea name="message" rows="5" required></textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Send to audience</button></form><p class="hint" style="margin-top:12px">Every attempt is written to the delivery log, whether it succeeds or fails.</p></div></div>`;
+    panel.querySelector("#bulkSendForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
+      try {
+        const r = await window.API.post("/communication/bulk", Object.fromEntries(new FormData(e.target)));
+        toast(`Sent ${r.sent || 0}, failed ${r.failed || 0}${r.skipped ? `, skipped ${r.skipped}` : ""}.`, r.failed ? "error" : "success");
+        if (onSent) onSent();
+      } catch (err) { toast(err.message || "Could not send the bulk message.", "error"); }
+      btn.disabled = false;
+    });
+  }
+
+  async function renderDeliveryLog(panel) {
+    panel.innerHTML = `<div class="dash-card"><div class="dash-card-pad"><p class="hint">Loading delivery log…</p></div></div>`;
+    let data = { log: [] };
+    try { data = await window.API.get("/communication/delivery/log"); }
+    catch (e) { panel.innerHTML = `<p class="dash-error">${esc(e.message || "Could not load the delivery log.")}</p>`; return; }
+    const rows = data.log || [];
+    const pill = (s) => s === "sent" ? "ok" : s === "failed" ? "warn" : "info";
+    panel.innerHTML = `<div class="dash-card"><div class="dash-card-head"><h3>Delivery log</h3></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Channel</th><th>Recipient</th><th>Status</th><th>Sent at</th><th>Error</th></tr></thead><tbody>${rows.length ? rows.map((r) => `<tr><td>${esc(r.channel)}</td><td>${esc(r.recipient_name || r.recipient_username || "—")}<small>${esc(r.recipient_address || "")}</small></td><td><span class="dash-pill ${pill(r.delivery_status)}">${esc(r.delivery_status)}</span></td><td>${fmtDate(r.sent_at)}</td><td>${esc(r.error_message || "—")}</td></tr>`).join("") : emptyRow(5, "No external messages have been sent yet.")}</tbody></table></div></div>`;
   }
 
   /* ============================== FINANCE =============================== */
@@ -1806,6 +1844,41 @@
     const data = await window.API.get("/madrasa/settings"); const s = data.settings || {};
     content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Notification Settings</h2><p>Choose administrator notification preferences. The system always keeps in-dashboard notices available.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="notificationSettings"><label class="dash-toggle"><input type="checkbox" name="notify_admissions" ${s.notify_admissions === "1" ? "checked" : ""}><span>Show new admission alerts in the dashboard</span></label><label class="dash-toggle"><input type="checkbox" name="notify_results" ${s.notify_results === "1" ? "checked" : ""}><span>Show unpublished-result alerts in the dashboard</span></label><label class="dash-toggle"><input type="checkbox" name="notify_email" ${s.notify_email === "1" ? "checked" : ""}><span>Use the institution email as the notification contact</span></label><div class="dash-field" style="margin-top:16px"><label>Notification contact email</label><input type="email" name="notification_email" value="${esc(s.notification_email || "")}" placeholder="admin@example.org"></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save preferences</button></form><p class="hint" style="margin-top:14px">Email or SMS delivery is not connected until an operator configures a provider. These preferences are saved safely now and do not claim a message was sent.</p></div></div>`;
     content.querySelector("#notificationSettings").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.put("/madrasa/settings", { notify_admissions: fd.get("notify_admissions") === "on" ? "1" : "0", notify_results: fd.get("notify_results") === "on" ? "1" : "0", notify_email: fd.get("notify_email") === "on" ? "1" : "0", notification_email: fd.get("notification_email") }); toast("Notification preferences saved.", "success"); } catch (err) { toast(err.message || "Could not save notification preferences.", "error"); } });
+
+    await renderDeliveryProviders(content);
+  }
+
+  /* Delivery providers: which external channel is wired up, and a test button
+   * for each. API keys are never sent to the browser — the API returns only a
+   * configured/not-configured flag per channel. */
+  async function renderDeliveryProviders(content) {
+    const host = document.createElement("div");
+    host.id = "deliveryProviders";
+    host.style.marginTop = "18px";
+    content.appendChild(host);
+    let providers = {};
+    try { providers = (await window.API.get("/communication/delivery/providers")).providers || {}; }
+    catch (e) { host.innerHTML = `<p class="hint">${esc(e.message || "Delivery provider status is unavailable.")}</p>`; return; }
+    const labels = { email: "Email", sms: "SMS", whatsapp: "WhatsApp" };
+    const row = (key) => {
+      const p = providers[key] || { provider: "none", configured: false };
+      const on = !!p.configured;
+      const mark = on ? `<span class="dash-pill ok">&#10003; ${esc(p.provider)}</span>` : `<span class="dash-pill">&mdash; not configured</span>`;
+      return `<tr><td><strong>${labels[key]}</strong></td><td>${mark}</td><td>${on ? esc(p.provider) : esc(p.provider === "none" ? "No provider selected" : p.provider + " (incomplete credentials)")}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-test-channel="${key}" ${on ? "" : "disabled"}>Send test message</button></td></tr>`;
+    };
+    host.innerHTML = `<div class="dash-card"><div class="dash-card-head"><h3>Delivery providers</h3></div><div class="dash-card-pad"><p class="hint">Configured by the platform operator through environment variables. Credentials are never displayed here.</p><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Channel</th><th>Status</th><th>Provider</th><th></th></tr></thead><tbody>${["email", "sms", "whatsapp"].map(row).join("")}</tbody></table></div><p class="hint" style="margin-top:12px">When every provider is off, in-dashboard notifications still work exactly as before &mdash; nothing is lost, nothing is falsely reported as sent.</p></div></div>`;
+    host.querySelectorAll("[data-test-channel]").forEach((b) => b.addEventListener("click", async () => {
+      const channel = b.dataset.testChannel;
+      const to = window.prompt(channel === "email" ? "Send a test email to:" : "Send a test message to (phone number):", "");
+      if (to === null) return;
+      b.disabled = true;
+      try {
+        const r = await window.API.post("/communication/delivery/test", { channel, to });
+        if (r.ok) toast(`Test ${channel} sent.`, "success");
+        else toast(r.error || `Test ${channel} was not delivered.`, "error");
+      } catch (err) { toast(err.message || "Could not send the test message.", "error"); }
+      b.disabled = false;
+    }));
   }
 
 

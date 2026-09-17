@@ -1882,6 +1882,25 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_fee_payment_reference ON fee_payments (madrasa_id, reference, transaction_number)");
     },
   },
+  {
+    // Outbound delivery (email/SMS/WhatsApp) reuses the existing
+    // communication_history table as the delivery log — no new table. These
+    // columns record what an external provider did with each attempt.
+    id: "027_message_delivery_log",
+    up: async (api) => {
+      for (const [name, type] of [
+        ["error_message", "VARCHAR(500) NOT NULL DEFAULT ''"],
+        ["provider", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["provider_message_id", "VARCHAR(160) NOT NULL DEFAULT ''"],
+        ["recipient_address", "VARCHAR(255) NOT NULL DEFAULT ''"],
+      ]) {
+        try { await api.run(`ALTER TABLE communication_history ADD COLUMN ${name} ${type}`); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      }
+      try { await api.run("CREATE INDEX idx_communication_delivery ON communication_history (madrasa_id, channel, delivery_status, id)"); }
+      catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+    },
+  },
 ];
 
 async function migrate(options = {}) {

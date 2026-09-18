@@ -53,6 +53,9 @@ Current schema (tenant = `madrasa_id` on every madrasa-owned row):
   leave is also written into `teacher_attendance` as `on_leave`, and
   `leave_balances` is a maintained summary recomputed from the requests)
 - `announcements`, `grading_config`, `settings`, `platform_settings`
+- `student_health`, `health_visits`, `vaccinations` (student health & medical
+  module — one medical profile per student, soft-deleted sick-bay visit log,
+  vaccination records with next-due dates)
 - `activity_log`
 
 Every madrasa-owned record carries `madrasa_id`; all tenant-scoped queries

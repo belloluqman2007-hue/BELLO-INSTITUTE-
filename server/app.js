@@ -46,6 +46,7 @@ const quranProgressRouter = require("./routes/quran-progress");
 const academicRouter = require("./routes/academic");
 const libraryRouter = require("./routes/library");
 const documentsRouter = require("./routes/documents");
+const healthRouter = require("./routes/health");
 const institution = require("./services/institution");
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
@@ -292,6 +293,11 @@ function createApp() {
 
   /* ------------------------------ health ------------------------------ */
   api.get("/health", (req, res) => res.json({ ok: true, service: "multi-madrasa-platform" }));
+  // Student Health & Medical records (tenant-scoped). Mounted AFTER the
+  // service healthcheck above so GET /api/health keeps answering the uptime
+  // probe anonymously; everything under /api/health/* is the medical module,
+  // which enforces its own session/tenant/role guards.
+  api.use("/health", healthRouter);
 
   app.use("/api", api);
 

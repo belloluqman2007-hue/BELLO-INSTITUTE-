@@ -53,6 +53,7 @@
     download: `<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>`,
     refresh: `<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/></svg>`,
     leave: `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/><path d="m9 15.5 2 2 4-4"/></svg>`,
+    health: `<svg viewBox="0 0 24 24"><path d="M12 20.4 4.9 13.2a5 5 0 0 1 7.1-7.1 5 5 0 0 1 7.1 7.1Z"/><path d="M4.5 12h3l1.5-2.5 2.5 5 1.5-2.5h4.5"/></svg>`,
   };
 
   /* --------------------------------------------------------------------
@@ -110,7 +111,7 @@
       },
       {
         key: "students", label: "Students", icon: "users",
-        items: [["All Students", "students/all"], ["Add Student", "students/add"], ["Student Applications", "students/applications"], ["Student Groups", "students/groups"], ["Student Profiles", "students/profiles"], ["ID Cards", "students/id-cards"]],
+        items: [["All Students", "students/all"], ["Add Student", "students/add"], ["Student Applications", "students/applications"], ["Student Groups", "students/groups"], ["Student Profiles", "students/profiles"], ["Health Reports", "students/health"], ["ID Cards", "students/id-cards"]],
       },
       {
         key: "documents", label: "Documents", icon: "file", items: [["Certificate Templates", "documents/templates"], ["Issue Certificate", "documents/issue"]],
@@ -765,6 +766,14 @@
       if (route === "students/groups") return await pageStudentGroups(content);
       if (route === "students/profiles") return await pageStudentProfiles(content);
       if (route === "students/id-cards") return await pageIdCards(content);
+
+
+      // Student Health & Medical (profile Health tab lives in
+      // openStudentProfile; this is the Health Reports sidebar page). Shared
+      // by Islamic and Western institutions — no category gating.
+      if (window.BelloHealth && window.BelloHealth.handles(route)) {
+        return await window.BelloHealth.render({ I, esc, go, toast, openModal, closeModal, statCard, fmtDate, options, emptyRow, todayIso, bindRouteButtons, state }, content, route);
+      }
 
       if (route === "documents/templates") return await pageCertificateTemplates(content);
       if (route === "documents/issue") return await pageIssueCertificate(content);
@@ -1454,12 +1463,22 @@
     content.querySelector("#profileSearch").addEventListener("input", draw); draw(); bindRouteButtons(content);
   }
 
-  async function openStudentProfile(id, editMode = false) {
+  async function openStudentProfile(id, editMode = false, initialTab = "overview") {
     const [record, base] = await Promise.all([window.API.get(`/students/${id}`), catalogue()]); const s = record.student;
-    const modal = openModal(`${s.first_name} ${s.last_name} · profile`, `<div class="student-profile-hero"><div>${studentAvatar(s)}</div><div><h3>${esc([s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" "))}</h3><p>${esc(s.student_code || s.admission_no)} · ${esc(s.class_en || "Unassigned")} ${s.section ? `· ${esc(s.section)}` : ""}</p>${studentStatusPill(s.status)}</div><div class="dash-actions"><button type="button" class="dash-btn dash-btn-primary dash-btn-sm" id="profileEdit">${I.edit} Edit student</button><button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" id="profilePrint">Print profile</button></div></div><div class="student-profile-tabs"><button class="active" data-profile-tab="overview">Overview</button><button data-profile-tab="personal">Personal & family</button><button data-profile-tab="academic">Academic</button><button data-profile-tab="life">Student life</button><button data-profile-tab="finance">Finance</button><button data-profile-tab="documents">Documents</button><button data-profile-tab="communication">Communication</button></div><div id="studentProfilePanel"></div>`);
+    const modal = openModal(`${s.first_name} ${s.last_name} · profile`, `<div class="student-profile-hero"><div>${studentAvatar(s)}</div><div><h3>${esc([s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" "))}</h3><p>${esc(s.student_code || s.admission_no)} · ${esc(s.class_en || "Unassigned")} ${s.section ? `· ${esc(s.section)}` : ""}</p>${studentStatusPill(s.status)}</div><div class="dash-actions"><button type="button" class="dash-btn dash-btn-primary dash-btn-sm" id="profileEdit">${I.edit} Edit student</button><button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" id="profilePrint">Print profile</button></div></div><div class="student-profile-tabs"><button class="active" data-profile-tab="overview">Overview</button><button data-profile-tab="personal">Personal & family</button><button data-profile-tab="academic">Academic</button><button data-profile-tab="life">Student life</button><button data-profile-tab="health">Health</button><button data-profile-tab="finance">Finance</button><button data-profile-tab="documents">Documents</button><button data-profile-tab="communication">Communication</button></div><div id="studentProfilePanel"></div>`);
     modal.querySelector(".dash-modal").style.width = "min(980px, 100%)";
     const panel = modal.querySelector("#studentProfilePanel");
     const tab = (name) => {
+      // The Health tab is rendered by the health module (public/js/health.js)
+      // and lazily loads its own tenant-scoped medical data, so opening the
+      // profile does not fetch sensitive records until the tab is clicked.
+      if (name === "health" && window.BelloHealth) {
+        window.BelloHealth.profileTab(panel, id, {
+          I, esc, fmtDate, toast, openModal, closeModal, emptyRow, todayIso, state,
+          reopen: () => openStudentProfile(id, false, "health"),
+        });
+        return;
+      }
       const attendance = record.attendance || []; const present = attendance.filter((a) => a.status === "present").length; const finance = record.finance || {};
       const render = {
         overview: `<div class="student-profile-summary">${[["Student ID", s.student_code || s.admission_no], ["Admission no.", s.admission_no], ["Current class", s.class_en || "Unassigned"], ["Section / arm", s.section || "—"], ["Islamic class", s.islamic_class_name || "—"], ["Western class", s.western_class_name || "—"], ["Program", s.program || "—"], ["Education track", s.education_track || "both"], ["Academic session", s.session_label || "—"], ["Admission date", fmtDate(s.admission_date || s.created_at)], ["Current status", studentStatusPill(s.status)]].map(([l, v]) => `<div><small>${esc(l)}</small><strong>${typeof v === "string" && v.startsWith("<span") ? v : esc(v)}</strong></div>`).join("")}</div><div class="dash-grid-2 student-profile-columns"><div class="dash-card"><div class="dash-card-head"><h3>Recent academic performance</h3></div><div class="dash-card-pad">${(record.terms || []).length ? `<div class="dash-table-wrap"><table class="dash-table"><tbody>${record.terms.slice(0, 6).map((t) => `<tr><td>${esc(t.term_name || "Term")}</td><td>${esc(String(t.average ?? "—"))}%</td><td>${esc(t.overall_grade || "—")}</td></tr>`).join("")}</tbody></table></div>` : `<p class="hint">No report-card summaries yet. Results will appear here when teachers publish them.</p>`}</div></div><div class="dash-card"><div class="dash-card-head"><h3>Attendance snapshot</h3></div><div class="dash-card-pad"><div class="dash-kpi-line"><strong>${present}</strong><span>present days</span></div><div class="dash-kpi-line"><strong>${attendance.length - present}</strong><span>other marks</span></div><p class="hint">Attendance records from the existing attendance module.</p></div></div></div><div class="dash-card"><div class="dash-card-head"><h3>Quick actions</h3></div><div class="dash-card-pad"><div class="dash-actions"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-status-action="suspended">Suspend</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-status-action="graduated">Graduate</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-status-action="withdrawn">Withdraw</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-placement-action="transfer">Change class</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-placement-action="promote">Promote</button><button class="dash-btn dash-btn-ghost dash-btn-sm" id="profilePrintId">${I.external} Print ID card</button><button class="dash-btn dash-btn-accent dash-btn-sm" data-status-action="active">Activate</button></div></div></div>`,
@@ -1482,7 +1501,13 @@
     modal.querySelectorAll("[data-profile-tab]").forEach((b) => b.addEventListener("click", () => { modal.querySelectorAll("[data-profile-tab]").forEach((x) => x.classList.remove("active")); b.classList.add("active"); tab(b.dataset.profileTab); }));
     modal.querySelector("#profilePrint").addEventListener("click", () => window.print());
     modal.querySelector("#profileEdit").addEventListener("click", () => { closeModal(); openStudentEditModal(id, base); });
-    tab(editMode ? "personal" : "overview"); if (editMode) openStudentEditModal(id, base);
+    // The Health tab's editor forms live in their own modal (openModal
+    // replaces the profile modal), so they re-open the profile on the health
+    // tab through this additive initialTab argument after saving.
+    if (!editMode && initialTab && initialTab !== "overview") {
+      modal.querySelectorAll("[data-profile-tab]").forEach((x) => x.classList.toggle("active", x.dataset.profileTab === initialTab));
+    }
+    tab(editMode ? "personal" : (initialTab || "overview")); if (editMode) openStudentEditModal(id, base);
   }
   async function openStudentEditModal(id, base) {
     const s = (await window.API.get(`/students/${id}`)).student;

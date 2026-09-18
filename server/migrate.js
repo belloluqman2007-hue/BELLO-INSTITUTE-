@@ -2049,6 +2049,73 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_expense_receipts_exp ON expense_receipts (expense_id)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    // Student Health & Medical module. One medical profile per student
+    // (UNIQUE per madrasa), a sick-bay visit log (soft-deleted, never
+    // destroyed — medical history) and vaccination records with next-due
+    // dates. All three tables are tenant-owned (madrasa_id) and reuse the
+    // existing students table; no parallel student registry is introduced.
+    id: "031_student_health_module",
+    up: async (api, dialect) => {
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS student_health (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          student_id INT NOT NULL,
+          blood_group VARCHAR(8) NOT NULL DEFAULT '',
+          genotype VARCHAR(8) NOT NULL DEFAULT '',
+          allergies TEXT,
+          chronic_conditions TEXT,
+          disabilities TEXT,
+          vision_notes TEXT,
+          hearing_notes TEXT,
+          dietary_restrictions TEXT,
+          emergency_medication TEXT,
+          last_updated ${D.ts()},
+          UNIQUE (madrasa_id, student_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_student_health_tenant ON student_health (madrasa_id, student_id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS health_visits (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          student_id INT NOT NULL,
+          visit_date DATE NOT NULL,
+          complaint VARCHAR(500) NOT NULL DEFAULT '',
+          diagnosis VARCHAR(500) NOT NULL DEFAULT '',
+          treatment TEXT,
+          referred_out INT NOT NULL DEFAULT 0,
+          referral_notes VARCHAR(500) NOT NULL DEFAULT '',
+          attended_by VARCHAR(160) NOT NULL DEFAULT '',
+          is_deleted INT NOT NULL DEFAULT 0,
+          deleted_at ${dialect === "mysql" ? "TIMESTAMP NULL" : "TIMESTAMP"},
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_health_visits_student ON health_visits (madrasa_id, student_id, is_deleted, visit_date)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS vaccinations (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          student_id INT NOT NULL,
+          vaccine_name VARCHAR(160) NOT NULL,
+          dose VARCHAR(60) NOT NULL DEFAULT '',
+          date_given DATE NOT NULL,
+          next_due DATE,
+          administered_by VARCHAR(160) NOT NULL DEFAULT '',
+          notes TEXT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_vaccinations_student ON vaccinations (madrasa_id, student_id, date_given)");
+      await api.run("CREATE INDEX idx_vaccinations_next_due ON vaccinations (madrasa_id, next_due)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

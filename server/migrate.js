@@ -1971,6 +1971,84 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_certificates_template ON certificates (madrasa_id, template_id, id)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "030_school_expense_and_budget",
+    up: async (api, dialect) => {
+      // School Expense and Budget module.
+      // Tenant-scoped accounting ledger for operational expenses, capital projects,
+      // staff expenses, and per-session category budgeting.
+      const categoryType = dialect === "mysql"
+        ? "ENUM('operating','capital','salary','other') NOT NULL DEFAULT 'operating'"
+        : "VARCHAR(20) NOT NULL DEFAULT 'operating'";
+      const expenseStatus = dialect === "mysql"
+        ? "ENUM('draft','approved','rejected','cancelled') NOT NULL DEFAULT 'draft'"
+        : "VARCHAR(20) NOT NULL DEFAULT 'draft'";
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS expense_categories (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          name VARCHAR(160) NOT NULL,
+          parent_id INT,
+          type ${categoryType},
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_expense_categories_tenant ON expense_categories (madrasa_id, parent_id, id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS expenses (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          category_id INT NOT NULL,
+          session_id INT,
+          term_id INT,
+          amount_ngn DECIMAL(12,2) NOT NULL DEFAULT 0,
+          vendor VARCHAR(180) NOT NULL DEFAULT '',
+          description TEXT,
+          receipt_path VARCHAR(255) NOT NULL DEFAULT '',
+          payment_date DATE NOT NULL,
+          payment_method VARCHAR(40) NOT NULL DEFAULT 'cash',
+          approved_by INT,
+          status ${expenseStatus},
+          created_by INT,
+          created_at ${D.ts()},
+          updated_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_expenses_tenant_status ON expenses (madrasa_id, status, payment_date, category_id)");
+      await api.run("CREATE INDEX idx_expenses_session_term ON expenses (madrasa_id, session_id, term_id)");
+      await api.run("CREATE INDEX idx_expenses_vendor ON expenses (madrasa_id, vendor)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS budgets (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          session_id INT NOT NULL,
+          category_id INT NOT NULL,
+          budgeted_ngn DECIMAL(12,2) NOT NULL DEFAULT 0,
+          notes TEXT,
+          created_at ${D.ts()},
+          updated_at ${D.ts()},
+          UNIQUE (madrasa_id, session_id, category_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_budgets_lookup ON budgets (madrasa_id, session_id, category_id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS expense_receipts (
+          id ${D.autoInc(dialect)},
+          expense_id INT NOT NULL,
+          file_path VARCHAR(255) NOT NULL,
+          original_name VARCHAR(255) NOT NULL DEFAULT '',
+          uploaded_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_expense_receipts_exp ON expense_receipts (expense_id)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

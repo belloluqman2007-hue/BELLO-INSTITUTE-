@@ -302,7 +302,7 @@ async function tenantAnalytics(madrasaId, opts = {}) {
   });
 
   /* ------------------------------- fees -------------------------------- */
-  const [feeTotals, feeMonth, feeTrendRows, feeMethodRows, billedRow, paidByStudent] = await Promise.all([
+  const [feeTotals, feeMonth, feeTrendRows, feeMethodRows, billedRow, paidByStudent, expTotals, expMonth, expTrendRows] = await Promise.all([
     db.get("SELECT COUNT(*) AS n, COALESCE(SUM(amount_ngn),0) AS amount FROM fee_payments WHERE madrasa_id = ?", [tid]),
     db.get("SELECT COUNT(*) AS n, COALESCE(SUM(amount_ngn),0) AS amount FROM fee_payments WHERE madrasa_id = ? AND payment_date >= ?", [tid, monthStart]),
     db.all(
@@ -325,6 +325,14 @@ async function tenantAnalytics(madrasaId, opts = {}) {
         WHERE fp.madrasa_id = ? AND fi.term_id = ?
         GROUP BY fp.student_id`,
       [tid, termId]
+    ),
+    db.get("SELECT COUNT(*) AS n, COALESCE(SUM(amount_ngn),0) AS amount FROM expenses WHERE madrasa_id = ? AND status = 'approved'", [tid]),
+    db.get(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_ngn),0) AS amount FROM expenses WHERE madrasa_id = ? AND status = 'approved' AND payment_date >= ?`, [tid, monthStart]),
+    db.all(
+      `SELECT ${monthExpr("payment_date", dialect)} AS m, COUNT(*) AS n, COALESCE(SUM(amount_ngn),0) AS amount
+         FROM expenses WHERE madrasa_id = ? AND status = 'approved'
+        GROUP BY ${monthExpr("payment_date", dialect)}`,
+      [tid]
     ),
   ]);
 
@@ -535,6 +543,13 @@ async function tenantAnalytics(madrasaId, opts = {}) {
       trend: fillSeries(monthLabels, feeTrendRows, "m", (r) => round(num(r.amount), 2)),
       byMethod: feesByMethod,
     },
+    expenses: {
+      total: round(num(expTotals && expTotals.amount), 2),
+      count: num(expTotals && expTotals.n),
+      thisMonth: round(num(expMonth && expMonth.amount), 2),
+      trend: fillSeries(monthLabels, expTrendRows, "m", (r) => round(num(r.amount), 2)),
+    },
+    total_expenses_ngn: round(num(expTotals && expTotals.amount), 2),
     results: {
       termId,
       summaries: summaryCount,

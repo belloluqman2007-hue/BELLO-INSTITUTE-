@@ -146,7 +146,23 @@
       },
       {
         key: "finance", label: "Finance", icon: "money",
-        items: [[t.feesLabel, "finance/fees"], ["Payments", "finance/payments"], ["Outstanding Fees", "finance/outstanding"], ["Fee Records", "finance/records"], ["Financial Reports", "finance/reports"]],
+        items: [
+          [t.feesLabel, "finance/fees"],
+          ["Payments", "finance/payments"],
+          ["Outstanding Fees", "finance/outstanding"],
+          ["Fee Records", "finance/records"],
+          ["Financial Reports", "finance/reports"],
+          {
+            subgroup: "Expenses",
+            items: [
+              ["Expense Categories", "finance/expenses/categories"],
+              ["Record Expense", "finance/expenses/record"],
+              ["Expense List", "finance/expenses"],
+              ["Budget vs Actual", "finance/expenses/budget"],
+              ["Expense Reports", "finance/expenses/reports"],
+            ],
+          },
+        ],
       },
       {
         // Payroll is the staff-salary ledger. Both institution categories
@@ -673,10 +689,25 @@
         const active = state.route === sec.route;
         return `<button class="dash-nav-link${active ? " top-active" : ""}" data-nav-route="${esc(sec.route)}">${I[sec.icon] || ""}<span>${esc(sec.label)}</span></button>`;
       }
-      const open = state.openGroups.has(sec.key) || sec.items.some(([, r]) => state.route === r);
-      const rows = sec.items.map(([label, r]) => {
-        const active = state.route === r;
-        return `<button class="${active ? "active" : ""}" data-nav-route="${esc(r)}">${esc(label)}</button>`;
+      const open = state.openGroups.has(sec.key) || (sec.items && sec.items.some((item) => {
+        if (Array.isArray(item)) return state.route === item[1];
+        if (item && item.items) return item.items.some((sub) => sub && state.route === sub[1]);
+        return false;
+      }));
+      const rows = (sec.items || []).map((item) => {
+        if (item && item.subgroup) {
+          const subRows = (item.items || []).map(([label, r]) => {
+            const active = state.route === r;
+            return `<button class="${active ? "active" : ""}" data-nav-route="${esc(r)}">${esc(label)}</button>`;
+          }).join("");
+          return `<div class="dash-nav-subgroup-title">${esc(item.subgroup)}</div>${subRows}`;
+        }
+        if (Array.isArray(item)) {
+          const [label, r] = item;
+          const active = state.route === r;
+          return `<button class="${active ? "active" : ""}" data-nav-route="${esc(r)}">${esc(label)}</button>`;
+        }
+        return "";
       }).join("");
       return `
         <div class="dash-nav-group">
@@ -789,6 +820,11 @@
       if (route === "finance/payments" || route === "finance/records") return await pagePayments(content);
       if (route === "finance/outstanding") return await pageOutstandingFees(content);
       if (route === "finance/reports") return await pageFinanceReport(content);
+
+      // School Expenses & Budget module
+      if (window.BelloExpenses && window.BelloExpenses.handles(route)) {
+        return await window.BelloExpenses.render({ I, esc, T, go, toast, openModal, closeModal, statCard, fmtDate, fmtMoney, options, emptyRow, pillFor, catalogue, allTerms, todayIso, bindRouteButtons, state }, content, route);
+      }
 
       // Payroll (salary structures, pay periods, payslips, advances) is a
       // self-contained module that renders inside this unchanged shell and
@@ -905,6 +941,8 @@
         ${statCard("book", s.totalSubjects, "Total Subjects")}
         ${statCard("calendar", att.present + "/" + (att.present + att.absent + att.late + att.excused + att.unmarked), "Attendance Today", true)}
         ${statCard("admissions", s.pendingApplications, "Pending Applications", true)}
+        ${statCard("money", fmtMoney(s.total_fees_collected !== undefined ? s.total_fees_collected : s.totalFeesCollected !== undefined ? s.totalFeesCollected : finance.collected || 0), "Total Fees Collected")}
+        ${statCard("money", fmtMoney(s.total_expenses_ngn !== undefined ? s.total_expenses_ngn : s.totalExpensesNgn !== undefined ? s.totalExpensesNgn : 0), "Total Expenses")}
         ${statCard("money", fmtMoney(finance.outstanding || 0), "Outstanding Fees")}
       </div>
 

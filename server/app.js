@@ -32,6 +32,7 @@ const feesRouter = require("./routes/fees");
 const paymentRouter = require("./routes/payment");
 const payrollRouter = require("./routes/payroll");
 const leaveRouter = require("./routes/leave");
+const { router: expensesRouter, budgetRouter } = require("./routes/expenses");
 const announcementsRouter = require("./routes/announcements");
 const communicationRouter = require("./routes/communication");
 const portalRouter = require("./routes/portal");
@@ -229,6 +230,9 @@ function createApp() {
   // router; initiate/status still enforce session and tenant guards themselves.
   api.use("/fees/payment", paymentRouter);
   api.use("/fees", feesRouter);
+  // Expenses and budget allocation (categories, expenses, approvals, receipts, budgets, reports)
+  api.use("/expenses", expensesRouter);
+  api.use("/budget", budgetRouter);
   // Payroll (salary structures, pay periods, payslips, advances) is a separate
   // tenant-scoped admin ledger that follows the same mount/guard conventions
   // as the fees module above.

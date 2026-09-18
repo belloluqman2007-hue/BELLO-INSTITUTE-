@@ -246,7 +246,7 @@ router.get("/dashboard", adminOrSupport, asyncHandler(async (req, res) => {
   const isoToday = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
   const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][today.getDay()];
 
-  const [totals, attToday, pendingApps, todaysClasses, recentApps, recentAnnouncements] = await Promise.all([
+  const [totals, attToday, pendingApps, todaysClasses, recentApps, recentAnnouncements, feesTotal, expensesTotal] = await Promise.all([
     db.get(
       `SELECT
          (SELECT COUNT(*) FROM students WHERE madrasa_id = ? AND status IN ('active','promoted','suspended')) AS students,
@@ -278,22 +278,32 @@ router.get("/dashboard", adminOrSupport, asyncHandler(async (req, res) => {
         WHERE madrasa_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 6`,
       [m.id]
     ),
+    db.get("SELECT COALESCE(SUM(amount_ngn), 0) AS total FROM fee_payments WHERE madrasa_id = ? AND status = 'successful'", [m.id]),
+    db.get("SELECT COALESCE(SUM(amount_ngn), 0) AS total FROM expenses WHERE madrasa_id = ? AND status = 'approved'", [m.id]),
   ]);
 
   const attMap = {};
   attToday.forEach((r) => { attMap[r.status] = Number(r.n); });
   const attMarked = Object.values(attMap).reduce((a, b) => a + b, 0);
   const totalStudents = totals ? Number(totals.students) : 0;
+  const totalFeesCollected = feesTotal ? Number(feesTotal.total) : 0;
+  const totalExpensesNgn = expensesTotal ? Number(expensesTotal.total) : 0;
 
   ok(res, {
     madrasaId: m.id,
     category: m.category || "islamic",
+    total_fees_collected: totalFeesCollected,
+    total_expenses_ngn: totalExpensesNgn,
     stats: {
       totalStudents,
       totalTeachers: totals ? Number(totals.teachers) : 0,
       totalClasses: totals ? Number(totals.classes) : 0,
       totalSubjects: totals ? Number(totals.subjects) : 0,
       pendingApplications: pendingApps ? Number(pendingApps.n) : 0,
+      total_fees_collected: totalFeesCollected,
+      total_expenses_ngn: totalExpensesNgn,
+      totalFeesCollected,
+      totalExpensesNgn,
       attendanceToday: {
         present: attMap.present || 0,
         absent: attMap.absent || 0,

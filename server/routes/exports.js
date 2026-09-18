@@ -471,4 +471,53 @@ router.get("/timetable.csv", STAFF, asyncHandler(async (req, res) => {
   ]));
 }));
 
+/* ------------------------------ expenses ------------------------------- */
+
+router.get("/expenses.csv", ADMINS, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+
+  const where = ["e.madrasa_id = ?"];
+  const params = [tid];
+
+  if (req.query.from) { where.push("e.payment_date >= ?"); params.push(validDate(req.query.from) || ""); }
+  if (req.query.to) { where.push("e.payment_date <= ?"); params.push(validDate(req.query.to) || ""); }
+  if (req.query.sessionId) { where.push("e.session_id = ?"); params.push(toNum(req.query.sessionId, 0)); }
+  if (req.query.termId) { where.push("e.term_id = ?"); params.push(toNum(req.query.termId, 0)); }
+  if (req.query.categoryId) { where.push("e.category_id = ?"); params.push(toNum(req.query.categoryId, 0)); }
+  if (req.query.vendor) { where.push("LOWER(e.vendor) LIKE ?"); params.push("%" + cleanStr(req.query.vendor, 180).toLowerCase() + "%"); }
+  if (req.query.status) {
+    const s = cleanStr(req.query.status, 20).toLowerCase();
+    if (s !== "all") { where.push("e.status = ?"); params.push(s); }
+  } else {
+    where.push("e.status = 'approved'");
+  }
+
+  const rows = await db.all(
+    `SELECT e.*, c.name AS category_name, c.type AS category_type, s.label AS session_label, t.name_en AS term_name, u_a.full_name AS approved_by_name
+       FROM expenses e
+       LEFT JOIN expense_categories c ON c.id = e.category_id AND c.madrasa_id = e.madrasa_id
+       LEFT JOIN academic_sessions s ON s.id = e.session_id AND s.madrasa_id = e.madrasa_id
+       LEFT JOIN terms t ON t.id = e.term_id AND t.madrasa_id = e.madrasa_id
+       LEFT JOIN users u_a ON u_a.id = e.approved_by
+      WHERE ${where.join(" AND ")}
+      ORDER BY e.payment_date ASC, e.id ASC`,
+    params
+  );
+
+  csv.sendCsv(res, filename(req, "expenses"), csv.toCsv(rows, [
+    { label: "Date", key: "payment_date" },
+    { label: "Session", value: (r) => r.session_label || "" },
+    { label: "Term", value: (r) => r.term_name || "" },
+    { label: "Category", value: (r) => r.category_name || "" },
+    { label: "Category Type", value: (r) => r.category_type || "" },
+    { label: "Vendor", key: "vendor" },
+    { label: "Description", key: "description" },
+    { label: "Payment Method", key: "payment_method" },
+    { label: "Amount (NGN)", value: (r) => csv.num(r.amount_ngn, 2) },
+    { label: "Status", key: "status" },
+    { label: "Approved By", value: (r) => r.approved_by_name || "" },
+  ]));
+}));
+
 module.exports = router;

@@ -215,6 +215,11 @@ body.dash-super .dash-btn-accent { color: #0d1024; }
 .dash-nav-sub a.active, .dash-nav-sub button.active {
   background: var(--d-sidebar-active-bg); color: #fff; box-shadow: inset 3px 0 0 var(--d-sidebar-active-line);
 }
+.dash-nav-subgroup-title {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--d-sidebar-text-dim, rgba(255,255,255,0.45)); font-weight: 750;
+  padding: 8px 10px 3px; margin-top: 4px; pointer-events: none; opacity: 0.85;
+}
 .dash-nav-link.top-active { background: var(--d-sidebar-active-bg); color: #fff; box-shadow: inset 3px 0 0 var(--d-sidebar-active-line); }
 
 .dash-sidebar-foot { padding: 14px 18px 20px; border-top: 1px solid rgba(255,255,255,.08); }

@@ -38,6 +38,8 @@ const TABLE_ORDER = [
   // My Institution: albums before images, because an image may point at the
   // album that owns it (gallery_images.album_id).
   "website_pages", "gallery_albums", "gallery_images",
+  // Expense & budget tables
+  "expense_categories", "budgets", "expenses", "expense_receipts",
   "activity_log",
 ];
 /* Never part of a snapshot: login state is not data. */

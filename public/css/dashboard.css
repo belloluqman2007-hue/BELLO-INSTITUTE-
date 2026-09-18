@@ -266,13 +266,23 @@ body.dash-super .dash-btn-accent { color: #0d1024; }
 }
 .dash-btn svg { width: 15px; height: 15px; }
 .dash-btn:active { transform: translateY(1px); }
-.dash-btn-primary { background: linear-gradient(135deg, var(--d-primary-700), var(--d-primary-900)); color: #fff; box-shadow: 0 8px 20px rgba(14, 10, 20, .18); }
-.dash-btn-primary:hover { box-shadow: 0 10px 24px rgba(14, 10, 20, .26); }
-.dash-btn-accent { background: linear-gradient(135deg, var(--d-accent), var(--d-accent-dark)); color: #241a02; box-shadow: 0 8px 20px rgba(0,0,0,.14); }
-body.dash-western .dash-btn-accent { color: #04263f; }
-.dash-btn-ghost { background: var(--d-surface); color: var(--d-text); border: 1px solid var(--d-line); }
-.dash-btn-ghost:hover { background: var(--d-surface-2); }
-.dash-btn-danger { background: #fdecea; color: var(--d-danger); }
+/* CONTRAST: `.dash-root button { color: inherit }` above is (0,1,1) and used to
+   out-rank the single-class button variants below (0,1,0), so every primary
+   button painted dark --d-text on its dark purple/navy gradient (~1.03:1 —
+   effectively invisible). Each variant is written .dash-btn.dash-btn-* (0,2,0)
+   so its own text colour wins. Backgrounds and sizing are untouched. */
+.dash-btn.dash-btn-primary { background: linear-gradient(135deg, var(--d-primary-700), var(--d-primary-900)); color: #fff; box-shadow: 0 8px 20px rgba(14, 10, 20, .18); }
+.dash-btn.dash-btn-primary:hover { box-shadow: 0 10px 24px rgba(14, 10, 20, .26); }
+.dash-btn.dash-btn-primary svg { color: #fff; }
+/* Accent buttons sit on a LIGHT gradient (gold / sky / indigo). The old
+   tinted near-blacks dropped to ~3.1-3.5:1 against the dark end of each
+   gradient; true black clears 4.5:1 across the label area on all themes. */
+.dash-btn.dash-btn-accent { background: linear-gradient(135deg, var(--d-accent), var(--d-accent-dark)); color: #000; box-shadow: 0 8px 20px rgba(0,0,0,.14); }
+body.dash-western .dash-btn.dash-btn-accent,
+body.dash-super .dash-btn.dash-btn-accent { color: #000; }
+.dash-btn.dash-btn-ghost { background: var(--d-surface); color: var(--d-text); border: 1px solid var(--d-line); }
+.dash-btn.dash-btn-ghost:hover { background: var(--d-surface-2); }
+.dash-btn.dash-btn-danger { background: #fdecea; color: var(--d-danger); }
 .dash-btn-sm { padding: 7px 13px; font-size: .78rem; border-radius: 9px; }
 .dash-btn:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -366,6 +376,14 @@ body.dash-western .dash-stat-icon.accent { color: #04263f; }
 .dash-pill.danger { background: #fdecea; color: var(--d-danger); }
 .dash-pill.info { background: rgba(45,111,143,.12); color: var(--d-info); }
 .dash-pill.muted { background: var(--d-surface-2); color: var(--d-muted); }
+/* CONTRAST: status pills are tuned for light cards. Inside the dark website
+   banner the same dark-green/amber ink fell to 1.8-2.7:1, so on that surface
+   only the INK is swapped for the light tint of the same hue. */
+.dash-website-card .dash-pill.ok { color: #7fe3bd; }
+.dash-website-card .dash-pill.warn { color: #f5d182; }
+.dash-website-card .dash-pill.info { color: #9fd4ee; }
+.dash-website-card .dash-pill.danger { background: rgba(255,255,255,.12); color: #f9b4ad; }
+.dash-website-card .dash-pill.muted { background: rgba(255,255,255,.12); color: #e6e3ee; }
 
 /* Quick actions grid */
 .dash-quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }

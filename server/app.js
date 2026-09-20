@@ -35,6 +35,7 @@ const leaveRouter = require("./routes/leave");
 const { router: expensesRouter, budgetRouter } = require("./routes/expenses");
 const announcementsRouter = require("./routes/announcements");
 const communicationRouter = require("./routes/communication");
+const ptmRouter = require("./routes/ptm");
 const portalRouter = require("./routes/portal");
 const publicRouter = require("./routes/public");
 const admissionsRouter = require("./routes/admissions");
@@ -169,6 +170,11 @@ function createApp() {
   app.get("/login", schoolLinkHandler);
   app.get("/admin", schoolLinkHandler);
   app.get("/admin/login", schoolLinkHandler);
+  // Parent portal — "Book a meeting" (Parent-Teacher Meetings). Real,
+  // reloadable addresses so a parent can bookmark the booking page; the SPA
+  // shell mounts the parent module there and the API enforces the session.
+  app.get("/parent", schoolLinkHandler);
+  app.get("/parent/meetings", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */
   // The logged-out public site (directory, madrasa profile, online admission,
@@ -253,6 +259,11 @@ function createApp() {
   // this is only a compatibility mount, not a second data model or editor.
   api.use("/communication/announcements", announcementsRouter);
   api.use("/notifications", communicationRouter);
+  // Parent-Teacher Meeting booking. It belongs to the Communication group in
+  // the admin sidebar but keeps its own short mount, exactly like the other
+  // tenant modules. It reuses users/students/parent_links/terms and the
+  // existing notification service — no parallel people or messaging model.
+  api.use("/ptm", ptmRouter);
   api.use("/portal", portalRouter);
   api.use("/admissions", admissionsRouter);
   api.use("/timetable", timetableRouter);

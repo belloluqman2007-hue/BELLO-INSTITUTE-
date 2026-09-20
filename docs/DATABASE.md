@@ -56,6 +56,17 @@ Current schema (tenant = `madrasa_id` on every madrasa-owned row):
 - `student_health`, `health_visits`, `vaccinations` (student health & medical
   module — one medical profile per student, soft-deleted sick-bay visit log,
   vaccination records with next-due dates)
+- `ptm_sessions`, `ptm_teacher_slots`, `ptm_bookings` (parent-teacher meeting
+  booking — one meeting day per `ptm_sessions` row, one participation/opt-out
+  row per teacher, one row per confirmed booking. The **slot grid is derived**
+  at read time from `session_start` / `session_end` / `slot_duration_mins` and
+  is deliberately not stored, so editing the times can never orphan a slot
+  row; `slot_number` + `slot_time` on a booking are the stored coordinates and
+  `slot_time` is rewritten when the window moves. On SQLite two partial unique
+  indexes (`WHERE status <> 'cancelled'`) enforce "one booking per teacher per
+  slot" and "one booking per parent per slot"; on MySQL the same two rules are
+  enforced by the guarded transaction in `server/routes/ptm.js`, because MySQL
+  has no partial indexes.)
 - `activity_log`
 
 Every madrasa-owned record carries `madrasa_id`; all tenant-scoped queries

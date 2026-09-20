@@ -2116,6 +2116,91 @@ const MIGRATIONS = [
       await api.run("CREATE INDEX idx_vaccinations_next_due ON vaccinations (madrasa_id, next_due)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    // Parent-Teacher Meeting booking. A PTM session is one meeting DAY the
+    // institution opens for bookings; the slot grid is derived from
+    // start/end/duration rather than stored, so a change of times cannot
+    // orphan rows. Teachers opt in/out through ptm_teacher_slots and parents
+    // book a numbered slot in ptm_bookings.
+    //
+    // Reuses the existing academic_sessions/terms, users (teacher + parent),
+    // students and parent_links tables — no parallel people registry, and no
+    // second notification system (server/services/communication.js is used).
+    // Both institution categories (Islamic School and Western Academy) share
+    // these tables unchanged; only the on-screen wording differs.
+    id: "032_parent_teacher_meetings",
+    up: async (api, dialect) => {
+      const ptmStatus = dialect === "mysql"
+        ? "ENUM('draft','open','closed') NOT NULL DEFAULT 'draft'"
+        : "VARCHAR(20) NOT NULL DEFAULT 'draft'";
+      const bookingStatus = dialect === "mysql"
+        ? "ENUM('booked','cancelled','completed') NOT NULL DEFAULT 'booked'"
+        : "VARCHAR(20) NOT NULL DEFAULT 'booked'";
+      // Times are stored as 'HH:MM' strings (VARCHAR) on SQLite exactly as the
+      // existing timetable_slots table does, so both drivers behave the same.
+      const timeCol = dialect === "mysql" ? "TIME NOT NULL" : "VARCHAR(5) NOT NULL DEFAULT ''";
+      const slotTimeCol = dialect === "mysql" ? "TIME NULL" : "VARCHAR(5) NOT NULL DEFAULT ''";
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS ptm_sessions (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          title VARCHAR(200) NOT NULL,
+          date DATE NOT NULL,
+          session_start ${timeCol},
+          session_end ${timeCol},
+          slot_duration_mins INT NOT NULL DEFAULT 10,
+          location VARCHAR(200) NOT NULL DEFAULT '',
+          term_id INT,
+          session_id INT,
+          status ${ptmStatus},
+          created_by INT,
+          created_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_ptm_sessions_tenant ON ptm_sessions (madrasa_id, status, date)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS ptm_teacher_slots (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          ptm_session_id INT NOT NULL,
+          teacher_user_id INT NOT NULL,
+          available INT NOT NULL DEFAULT 1,
+          UNIQUE (ptm_session_id, teacher_user_id)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_ptm_teacher_slots ON ptm_teacher_slots (madrasa_id, ptm_session_id, teacher_user_id)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS ptm_bookings (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          ptm_session_id INT NOT NULL,
+          teacher_user_id INT NOT NULL,
+          student_id INT NOT NULL,
+          parent_user_id INT NOT NULL,
+          slot_number INT NOT NULL,
+          slot_time ${slotTimeCol},
+          status ${bookingStatus},
+          notes TEXT,
+          booked_at ${D.ts()}
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_ptm_bookings_grid ON ptm_bookings (madrasa_id, ptm_session_id, teacher_user_id, slot_number)");
+      await api.run("CREATE INDEX idx_ptm_bookings_parent ON ptm_bookings (madrasa_id, ptm_session_id, parent_user_id, status)");
+      // One live booking per teacher slot, and one live booking per parent
+      // slot. Cancelled rows are kept for history, so uniqueness is enforced
+      // on the ACTIVE rows only — a partial index on SQLite, and (because
+      // MySQL has no partial indexes) by the route's transaction guard there.
+      if (dialect === "sqlite") {
+        await api.run("CREATE UNIQUE INDEX idx_ptm_bookings_teacher_slot ON ptm_bookings (ptm_session_id, teacher_user_id, slot_number) WHERE status <> 'cancelled'");
+        await api.run("CREATE UNIQUE INDEX idx_ptm_bookings_parent_slot ON ptm_bookings (ptm_session_id, parent_user_id, slot_number) WHERE status <> 'cancelled'");
+      }
+    },
+  },
 ];
 
 async function migrate(options = {}) {

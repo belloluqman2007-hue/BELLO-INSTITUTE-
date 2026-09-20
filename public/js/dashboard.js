@@ -142,8 +142,11 @@
         items: [["Book Catalogue", "library/catalogue"], ["Issue Book", "library/issue"], ["Active Loans", "library/loans"], ["Overdue & Fines", "library/overdue"], ["Library Reports", "library/reports"]],
       },
       {
+        // Parent-Teacher Meetings sit with the other parent-facing channels.
+        // Both institution categories get the identical module — only the
+        // wording inside the screens comes from the category configuration.
         key: "communication", label: "Communication", icon: "chat",
-        items: [["Announcements", "communication/announcements"], ["Messages", "communication/messages"], ["Notifications", "communication/notifications"], ["Parent Communication", "communication/parents"]],
+        items: [["Announcements", "communication/announcements"], ["Messages", "communication/messages"], ["Notifications", "communication/notifications"], ["Parent Communication", "communication/parents"], ["PTM Sessions", "communication/ptm"]],
       },
       {
         key: "finance", label: "Finance", icon: "money",
@@ -825,6 +828,11 @@
       if (route === "communication/messages") return await pageMessages(content);
       if (route === "communication/notifications") return await pageNotifications(content);
       if (route === "communication/parents") return await pageParentCommunication(content);
+      // Parent-Teacher Meeting booking renders through the same module
+      // contract as Library/Leave/Health, inside this unchanged shell.
+      if (window.BelloPTM && window.BelloPTM.handles(route)) {
+        return await window.BelloPTM.render({ I, esc, T, go, toast, openModal, closeModal, statCard, fmtDate, options, emptyRow, pillFor, todayIso, bindRouteButtons, state }, content, route);
+      }
       if (route === "finance/fees") return await pageFees(content);
       if (route === "finance/payments" || route === "finance/records") return await pagePayments(content);
       if (route === "finance/outstanding") return await pageOutstandingFees(content);

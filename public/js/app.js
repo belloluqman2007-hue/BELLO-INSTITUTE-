@@ -96,7 +96,7 @@
           </div>
           <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
           <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/login">Login</a></div>
-          <div class="footer-col"><h3>Platform</h3><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
+          <div class="footer-col"><h3>Platform</h3><a href="/parent/meetings" data-route="/parent/meetings">Parents: book a meeting</a><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
         </div>
         <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i></span></div>
       </footer>`;
@@ -801,6 +801,20 @@
     }
   }
 
+  /* Parent portal booking section (public/js/parent-ptm.js). It is a separate
+     module mounted into the same #app container, exactly like the admin
+     dashboard and the registration flows, so this router keeps one hook
+     instead of a second application. */
+  function renderParentMeetings() {
+    document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
+    if (scrollHandler) { window.removeEventListener("scroll", scrollHandler); scrollHandler = null; }
+    if (window.BelloParentMeetings && typeof window.BelloParentMeetings.mount === "function") {
+      window.BelloParentMeetings.mount();
+      return;
+    }
+    renderHomepage();
+  }
+
   function renderRoute() {
     const path = window.location.pathname.replace(/\/+$/, "") || "/";
     const hash = window.location.hash;
@@ -816,6 +830,12 @@
     } else if (/^\/(?:schools|s|school|m)\/[^/]+(?:\/[^/]+)?$/.test(path)) {
       const schoolParts = path.split("/");
       renderSchoolPublic(decodeURIComponent(schoolParts[2]));
+    // Parent portal — "Book a meeting" (Parent-Teacher Meetings). A real
+    // address of its own so a parent can bookmark/refresh it; the module
+    // asks for the parent's own credentials and uses the same tenant-scoped
+    // API as the rest of the platform.
+    } else if (path === "/parent" || path === "/parent/meetings" || hash === "#/parent/meetings" || hash === "#/parent") {
+      renderParentMeetings();
     } else if (path === "/register-academy" || path.startsWith("/register-academy/") || hash === "#/register-academy" || hash === "#register-academy") {
       renderAcademyRegistration();
     } else if (path === "/register-madrasa" || path.startsWith("/register-madrasa/") || hash === "#/register-madrasa" || hash === "#register-madrasa") {

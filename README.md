@@ -127,7 +127,7 @@ server/            Express API (Node 22, no framework magic)
                    subjects/sessions/grading, results, attendance, fees,
                    announcements, portal, public (logged-out site),
                    admissions, timetable, payroll, leave (staff leave),
-                   exports, backups
+                   ptm (parent-teacher meeting booking), exports, backups
   services/        grading engine (configurable per madrasa), admissions,
                    analytics (dashboard aggregates, tenant- and platform-wide),
                    persistence (storage probe), backup (snapshot/restore),
@@ -211,6 +211,21 @@ render.yaml        NEW Render service definition (production)
   admission review/settings, announcements/messages/parent communication,
   fee items/payments/balances/reports, account security and saved notification
   preferences. Every counter and chart comes from current tenant data.
+- **Parent-teacher meetings** — the administrator schedules a meeting day
+  (`Communication → PTM Sessions`) with a start time, an end time and a slot
+  length; the time-slot grid is generated from those three numbers and every
+  active teacher is enrolled as available, each free to opt out until someone
+  books them. A parent signs in at `/parent/meetings`, picks a child, picks one
+  of *that child's* teachers, picks a free slot and gets an immediate
+  confirmation with the date, time and location — while both they and the
+  teacher receive an in-app notification (and email/SMS where the recipient's
+  delivery preferences and a provider are configured). Double-booking is
+  refused three ways: a teacher cannot be in two places at once, a parent
+  cannot be in two places at once, and the same parent/teacher/child meeting
+  cannot be made twice. The administrator sees the whole day as a grid
+  (teachers as columns, slots as rows, booked cells naming the parent and the
+  student), can cancel from it, print it, or export it as CSV. Identical for
+  an Islamic school and a Western academy — only the wording differs.
 - **Live institution share pages** — `/s/<slug>` renders each institution’s
   real public profile, public announcements, subject/classes information,
   admission form and status checker, and published-result verification. Public
@@ -221,6 +236,7 @@ render.yaml        NEW Render service definition (production)
 
 Subscriptions and public payment, provider-backed SMS/WhatsApp/email delivery,
 certificates, ID cards, library, expenses and a native mobile app.
-(Timetables, online admissions, assignments, public result checking, payroll
-and staff leave are now built; public *payment* of fees is not.) The schema and routes are shaped so
+(Timetables, online admissions, assignments, public result checking, payroll,
+staff leave and parent-teacher meeting booking are now built; public *payment*
+of fees is not.) The schema and routes are shaped so
 these can be added without re-architecture — no payment gateway is connected.

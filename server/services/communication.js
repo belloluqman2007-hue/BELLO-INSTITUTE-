@@ -12,7 +12,7 @@ const delivery = require("./delivery");
 /* Event types that may leave the dashboard through an external provider. The
  * in-app notification is ALWAYS created first and is never conditional on a
  * provider being configured. */
-const DELIVERABLE_TYPES = new Set(["fee_reminder", "payment_received", "announcement", "result_published", "admission_decision"]);
+const DELIVERABLE_TYPES = new Set(["fee_reminder", "payment_received", "announcement", "result_published", "admission_decision", "ptm_booking"]);
 
 const STAFF_ROLES = ["madrasa_admin", "teacher"];
 const RECIPIENT_ROLES = ["madrasa_admin", "teacher", "student", "parent"];

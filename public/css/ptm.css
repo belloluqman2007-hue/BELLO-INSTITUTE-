@@ -1,0 +1,62 @@
+/* Parent-Teacher Meetings. Uses the dashboard's existing tokens only, so both
+   the Islamic and the Western palette apply automatically. */
+
+/* Admin booking grid ------------------------------------------------------ */
+.ptm-grid { min-width: 640px; }
+.ptm-grid th { white-space: nowrap; }
+.ptm-slot-time { white-space: nowrap; }
+.ptm-slot-time small { display: block; color: var(--d-muted); margin-top: 2px; }
+.ptm-cell { vertical-align: top; min-width: 150px; }
+.ptm-cell small { display: block; color: var(--d-muted); margin-top: 3px; }
+.ptm-cell.is-booked { background: rgba(28, 126, 82, .07); }
+.ptm-cell.is-booked .dash-btn { margin-top: 6px; }
+.ptm-cell.is-free { color: var(--d-muted); }
+.ptm-session-table small { display: block; color: var(--d-muted); margin-top: 3px; }
+
+/* Parent booking section (public portal) ---------------------------------- */
+.ptm-portal { display: grid; gap: 16px; }
+.ptm-portal-card { border: 1px solid var(--d-line, #e6e2ee); border-radius: 12px; padding: 16px; background: #fff; }
+.ptm-portal-card h3 { margin: 0 0 4px; font-size: 1.02rem; }
+.ptm-portal-card p.ptm-muted { margin: 0 0 12px; color: #6d6878; font-size: .88rem; }
+.ptm-choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.ptm-choice {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;
+  padding: 12px 14px; border-radius: 10px; border: 1px solid var(--d-line, #e6e2ee);
+  background: #fff; cursor: pointer; font: inherit; font-weight: 700; min-height: 44px; width: 100%;
+}
+.ptm-choice small { font-weight: 500; color: #6d6878; }
+.ptm-choice:hover, .ptm-choice:focus-visible { border-color: currentColor; }
+.ptm-choice.is-active { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+.ptm-slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.ptm-slot {
+  padding: 10px 8px; border-radius: 9px; border: 1px solid var(--d-line, #e6e2ee); background: #fff;
+  cursor: pointer; font: inherit; font-weight: 700; font-size: .86rem; min-height: 44px;
+}
+.ptm-slot[disabled] { opacity: .45; cursor: not-allowed; }
+.ptm-slot.is-taken { text-decoration: line-through; }
+.ptm-confirmation { border-radius: 12px; padding: 16px; border: 1px solid rgba(28, 126, 82, .35); background: rgba(28, 126, 82, .07); }
+.ptm-confirmation dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 10px 0 0; }
+.ptm-confirmation dt { font-weight: 700; font-size: .82rem; color: #4a455a; }
+.ptm-confirmation dd { margin: 0; font-size: .9rem; }
+.ptm-booking-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ptm-booking-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--d-line, #e6e2ee); border-radius: 10px; }
+.ptm-status { font-size: .84rem; color: #6d6878; }
+.ptm-error { color: #a4251b; font-size: .88rem; }
+
+@media (max-width: 720px) {
+  .ptm-choice-grid { grid-template-columns: 1fr; }
+  .ptm-slot-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  .ptm-cell { min-width: 132px; }
+  .ptm-confirmation dl { grid-template-columns: 1fr; gap: 2px 0; }
+  .ptm-confirmation dt { margin-top: 6px; }
+}
+@media (max-width: 480px) {
+  .ptm-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media print {
+  .dash-page-head .dash-actions,
+  .ptm-cell .dash-btn { display: none !important; }
+  .ptm-grid { min-width: 0; }
+  .ptm-cell.is-booked { background: transparent; }
+}

@@ -319,7 +319,10 @@ async function createDemoMadrasa(slug, names, city, planCode, prefix) {
   for (let i = 0; i < 2; i++) {
     const puser = await db.run(
       "INSERT INTO users (madrasa_id, username, password_hash, role, full_name) VALUES (?,?,?,?,?)",
-      [mid, `${slug}-parent${i + 1}`, bcrypt.hashSync("Parent1234!", 10), "parent", `Guardian of ${demoStudents[i].last_name}`]
+      // demoStudents rows are ARRAYS ([first, last, …]) — reading .last_name
+      // off them produced the literal name "Guardian of undefined" in every
+      // screen that shows a parent (now including the PTM booking grid).
+      [mid, `${slug}-parent${i + 1}`, bcrypt.hashSync("Parent1234!", 10), "parent", `Guardian of ${demoStudents[i][1]}`]
     );
     await db.insertIgnore("parent_links", "madrasa_id, user_id, student_id", [mid, puser.lastInsertRowid, studentIds[i]]);
   }
@@ -327,7 +330,7 @@ async function createDemoMadrasa(slug, names, city, planCode, prefix) {
   for (let i = 0; i < 2; i++) {
     const r = await db.run(
       "INSERT INTO users (madrasa_id, username, password_hash, role, full_name, student_id) VALUES (?,?,?,?,?,?)",
-      [mid, `${slug}-stu${i + 1}`, bcrypt.hashSync("Student1234!", 10), "student", `${demoStudents[i].first_name} ${demoStudents[i].last_name}`, studentIds[i]]
+      [mid, `${slug}-stu${i + 1}`, bcrypt.hashSync("Student1234!", 10), "student", `${demoStudents[i][0]} ${demoStudents[i][1]}`, studentIds[i]]
     );
   }
 

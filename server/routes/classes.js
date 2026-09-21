@@ -10,6 +10,7 @@ const express = require("express");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
+const { requireStaffPermission } = require("../services/permissions");
 const { effectiveTenantId, getTeacherAssignments } = require("../middleware/tenant");
 
 const router = express.Router();
@@ -145,7 +146,7 @@ function classDto(row, subjects = []) {
 
 /* ------------------------------ list ----------------------------------- */
 
-router.get("/", asyncHandler(async (req, res, next) => {
+router.get("/", requireStaffPermission("classes.view"), asyncHandler(async (req, res, next) => {
   // Keep historical behaviour: authenticated tenant users may read the active
   // class catalogue, while detailed rosters/assignments remain staff-gated.
   const tid = await tenantId(req, res); if (tid == null) return;
@@ -210,7 +211,7 @@ router.get("/", asyncHandler(async (req, res, next) => {
   });
 }));
 
-router.post("/", ADMIN, asyncHandler(async (req, res) => {
+router.post("/", ADMIN, requireStaffPermission("classes.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const nameEn = cleanStr(b.name_en || b.class_name, 120);
@@ -248,7 +249,7 @@ router.post("/", ADMIN, asyncHandler(async (req, res) => {
 
 /* ------------------------------ class details --------------------------- */
 
-router.get("/:id/students", STAFF, asyncHandler(async (req, res) => {
+router.get("/:id/students", STAFF, requireStaffPermission("classes.view"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const tid = c.madrasa_id;
   const rows = await db.all(
@@ -271,7 +272,7 @@ router.get("/:id/students", STAFF, asyncHandler(async (req, res) => {
   ok(res, { class: classDto(c), students: rows.map((s) => Object.assign({}, s, { fee_status: Number(s.fees_paid || 0) >= Number(s.fees_due || 0) && Number(s.fees_due || 0) > 0 ? "paid" : "outstanding" })), stats });
 }));
 
-router.post("/:id/students", ADMIN, asyncHandler(async (req, res) => {
+router.post("/:id/students", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const ids = arr(req.body && (req.body.student_ids || req.body.student_id)).map((x) => toNum(x, 0)).filter(Boolean);
   if (!ids.length) return err(res, 400, "Select at least one student.");
@@ -293,7 +294,7 @@ router.post("/:id/students", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, moved });
 }));
 
-router.post("/:id/students/transfer", ADMIN, asyncHandler(async (req, res) => {
+router.post("/:id/students/transfer", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const from = await classRow(req, res, req.params.id); if (!from) return;
   const toId = toNum(req.body && (req.body.to_class_id || req.body.class_id), 0);
   const to = await db.get("SELECT * FROM classes WHERE id = ? AND madrasa_id = ?", [toId, from.madrasa_id]);
@@ -316,7 +317,7 @@ router.post("/:id/students/transfer", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, moved });
 }));
 
-router.delete("/:id/students/:studentId", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id/students/:studentId", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const s = await db.get("SELECT id, class_id, session_id FROM students WHERE id = ? AND madrasa_id = ? AND class_id = ?", [toNum(req.params.studentId, 0), c.madrasa_id, c.id]);
   if (!s) return err(res, 404, "Student is not in this class.");
@@ -327,7 +328,7 @@ router.delete("/:id/students/:studentId", ADMIN, asyncHandler(async (req, res) =
   ok(res, { ok: true });
 }));
 
-router.get("/:id/teachers", STAFF, asyncHandler(async (req, res) => {
+router.get("/:id/teachers", STAFF, requireStaffPermission("classes.view"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const rows = await db.all(
     `SELECT ta.id AS assignment_id, ta.role, ta.subject_id, ta.assigned_periods, ta.notes,
@@ -348,7 +349,7 @@ router.get("/:id/teachers", STAFF, asyncHandler(async (req, res) => {
   ok(res, { class: classDto(c), teachers: normalized });
 }));
 
-router.post("/:id/teachers", ADMIN, asyncHandler(async (req, res) => {
+router.post("/:id/teachers", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const userId = toNum(req.body && (req.body.user_id || req.body.teacher_id), 0);
   if (!userId || !await teacherExists(c.madrasa_id, userId)) return err(res, 400, "Unknown teacher.");
@@ -365,7 +366,7 @@ router.post("/:id/teachers", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, assignmentId });
 }));
 
-router.patch("/:id/teachers/:assignmentId", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/:id/teachers/:assignmentId", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const assignment = await db.get("SELECT * FROM teacher_assignments WHERE id = ? AND madrasa_id = ? AND class_id = ?", [toNum(req.params.assignmentId, 0), c.madrasa_id, c.id]);
   if (!assignment) return err(res, 404, "Assignment not found.");
@@ -377,7 +378,7 @@ router.patch("/:id/teachers/:assignmentId", ADMIN, asyncHandler(async (req, res)
   ok(res, { ok: true });
 }));
 
-router.delete("/:id/teachers/:assignmentId", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id/teachers/:assignmentId", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const assignment = await db.get("SELECT * FROM teacher_assignments WHERE id = ? AND madrasa_id = ? AND class_id = ?", [toNum(req.params.assignmentId, 0), c.madrasa_id, c.id]);
   if (!assignment) return err(res, 404, "Assignment not found.");
@@ -389,14 +390,14 @@ router.delete("/:id/teachers/:assignmentId", ADMIN, asyncHandler(async (req, res
   ok(res, { ok: true });
 }));
 
-router.put("/:id/subjects", ADMIN, asyncHandler(async (req, res) => {
+router.put("/:id/subjects", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const subjectIds = arr(req.body && req.body.subject_ids).map((x) => toNum(x, 0)).filter(Boolean);
   await setClassSubjects(db, c.madrasa_id, c.id, subjectIds);
   ok(res, { ok: true });
 }));
 
-router.get("/:id", STAFF, asyncHandler(async (req, res) => {
+router.get("/:id", STAFF, requireStaffPermission("classes.view"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const subjects = await classSubjects(c.madrasa_id, [Number(c.id)]);
   const [teachers, students, timetable] = await Promise.all([
@@ -407,7 +408,7 @@ router.get("/:id", STAFF, asyncHandler(async (req, res) => {
   ok(res, { class: classDto(c, subjects.get(Number(c.id)) || []), teachers, students, timetable });
 }));
 
-router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/:id", ADMIN, requireStaffPermission("classes.edit"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   const b = req.body || {};
   const sets = [];
@@ -451,7 +452,7 @@ router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true });
 }));
 
-router.delete("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id", ADMIN, requireStaffPermission("classes.delete"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
   await db.run("UPDATE classes SET status = 'archived', is_active = 0, archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?", [new Date().toISOString(), c.id, c.madrasa_id]);
   logActivity(db, { madrasaId: c.madrasa_id, userId: req.user.id, action: "class.archive", entity: "class", entityId: String(c.id), ip: req.ip });

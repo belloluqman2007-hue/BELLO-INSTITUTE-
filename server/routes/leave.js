@@ -28,7 +28,7 @@ const express = require("express");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, clampNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
-const { requirePermission } = require("../services/permissions");
+const { requirePermission, requireStaffPermission } = require("../services/permissions");
 const { effectiveTenantId } = require("../middleware/tenant");
 const csv = require("../services/csv");
 const { DAYS } = require("./timetable");
@@ -290,7 +290,7 @@ function requestDto(row, { includePrivate = true } = {}) {
 
 /* ------------------------------ leave types ------------------------------ */
 
-router.get("/types", STAFF, asyncHandler(async (req, res) => {
+router.get("/types", STAFF, requireStaffPermission("staff_leave.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureLeaveTypes(tid);
   const where = ["madrasa_id = ?"]; const params = [tid];
@@ -357,7 +357,7 @@ router.post("/types", ADMIN, requirePermission("staff_leave.approve"), asyncHand
   ok(res, { ok: true, id });
 }));
 
-router.patch("/types/:id", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/types/:id", ADMIN, requireStaffPermission("staff_leave.approve"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await typeInTenant(tid, req.params.id);
   if (!row) return err(res, 404, "Leave type not found.");
@@ -377,7 +377,7 @@ router.patch("/types/:id", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true });
 }));
 
-router.delete("/types/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/types/:id", ADMIN, requireStaffPermission("staff_leave.approve"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await typeInTenant(tid, req.params.id);
   if (!row) return err(res, 404, "Leave type not found.");
@@ -401,7 +401,7 @@ router.delete("/types/:id", ADMIN, asyncHandler(async (req, res) => {
 
 /** GET /balances?sessionId=&userId=&typeId= — entitlement, taken, remaining
     per staff member per leave type for one academic session. */
-router.get("/balances", STAFF, asyncHandler(async (req, res) => {
+router.get("/balances", STAFF, requireStaffPermission("staff_leave.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureLeaveTypes(tid);
   const session = req.query.sessionId ? await sessionInTenant(tid, req.query.sessionId) : await currentSession(tid);
@@ -459,7 +459,7 @@ router.get("/balances", STAFF, asyncHandler(async (req, res) => {
 
 /** GET /calendar?month=&year= — every approved leave touching that month,
     already expanded into the working days the grid has to colour. */
-router.get("/calendar", STAFF, asyncHandler(async (req, res) => {
+router.get("/calendar", STAFF, requireStaffPermission("staff_leave.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureLeaveTypes(tid);
   const now = new Date();
@@ -505,7 +505,7 @@ router.get("/calendar", STAFF, asyncHandler(async (req, res) => {
 
 /** GET /me — self-service: own balances, own requests and the catalogue.
     This is what a teacher portal / teacher dashboard renders. */
-router.get("/me", STAFF, asyncHandler(async (req, res) => {
+router.get("/me", STAFF, requireStaffPermission("staff_leave.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureLeaveTypes(tid);
   const person = await staffInTenant(tid, req.user.id);
@@ -562,7 +562,7 @@ function buildRequestFilters(req, tid) {
   return { where, params };
 }
 
-router.get("/", STAFF, asyncHandler(async (req, res) => {
+router.get("/", STAFF, requireStaffPermission("staff_leave.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureLeaveTypes(tid);
   const { where, params } = buildRequestFilters(req, tid);
@@ -599,7 +599,7 @@ router.get("/", STAFF, asyncHandler(async (req, res) => {
 }));
 
 /** CSV export of the same filtered list (Excel-safe, shared csv service). */
-router.get("/export.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/export.csv", STAFF, requireStaffPermission("staff_leave.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const { where, params } = buildRequestFilters(req, tid);
   const rows = await db.all(`${REQUEST_SELECT} WHERE ${where.join(" AND ")} ORDER BY lr.start_date DESC, lr.id DESC LIMIT 5000`, params);
@@ -639,7 +639,7 @@ async function loadRequest(tid, id) {
 
 /** POST / — a teacher submits their own application; an administrator may
     submit on behalf of a staff member by passing user_id. */
-router.post("/", STAFF, asyncHandler(async (req, res) => {
+router.post("/", STAFF, requireStaffPermission("staff_leave.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureLeaveTypes(tid);
   const b = req.body || {};
@@ -692,7 +692,7 @@ router.post("/", STAFF, asyncHandler(async (req, res) => {
   ok(res, { ok: true, id, days, session_id: session ? session.id : null, status: "pending" });
 }));
 
-router.get("/:id", STAFF, asyncHandler(async (req, res) => {
+router.get("/:id", STAFF, requireStaffPermission("staff_leave.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await loadRequest(tid, req.params.id);
   if (!row) return err(res, 404, "Leave request not found.");
@@ -701,7 +701,7 @@ router.get("/:id", STAFF, asyncHandler(async (req, res) => {
 }));
 
 /** PATCH /:id — edit a pending application (owner or administrator). */
-router.patch("/:id", STAFF, asyncHandler(async (req, res) => {
+router.patch("/:id", STAFF, requireStaffPermission("staff_leave.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await loadRequest(tid, req.params.id);
   if (!row) return err(res, 404, "Leave request not found.");
@@ -762,12 +762,12 @@ function review(decision) {
   });
 }
 
-router.patch("/:id/approve", ADMIN, review("approved"));
-router.patch("/:id/reject", ADMIN, review("rejected"));
+router.patch("/:id/approve", ADMIN, requireStaffPermission("staff_leave.approve"), review("approved"));
+router.patch("/:id/reject", ADMIN, requireStaffPermission("staff_leave.approve"), review("rejected"));
 
 /** PATCH /:id/cancel — the owner withdraws, or an administrator cancels an
     approved leave (which also reverses the register rows it created). */
-router.patch("/:id/cancel", STAFF, asyncHandler(async (req, res) => {
+router.patch("/:id/cancel", STAFF, requireStaffPermission("staff_leave.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await loadRequest(tid, req.params.id);
   if (!row) return err(res, 404, "Leave request not found.");
@@ -791,7 +791,7 @@ router.patch("/:id/cancel", STAFF, asyncHandler(async (req, res) => {
 
 /** DELETE /:id — administrators remove a record entirely (register rows this
     module created are reversed first). */
-router.delete("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id", ADMIN, requireStaffPermission("staff_leave.approve"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await loadRequest(tid, req.params.id);
   if (!row) return err(res, 404, "Leave request not found.");

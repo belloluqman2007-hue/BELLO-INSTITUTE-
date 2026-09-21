@@ -15,6 +15,7 @@ const tokens = require("../services/tokens");
 const { asyncHandler, err, ok, cleanStr, toNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId, getTeacherAssignments } = require("../middleware/tenant");
+const { requireStaffPermission } = require("../services/permissions");
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -330,7 +331,7 @@ body{margin:0;background:#edf0f5;color:#182133;font-family:Arial,"Segoe UI",sans
 @media print{body{background:#fff}.print-bar{display:none}.id-card{margin:0;box-shadow:none}}
 `;
 
-router.get("/id-card/bulk", STAFF, asyncHandler(async (req, res) => {
+router.get("/id-card/bulk", STAFF, requireStaffPermission("documents.generate"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const classId = toNum(req.query.classId, 0);
   if (!classId) return err(res, 400, "classId is required.");
@@ -365,7 +366,7 @@ router.get("/id-card/bulk", STAFF, asyncHandler(async (req, res) => {
   res.type("html").send(printShell(`ID cards — ${klass.name_en}`, bulkCss, sheets.join(""), "A4"));
 }));
 
-router.get("/id-card/:studentId", STAFF, asyncHandler(async (req, res) => {
+router.get("/id-card/:studentId", STAFF, requireStaffPermission("documents.generate"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const student = await loadIdCardStudent(req, res, tid, toNum(req.params.studentId, 0)); if (!student) return;
   student.issue_date = today();
@@ -400,20 +401,20 @@ function replacePlaceholders(template, values) {
   return cleanTemplateHtml(template).replace(/\{\{\s*(student_name|class|session|date|custom_field_[1-3])\s*\}\}/gi, (_, key) => escapeHtml(values[String(key).toLowerCase()] || ""));
 }
 
-router.get(["/templates", "/certificate-templates"], ADMIN, asyncHandler(async (req, res) => {
+router.get(["/templates", "/certificate-templates"], ADMIN, requireStaffPermission("documents.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const templates = await db.all("SELECT id, madrasa_id, name, type, html_template, created_at, archived_at FROM certificate_templates WHERE madrasa_id=? ORDER BY archived_at IS NOT NULL, name, id DESC", [tid]);
   ok(res, { templates });
 }));
 
-router.get(["/templates/:id", "/certificate-templates/:id"], ADMIN, asyncHandler(async (req, res) => {
+router.get(["/templates/:id", "/certificate-templates/:id"], ADMIN, requireStaffPermission("documents.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const template = await db.get("SELECT * FROM certificate_templates WHERE id=? AND madrasa_id=?", [toNum(req.params.id, 0), tid]);
   if (!template) return err(res, 404, "Certificate template not found.");
   ok(res, { template });
 }));
 
-router.post(["/templates", "/certificate-templates"], ADMIN, asyncHandler(async (req, res) => {
+router.post(["/templates", "/certificate-templates"], ADMIN, requireStaffPermission("documents.generate"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {}; const name = cleanStr(b.name, 160); const html = cleanTemplateHtml(b.html_template);
   if (!name) return err(res, 400, "Template name is required.");
@@ -427,7 +428,7 @@ router.post(["/templates", "/certificate-templates"], ADMIN, asyncHandler(async 
   ok(res, { ok: true, id: result.lastInsertRowid });
 }));
 
-router.patch(["/templates/:id", "/certificate-templates/:id"], ADMIN, asyncHandler(async (req, res) => {
+router.patch(["/templates/:id", "/certificate-templates/:id"], ADMIN, requireStaffPermission("documents.generate"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const id = toNum(req.params.id, 0); const existing = await db.get("SELECT * FROM certificate_templates WHERE id=? AND madrasa_id=?", [id, tid]);
   if (!existing) return err(res, 404, "Certificate template not found.");
@@ -476,7 +477,7 @@ function renderCertificate(row) {
 `, `<main class="certificate-page"><div class="certificate-brand">${logo ? `<img src="${escapeHtml(logo)}" alt="School logo">` : ""}<strong>${escapeHtml(row.institution_name)}</strong></div><div class="certificate-frame"><div class="certificate-content">${html}</div><div class="certificate-footer">Issued ${escapeHtml(dateLabel(row.issued_date))} · ${escapeHtml(row.template_name)}</div></div></main>`, "A4 landscape");
 }
 
-router.post("/certificates", ADMIN, asyncHandler(async (req, res) => {
+router.post("/certificates", ADMIN, requireStaffPermission("documents.generate"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const templateId = toNum(b.template_id, 0);
@@ -506,7 +507,7 @@ router.post("/certificates", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, id: created[0], ids: created });
 }));
 
-router.get("/certificates", STAFF, asyncHandler(async (req, res) => {
+router.get("/certificates", STAFF, requireStaffPermission("documents.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const where = ["c.madrasa_id=?"]; const params = [tid];
   if (req.query.studentId !== undefined) { const studentId = toNum(req.query.studentId, 0); if (!studentId) return err(res, 400, "studentId must be a valid id."); where.push("c.student_id=?"); params.push(studentId); }
@@ -514,7 +515,7 @@ router.get("/certificates", STAFF, asyncHandler(async (req, res) => {
   ok(res, { certificates: rows.map((row) => Object.assign({}, row, { student_name: studentName(row) })) });
 }));
 
-router.get("/certificates/:id", STAFF, asyncHandler(async (req, res) => {
+router.get("/certificates/:id", STAFF, requireStaffPermission("documents.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await certificateRow(tid, toNum(req.params.id, 0));
   if (!row) return res.status(404).type("html").send("Certificate not found");

@@ -223,7 +223,14 @@ async function teacherReport(req, res) {
   const from = validDate(req.query.from) || "0000-01-01"; const to = validDate(req.query.to) || "9999-12-31";
   const teacherId = toNum(req.params.teacherId || req.query.teacherId, 0); const department = cleanStr(req.query.department, 120);
   const where = ["ta.madrasa_id = ?", "ta.day >= ?", "ta.day <= ?"]; const params = [tid, from, to];
-  if (teacherId) { where.push("ta.user_id = ?"); params.push(teacherId); }
+  if (teacherId) {
+    // Same convention as the student report below: a filter naming a record
+    // that does not belong to this tenant is "not found", not an empty report.
+    // Returning 200 with no rows made a foreign id indistinguishable from a
+    // teacher who simply has no attendance marked yet.
+    if (!(await db.get("SELECT id FROM users WHERE id = ? AND madrasa_id = ?", [teacherId, tid]))) return err(res, 404, "Teacher not found.");
+    where.push("ta.user_id = ?"); params.push(teacherId);
+  }
   if (department) { where.push("tp.department = ?"); params.push(department); }
   const rows = await db.all(`SELECT ta.user_id AS teacher_id, u.full_name, tp.department,
       SUM(CASE WHEN ta.status = 'present' THEN 1 ELSE 0 END) AS present,

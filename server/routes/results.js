@@ -18,7 +18,7 @@ const { effectiveTenantId, getTeacherAssignments, teacherCanAccess } = require("
 const grading = require("../services/grading");
 const { fileUploader } = require("../middleware/upload");
 const communication = require("../services/communication");
-const { requirePermission, can } = require("../services/permissions");
+const { requirePermission, requireStaffPermission, can } = require("../services/permissions");
 const audit = require("../services/audit");
 
 /* ----------------------------- result lifecycle -------------------------
@@ -101,7 +101,7 @@ async function guardAccess(req, res, tid, classId, subjectId, termId) {
  * This is the authoritative gradebook input list; /class remains available
  * for integrations that only want saved result rows.
  */
-router.get("/roster", asyncHandler(async (req, res) => {
+router.get("/roster", requireStaffPermission("results.enter"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classId = toNum(req.query.classId, 0);
@@ -139,7 +139,7 @@ router.get("/roster", asyncHandler(async (req, res) => {
 
 /* ------------------------------ read class results --------------------- */
 
-router.get("/class", asyncHandler(async (req, res) => {
+router.get("/class", requireStaffPermission("results.enter"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classId = toNum(req.query.classId, 0);
@@ -176,7 +176,7 @@ router.get("/class", asyncHandler(async (req, res) => {
  * Body: { classId, termId, subjectId, entries: [{ studentId, ca, exam }] }
  * Upserts each entry. CA/exam are clamped to the madrasa's maxima.
  */
-router.put("/", asyncHandler(async (req, res) => {
+router.put("/", requireStaffPermission("results.enter"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const b = req.body || {};
@@ -261,7 +261,7 @@ router.put("/", asyncHandler(async (req, res) => {
 }));
 
 /* ------------------------------ CSV import ----------------------------- */
-router.post("/import", resultImport, asyncHandler(async (req, res) => {
+router.post("/import", requireStaffPermission("results.enter"), resultImport, asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   if (!req.file) return err(res, 400, "Choose a CSV file.");
   try {
@@ -375,7 +375,7 @@ router.post("/workflow", asyncHandler(async (req, res) => {
 
 /* ------------------------------ compute term --------------------------- */
 
-router.post("/compute", asyncHandler(async (req, res) => {
+router.post("/compute", requireStaffPermission("results.enter"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const b = req.body || {};
@@ -391,7 +391,7 @@ router.post("/compute", asyncHandler(async (req, res) => {
 
 /* ------------------------------ class term summary --------------------- */
 
-router.get("/summary", asyncHandler(async (req, res) => {
+router.get("/summary", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classId = toNum(req.query.classId, 0);
@@ -409,7 +409,7 @@ router.get("/summary", asyncHandler(async (req, res) => {
 
 /* ------------------------------ comments & publishing ------------------ */
 
-router.put("/summary/:studentId", asyncHandler(async (req, res) => {
+router.put("/summary/:studentId", requireStaffPermission("results.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const b = req.body || {};
@@ -524,14 +524,14 @@ async function loadReportData(req, res, studentId, termId) {
   return data;
 }
 
-router.get("/report-card-data/:studentId/:termId", asyncHandler(async (req, res) => {
+router.get("/report-card-data/:studentId/:termId", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
   const data = await loadReportData(req, res, toNum(req.params.studentId, 0), toNum(req.params.termId, 0));
   if (!data) return;
   ok(res, data);
 }));
 
 /** A single printable document containing every eligible report card. */
-router.get("/report-cards/bulk", asyncHandler(async (req, res) => {
+router.get("/report-cards/bulk", requireStaffPermission("report_cards.generate"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const classId = toNum(req.query.classId, 0); const termId = toNum(req.query.termId, 0);
   if (!classId || !termId) return err(res, 400, "classId and termId are required.");
@@ -551,7 +551,7 @@ router.get("/report-cards/bulk", asyncHandler(async (req, res) => {
 }));
 
 /** Printable report card HTML (standalone document; print to PDF in browser). */
-router.get("/report-card/:studentId/:termId", asyncHandler(async (req, res) => {
+router.get("/report-card/:studentId/:termId", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
   const data = await loadReportData(req, res, toNum(req.params.studentId, 0), toNum(req.params.termId, 0));
   if (!data) return;
   res.type("html").send(renderReportCard(data));

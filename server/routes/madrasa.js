@@ -10,6 +10,7 @@ const express = require("express");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, clampNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireRole, requireTenant } = require("../middleware/auth");
+const { requireStaffPermission } = require("../services/permissions");
 const { getActiveMadrasa } = require("../middleware/tenant");
 const { imageUploader } = require("../middleware/upload");
 const grading = require("../services/grading");
@@ -65,7 +66,7 @@ router.get("/profile", asyncHandler(async (req, res) => {
   ok(res, { madrasa: m, settings, plan, category, terminology: institution.terminology(category) });
 }));
 
-router.put("/profile", adminOrSupport, asyncHandler(async (req, res) => {
+router.put("/profile", adminOrSupport, requireStaffPermission("institution.settings"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const b = req.body || {};
@@ -99,7 +100,7 @@ router.put("/profile", adminOrSupport, asyncHandler(async (req, res) => {
   ok(res, { ok: true });
 }));
 
-router.post("/profile/logo", adminOrSupport, imageUploader("logos", "logo"), asyncHandler(async (req, res) => {
+router.post("/profile/logo", adminOrSupport, requireStaffPermission("institution.settings"), imageUploader("logos", "logo"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   if (!req.file) return err(res, 400, "No image uploaded.");
@@ -107,7 +108,7 @@ router.post("/profile/logo", adminOrSupport, imageUploader("logos", "logo"), asy
   ok(res, { ok: true, logoPath: `/uploads/logos/${req.file.filename}` });
 }));
 
-router.post("/profile/hero", adminOrSupport, imageUploader("hero", "hero"), asyncHandler(async (req, res) => {
+router.post("/profile/hero", adminOrSupport, requireStaffPermission("institution.settings"), imageUploader("hero", "hero"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   if (!req.file) return err(res, 400, "No image uploaded.");
@@ -117,14 +118,14 @@ router.post("/profile/hero", adminOrSupport, imageUploader("hero", "hero"), asyn
 
 /* ------------------------------ gallery -------------------------------- */
 
-router.get("/gallery", adminOrSupport, asyncHandler(async (req, res) => {
+router.get("/gallery", adminOrSupport, requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const rows = await db.all("SELECT * FROM gallery_images WHERE madrasa_id = ? ORDER BY sort_order, id", [m.id]);
   ok(res, { images: rows });
 }));
 
-router.post("/gallery", adminOrSupport, imageUploader("gallery", "image"), asyncHandler(async (req, res) => {
+router.post("/gallery", adminOrSupport, requireStaffPermission("website.edit"), imageUploader("gallery", "image"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   if (!req.file) return err(res, 400, "No image uploaded.");
@@ -139,7 +140,7 @@ router.post("/gallery", adminOrSupport, imageUploader("gallery", "image"), async
   ok(res, { ok: true, id: r.lastInsertRowid, imagePath: `/uploads/gallery/${req.file.filename}` });
 }));
 
-router.delete("/gallery/:id", adminOrSupport, asyncHandler(async (req, res) => {
+router.delete("/gallery/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const row = await db.get("SELECT id FROM gallery_images WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -155,7 +156,7 @@ router.delete("/gallery/:id", adminOrSupport, asyncHandler(async (req, res) => {
  * statistics the settings screen previews. Saved straight onto the madrasa
  * row so a directory query never needs a join.
  */
-router.get("/public-site", adminOrSupport, asyncHandler(async (req, res) => {
+router.get("/public-site", adminOrSupport, requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const [pending, published, notices] = await Promise.all([
@@ -189,7 +190,7 @@ router.get("/public-site", adminOrSupport, asyncHandler(async (req, res) => {
   });
 }));
 
-router.put("/public-site", adminOrSupport, asyncHandler(async (req, res) => {
+router.put("/public-site", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const b = req.body || {};
@@ -330,7 +331,7 @@ router.get("/dashboard", adminOrSupport, asyncHandler(async (req, res) => {
 /** Per-madrasa key/value settings (admission prefix, notification preference,
  *  website page copy, etc.). Values remain private unless a public projection
  *  deliberately asks for them. */
-router.get("/settings", adminOrSupport, asyncHandler(async (req, res) => {
+router.get("/settings", adminOrSupport, requireStaffPermission("institution.settings"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const rows = await db.all("SELECT key_name, value FROM settings WHERE madrasa_id = ? ORDER BY key_name", [m.id]);
@@ -339,7 +340,7 @@ router.get("/settings", adminOrSupport, asyncHandler(async (req, res) => {
   ok(res, { settings });
 }));
 
-router.put("/settings", adminOrSupport, asyncHandler(async (req, res) => {
+router.put("/settings", adminOrSupport, requireStaffPermission("institution.settings"), asyncHandler(async (req, res) => {
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const dialect = await db.dialect();

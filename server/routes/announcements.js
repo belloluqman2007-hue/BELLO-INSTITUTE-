@@ -7,6 +7,7 @@ const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, logActivity, validDate } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId } = require("../middleware/tenant");
+const { requireStaffPermission } = require("../services/permissions");
 const { imageUploader, fileUploader } = require("../middleware/upload");
 const communication = require("../services/communication");
 const announcementImage = imageUploader("announcement-images", "image");
@@ -88,7 +89,7 @@ router.get("/", asyncHandler(async (req, res) => {
   ok(res, { announcements: rows });
 }));
 
-router.post("/", ADMIN, asyncHandler(async (req, res) => {
+router.post("/", ADMIN, requireStaffPermission("communication.send"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const title = cleanStr(b.title, 200); const body = cleanStr(b.body ?? b.content, 10000);
@@ -112,7 +113,7 @@ router.post("/", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, id, status });
 }));
 
-router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/:id", ADMIN, requireStaffPermission("communication.send"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const id = toNum(req.params.id, 0); const current = await db.get("SELECT * FROM announcements WHERE id = ? AND madrasa_id = ?", [id, tid]);
   if (!current) return res.status(404).json({ error: "Announcement not found." });
@@ -142,7 +143,7 @@ router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, status: next });
 }));
 
-router.delete("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id", ADMIN, requireStaffPermission("communication.send"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const id = toNum(req.params.id, 0); const a = await db.get("SELECT id FROM announcements WHERE id = ? AND madrasa_id = ?", [id, tid]);
   if (!a) return res.status(404).json({ error: "Announcement not found." });
@@ -152,7 +153,7 @@ router.delete("/:id", ADMIN, asyncHandler(async (req, res) => {
 
 // Files are uploaded through the existing secure upload pipeline. The database
 // stores only the generated public path and original display metadata.
-router.post("/:id/image", ADMIN, announcementImage, asyncHandler(async (req, res) => {
+router.post("/:id/image", ADMIN, requireStaffPermission("communication.send"), announcementImage, asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const id = toNum(req.params.id, 0); const row = await db.get("SELECT id FROM announcements WHERE id = ? AND madrasa_id = ?", [id, tid]);
   if (!row || !req.file) return err(res, row ? 400 : 404, row ? "Image is required." : "Announcement not found.");
@@ -160,7 +161,7 @@ router.post("/:id/image", ADMIN, announcementImage, asyncHandler(async (req, res
   await db.run("UPDATE announcements SET image_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?", [path, id, tid]);
   ok(res, { ok: true, image_path: path });
 }));
-router.post("/:id/attachment", ADMIN, announcementFile, asyncHandler(async (req, res) => {
+router.post("/:id/attachment", ADMIN, requireStaffPermission("communication.send"), announcementFile, asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const id = toNum(req.params.id, 0); const row = await db.get("SELECT id FROM announcements WHERE id = ? AND madrasa_id = ?", [id, tid]);
   if (!row || !req.file) return err(res, row ? 400 : 404, row ? "Attachment is required." : "Announcement not found.");

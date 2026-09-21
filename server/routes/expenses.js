@@ -24,6 +24,7 @@ const { asyncHandler, ok, err, cleanStr, toNum, validDate, logActivity } = requi
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId, loadTenantRow } = require("../middleware/tenant");
 const csv = require("../services/csv");
+const { requireStaffPermission } = require("../services/permissions");
 
 const router = express.Router();
 const budgetRouter = express.Router();
@@ -145,7 +146,7 @@ async function getAllCategoryIds(tid, parentId) {
    EXPENSE CATEGORIES (CRUD + Hierarchy)
    ========================================================================== */
 
-router.get("/categories", STAFF, asyncHandler(async (req, res) => {
+router.get("/categories", STAFF, requireStaffPermission("expenses.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -166,7 +167,7 @@ router.get("/categories", STAFF, asyncHandler(async (req, res) => {
   ok(res, { categories: rows });
 }));
 
-router.post("/categories", ADMIN, asyncHandler(async (req, res) => {
+router.post("/categories", ADMIN, requireStaffPermission("expenses.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -194,7 +195,7 @@ router.post("/categories", ADMIN, asyncHandler(async (req, res) => {
   res.status(201).json({ ok: true, id: createdId, category });
 }));
 
-router.get("/categories/:id", STAFF, asyncHandler(async (req, res) => {
+router.get("/categories/:id", STAFF, requireStaffPermission("expenses.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -246,10 +247,10 @@ const updateCategoryHandler = asyncHandler(async (req, res) => {
   ok(res, { category: updated });
 });
 
-router.patch("/categories/:id", ADMIN, updateCategoryHandler);
-router.put("/categories/:id", ADMIN, updateCategoryHandler);
+router.patch("/categories/:id", ADMIN, requireStaffPermission("expenses.create"), updateCategoryHandler);
+router.put("/categories/:id", ADMIN, requireStaffPermission("expenses.create"), updateCategoryHandler);
 
-router.delete("/categories/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/categories/:id", ADMIN, requireStaffPermission("expenses.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -281,7 +282,7 @@ router.delete("/categories/:id", ADMIN, asyncHandler(async (req, res) => {
    REPORTS (Must be declared before /:id routes)
    ========================================================================== */
 
-router.get("/report", STAFF, asyncHandler(async (req, res) => {
+router.get("/report", STAFF, requireStaffPermission("expenses.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -444,7 +445,7 @@ router.get("/report", STAFF, asyncHandler(async (req, res) => {
   });
 }));
 
-router.get("/report.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/report.csv", STAFF, requireStaffPermission("expenses.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -528,7 +529,7 @@ router.get("/report.csv", STAFF, asyncHandler(async (req, res) => {
    EXPENSES (Draft, List, Detail, Approve, Reject, Receipt, Delete)
    ========================================================================== */
 
-router.post("/", STAFF, asyncHandler(async (req, res) => {
+router.post("/", STAFF, requireStaffPermission("expenses.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -587,7 +588,7 @@ router.post("/", STAFF, asyncHandler(async (req, res) => {
   res.status(201).json({ ok: true, id: createdId, expense });
 }));
 
-router.get("/", STAFF, asyncHandler(async (req, res) => {
+router.get("/", STAFF, requireStaffPermission("expenses.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -679,7 +680,7 @@ router.get("/", STAFF, asyncHandler(async (req, res) => {
   });
 }));
 
-router.get("/:id", STAFF, asyncHandler(async (req, res) => {
+router.get("/:id", STAFF, requireStaffPermission("expenses.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -763,8 +764,8 @@ const updateExpenseHandler = asyncHandler(async (req, res) => {
   ok(res, { expense: updated });
 });
 
-router.patch("/:id", ADMIN, updateExpenseHandler);
-router.put("/:id", ADMIN, updateExpenseHandler);
+router.patch("/:id", ADMIN, requireStaffPermission("expenses.create"), updateExpenseHandler);
+router.put("/:id", ADMIN, requireStaffPermission("expenses.create"), updateExpenseHandler);
 
 /* Approve */
 const approveExpenseHandler = asyncHandler(async (req, res) => {
@@ -797,8 +798,8 @@ const approveExpenseHandler = asyncHandler(async (req, res) => {
   ok(res, { expense: updated });
 });
 
-router.patch("/:id/approve", ADMIN, approveExpenseHandler);
-router.post("/:id/approve", ADMIN, approveExpenseHandler);
+router.patch("/:id/approve", ADMIN, requireStaffPermission("expenses.create"), approveExpenseHandler);
+router.post("/:id/approve", ADMIN, requireStaffPermission("expenses.create"), approveExpenseHandler);
 
 /* Reject */
 const rejectExpenseHandler = asyncHandler(async (req, res) => {
@@ -831,11 +832,11 @@ const rejectExpenseHandler = asyncHandler(async (req, res) => {
   ok(res, { expense: updated });
 });
 
-router.patch("/:id/reject", ADMIN, rejectExpenseHandler);
-router.post("/:id/reject", ADMIN, rejectExpenseHandler);
+router.patch("/:id/reject", ADMIN, requireStaffPermission("expenses.create"), rejectExpenseHandler);
+router.post("/:id/reject", ADMIN, requireStaffPermission("expenses.create"), rejectExpenseHandler);
 
 /* Receipt Upload */
-router.post("/:id/receipt", STAFF, uploadReceiptMiddleware, asyncHandler(async (req, res) => {
+router.post("/:id/receipt", STAFF, uploadReceiptMiddleware, requireStaffPermission("expenses.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -869,7 +870,7 @@ router.post("/:id/receipt", STAFF, uploadReceiptMiddleware, asyncHandler(async (
 }));
 
 /* Soft-delete / Cancel */
-router.delete("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id", ADMIN, requireStaffPermission("expenses.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 
@@ -1033,13 +1034,13 @@ const getBudgetSummaryHandler = asyncHandler(async (req, res) => {
 });
 
 // Mount budget handlers on both router (/api/expenses/budget) and budgetRouter (/api/budget)
-budgetRouter.post("/", ADMIN, setBudgetHandler);
-budgetRouter.get("/summary", STAFF, getBudgetSummaryHandler);
-budgetRouter.get("/", STAFF, getBudgetSummaryHandler);
+budgetRouter.post("/", ADMIN, requireStaffPermission("expenses.create"), setBudgetHandler);
+budgetRouter.get("/summary", STAFF, requireStaffPermission("expenses.view"), getBudgetSummaryHandler);
+budgetRouter.get("/", STAFF, requireStaffPermission("expenses.view"), getBudgetSummaryHandler);
 
-router.post("/budget", ADMIN, setBudgetHandler);
-router.get("/budget/summary", STAFF, getBudgetSummaryHandler);
-router.get("/budget", STAFF, getBudgetSummaryHandler);
+router.post("/budget", ADMIN, requireStaffPermission("expenses.create"), setBudgetHandler);
+router.get("/budget/summary", STAFF, requireStaffPermission("expenses.view"), getBudgetSummaryHandler);
+router.get("/budget", STAFF, requireStaffPermission("expenses.view"), getBudgetSummaryHandler);
 
 module.exports = {
   router,

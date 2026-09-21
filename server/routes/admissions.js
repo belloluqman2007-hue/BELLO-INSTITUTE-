@@ -61,7 +61,7 @@ async function loadRequest(req, res, id) {
   return row;
 }
 
-router.get("/", asyncHandler(async (req, res) => {
+router.get("/", requirePermission("admissions.view"), asyncHandler(async (req, res) => {
   const tid = await resolveTenant(req, res);
   if (tid === undefined) return;
   const allowedStatuses = ["pending", "under_review", "shortlisted", "interviewed", "accepted", "rejected", "waitlisted", "enrolled", "approved", "needs_info", "on_hold"];
@@ -103,7 +103,7 @@ router.get("/", asyncHandler(async (req, res) => {
 
 /* Admission monitoring dashboard. Each stage links back to the same filtered
  * application list; legacy `approved` applications count as enrolled. */
-router.get("/pipeline", asyncHandler(async (req, res) => {
+router.get("/pipeline", requirePermission("admissions.view"), asyncHandler(async (req, res) => {
   const tid = await resolveTenant(req, res); if (tid === undefined) return;
   const where = []; const params = [];
   if (tid !== null) { where.push("madrasa_id=?"); params.push(tid); }
@@ -129,7 +129,7 @@ router.get("/pipeline", asyncHandler(async (req, res) => {
 }));
 
 /* ------------------------- admission requirements ---------------------- */
-router.get("/requirements", asyncHandler(async (req, res) => {
+router.get("/requirements", requirePermission("admissions.view"), asyncHandler(async (req, res) => {
   const tid = await resolveTenant(req, res); if (tid === undefined || tid === null) return tid === null ? err(res, 400, "Institution context required.") : undefined;
   const where = ["r.madrasa_id=?"]; const params = [tid];
   if (req.query.status) { where.push("r.status=?"); params.push(cleanStr(req.query.status,20).toLowerCase()); }
@@ -176,7 +176,7 @@ const ADMISSION_SETTING_KEYS = new Set([
   "email_notifications","sms_notifications","application_confirmation","interview_notification","acceptance_notification","rejection_notification",
 ]);
 function settingOut(value) { try { return JSON.parse(value); } catch (_) { return value; } }
-router.get("/settings", asyncHandler(async(req,res)=>{
+router.get("/settings", requirePermission("admissions.view"), asyncHandler(async(req,res)=>{
   const tid=await resolveTenant(req,res);if(tid===undefined||tid===null)return tid===null?err(res,400,"Institution context required."):undefined;
   const rows=await db.all("SELECT key_name,value FROM settings WHERE madrasa_id=?",[tid]);const settings={};rows.forEach((row)=>{if(ADMISSION_SETTING_KEYS.has(row.key_name))settings[row.key_name]=settingOut(row.value);});
   const m=await db.get("SELECT public_admissions FROM madaris WHERE id=?",[tid]);if(settings.admission_open===undefined)settings.admission_open=Number(m&&m.public_admissions)===1;
@@ -192,7 +192,7 @@ router.put("/settings", requirePermission("institution.settings"), asyncHandler(
   logActivity(db,{madrasaId:tid,userId:req.user.id,action:"admission_settings.update",entity:"settings",entityId:String(tid),ip:req.ip});ok(res,{ok:true});
 }));
 
-router.get("/:id", asyncHandler(async (req, res) => {
+router.get("/:id", requirePermission("admissions.view"), asyncHandler(async (req, res) => {
   const row = await loadRequest(req, res, req.params.id);
   if (!row) return;
   const cls = row.class_id ? await db.get("SELECT id, name_en, name_ar FROM classes WHERE id = ? AND madrasa_id = ?", [row.class_id, row.madrasa_id]) : null;
@@ -405,7 +405,7 @@ router.post("/:id/documents", ADMIN, applicationDocumentUploader, asyncHandler(a
   const r = await db.run("INSERT INTO admission_documents (madrasa_id, application_id, document_name, storage_path, original_name, mime_type, file_size, uploaded_by, requirement_id, verification_status) VALUES (?,?,?,?,?,?,?,?,?,'pending')", [row.madrasa_id, row.id, name, req.file.path, cleanStr(req.file.originalname, 255), cleanStr(req.file.mimetype, 120), Number(req.file.size || 0), req.user.id, requirementId]);
   ok(res, { ok: true, id: r.lastInsertRowid, documentName: name });
 }));
-router.get("/:id/documents/:documentId", ADMIN, asyncHandler(async (req, res) => {
+router.get("/:id/documents/:documentId", ADMIN, requirePermission("admissions.view"), asyncHandler(async (req, res) => {
   const row = await loadRequest(req, res, req.params.id); if (!row) return;
   const doc = await db.get("SELECT * FROM admission_documents WHERE id = ? AND application_id = ? AND madrasa_id = ?", [toNum(req.params.documentId, 0), row.id, row.madrasa_id]);
   if (!doc || !fs.existsSync(doc.storage_path)) return err(res, 404, "Document not found.");

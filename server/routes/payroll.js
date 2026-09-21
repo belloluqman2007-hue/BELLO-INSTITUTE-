@@ -23,7 +23,7 @@ const express = require("express");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, clampNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
-const { requirePermission } = require("../services/permissions");
+const { requirePermission, requireStaffPermission } = require("../services/permissions");
 const { effectiveTenantId } = require("../middleware/tenant");
 const csv = require("../services/csv");
 
@@ -82,7 +82,7 @@ async function sessionInTenant(tid, sessionId) {
 
 /* ------------------------- salary structures --------------------------- */
 
-router.get("/structures", ADMIN, asyncHandler(async (req, res) => {
+router.get("/structures", ADMIN, requireStaffPermission("payroll.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const where = ["s.madrasa_id = ?"]; const params = [tid];
   if (req.query.userId) { where.push("s.user_id = ?"); params.push(toNum(req.query.userId, 0)); }
@@ -141,7 +141,7 @@ router.post("/structures", requirePermission("payroll.create"), asyncHandler(asy
   ok(res, { ok: true, id });
 }));
 
-router.patch("/structures/:id", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/structures/:id", ADMIN, requireStaffPermission("payroll.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const id = toNum(req.params.id, 0);
   const row = await db.get("SELECT * FROM salary_structures WHERE id = ? AND madrasa_id = ?", [id, tid]);
@@ -169,7 +169,7 @@ router.patch("/structures/:id", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true });
 }));
 
-router.delete("/structures/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/structures/:id", ADMIN, requireStaffPermission("payroll.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const r = await db.run("DELETE FROM salary_structures WHERE id=? AND madrasa_id=?", [toNum(req.params.id, 0), tid]);
   if (!r.changes) return res.status(404).json({ error: "Salary structure not found." });
@@ -194,7 +194,7 @@ async function loadPeriod(tid, id) {
   });
 }
 
-router.get("/periods", ADMIN, asyncHandler(async (req, res) => {
+router.get("/periods", ADMIN, requireStaffPermission("payroll.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const where = ["p.madrasa_id = ?"]; const params = [tid];
   if (req.query.sessionId) { where.push("p.session_id = ?"); params.push(toNum(req.query.sessionId, 0)); }
@@ -233,7 +233,7 @@ router.post("/periods", requirePermission("payroll.create"), asyncHandler(async 
   ok(res, { ok: true, id });
 }));
 
-router.delete("/periods/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/periods/:id", ADMIN, requireStaffPermission("payroll.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const period = await loadPeriod(tid, req.params.id);
   if (!period) return res.status(404).json({ error: "Pay period not found." });
@@ -343,7 +343,7 @@ async function computePayslip(api, tid, period, teacher, monthStartIso) {
 }
 
 /** POST /periods/:id/process — bulk compute every salaried teacher's slip. */
-router.post("/periods/:id/process", ADMIN, asyncHandler(async (req, res) => {
+router.post("/periods/:id/process", ADMIN, requireStaffPermission("payroll.process"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const period = await loadPeriod(tid, req.params.id);
   if (!period) return res.status(404).json({ error: "Pay period not found." });
@@ -384,7 +384,7 @@ router.post("/periods/:id/process", ADMIN, asyncHandler(async (req, res) => {
 }));
 
 /** POST /periods/:id/pay — finalise the period and stamp every slip paid. */
-router.post("/periods/:id/pay", ADMIN, asyncHandler(async (req, res) => {
+router.post("/periods/:id/pay", ADMIN, requireStaffPermission("payroll.approve"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const period = await loadPeriod(tid, req.params.id);
   if (!period) return res.status(404).json({ error: "Pay period not found." });
@@ -402,7 +402,7 @@ router.post("/periods/:id/pay", ADMIN, asyncHandler(async (req, res) => {
 
 /* ------------------------------- payslips -------------------------------- */
 
-router.get("/payslips", ADMIN, asyncHandler(async (req, res) => {
+router.get("/payslips", ADMIN, requireStaffPermission("payslips.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const where = ["ps.madrasa_id = ?"]; const params = [tid];
   if (req.query.periodId) { where.push("ps.pay_period_id = ?"); params.push(toNum(req.query.periodId, 0)); }
@@ -437,7 +437,7 @@ router.get("/payslips", ADMIN, asyncHandler(async (req, res) => {
 }));
 
 /** POST /payslips — generate (or recompute) one teacher's slip for a period. */
-router.post("/payslips", ADMIN, asyncHandler(async (req, res) => {
+router.post("/payslips", ADMIN, requireStaffPermission("payroll.process"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const period = await loadPeriod(tid, b.pay_period_id ?? b.periodId ?? b.period_id);
@@ -462,7 +462,7 @@ router.post("/payslips", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, id: slipId });
 }));
 
-router.get("/payslips/:id", ADMIN, asyncHandler(async (req, res) => {
+router.get("/payslips/:id", ADMIN, requireStaffPermission("payslips.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await db.get(
     `SELECT ps.*, u.full_name, u.full_name_ar, u.username, p.month, p.year, p.status AS period_status,
@@ -479,7 +479,7 @@ router.get("/payslips/:id", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { payslip: Object.assign({}, row, { deductions: parseJson(row.deductions), period_label: periodLabel(row.month, row.year) }) });
 }));
 
-router.delete("/payslips/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/payslips/:id", ADMIN, requireStaffPermission("payroll.process"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const slip = await db.get(
     "SELECT ps.*, p.status AS period_status FROM pay_slips ps JOIN pay_periods p ON p.id = ps.pay_period_id AND p.madrasa_id = ps.madrasa_id WHERE ps.id=? AND ps.madrasa_id=?",
@@ -498,7 +498,7 @@ router.delete("/payslips/:id", ADMIN, asyncHandler(async (req, res) => {
 /** GET /payslips/:id/print — server-rendered printable payslip (same pattern
     as the fee receipt). Printing runs through /js/print.js so the page stays
     CSP-safe under script-src 'self' (no inline script handler). */
-router.get("/payslips/:id/print", ADMIN, asyncHandler(async (req, res) => {
+router.get("/payslips/:id/print", ADMIN, requireStaffPermission("payslips.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const p = await db.get(
     `SELECT ps.*, u.full_name, u.full_name_ar, u.username, p.month, p.year, p.status AS period_status,
@@ -588,7 +588,7 @@ router.get("/payslips/:id/print", ADMIN, asyncHandler(async (req, res) => {
 
 /* ------------------------- salary advances ------------------------------- */
 
-router.get("/advances", ADMIN, asyncHandler(async (req, res) => {
+router.get("/advances", ADMIN, requireStaffPermission("payroll.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const where = ["a.madrasa_id = ?"]; const params = [tid];
   if (req.query.userId) { where.push("a.user_id = ?"); params.push(toNum(req.query.userId, 0)); }
@@ -615,7 +615,7 @@ router.get("/advances", ADMIN, asyncHandler(async (req, res) => {
   });
 }));
 
-router.post("/advances", ADMIN, asyncHandler(async (req, res) => {
+router.post("/advances", ADMIN, requireStaffPermission("payroll.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const teacher = await teacherInTenant(tid, b.user_id ?? b.userId);
@@ -634,7 +634,7 @@ router.post("/advances", ADMIN, asyncHandler(async (req, res) => {
 }));
 
 /** POST /advances/:id/repay — record a repayment received outside payroll. */
-router.post("/advances/:id/repay", ADMIN, asyncHandler(async (req, res) => {
+router.post("/advances/:id/repay", ADMIN, requireStaffPermission("payroll.process"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const advance = await db.get("SELECT * FROM salary_advances WHERE id=? AND madrasa_id=?", [toNum(req.params.id, 0), tid]);
   if (!advance) return res.status(404).json({ error: "Salary advance not found." });
@@ -647,7 +647,7 @@ router.post("/advances/:id/repay", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, applied, balance: round2(n(advance.balance) - applied) });
 }));
 
-router.delete("/advances/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/advances/:id", ADMIN, requireStaffPermission("payroll.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const advance = await db.get("SELECT * FROM salary_advances WHERE id=? AND madrasa_id=?", [toNum(req.params.id, 0), tid]);
   if (!advance) return res.status(404).json({ error: "Salary advance not found." });
@@ -662,7 +662,7 @@ router.delete("/advances/:id", ADMIN, asyncHandler(async (req, res) => {
 /* ------------------------------ CSV export ------------------------------- */
 
 /** GET /periods/:id/export.csv — one row per payslip in the period. */
-router.get("/periods/:id/export.csv", ADMIN, asyncHandler(async (req, res) => {
+router.get("/periods/:id/export.csv", ADMIN, requireStaffPermission("payroll.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const period = await loadPeriod(tid, req.params.id);
   if (!period) return res.status(404).json({ error: "Pay period not found." });

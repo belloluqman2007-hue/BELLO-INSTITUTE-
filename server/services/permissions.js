@@ -140,6 +140,20 @@ function isPermission(value) {
 const TEACHER_DEFAULTS = [
   "dashboard.view",
   "students.view",
+  // A teacher could already download the student roster, pull bulk report
+  // cards for their own classes, read the institution's website screens and
+  // record a school expense before granular permissions existed. They are
+  // listed explicitly so wiring the enforcement below withdraws nothing that
+  // a teacher has today — an administrator can now revoke them per user,
+  // which was not possible before.
+  "students.export",
+  "report_cards.generate",
+  // Printing ID cards for an assigned class was always available to a class
+  // teacher through the old STAFF guard (managing certificate templates was
+  // not, and still is not — that stays administrator-only).
+  "documents.generate",
+  "website.view",
+  "expenses.view", "expenses.create",
   // The teachers/staff directory and the fee ledger were already readable by
   // a teacher through the old "STAFF" role guard (madrasa_admin + teacher).
   // They are listed here so that introducing granular permissions does not
@@ -264,6 +278,38 @@ function requireAnyPermission(...permissions) {
   };
 }
 
+/**
+ * Like requirePermission, but ONLY for the staff roles that the admin
+ * permission catalogue describes (madrasa_admin, teacher, super_admin).
+ *
+ * Several routers are shared with the student/parent portals, which read the
+ * same tenant data through their own, separate record-level guards (own
+ * profile, linked children). Those roles hold no admin permissions at all by
+ * design, so applying the catalogue to them would withdraw portal access that
+ * has always existed. This factory therefore enforces the permission for
+ * staff and leaves every other role to the route's existing guard.
+ */
+const STAFF_ROLES = new Set(["madrasa_admin", "teacher", "super_admin"]);
+
+function requireStaffPermission(...permissions) {
+  const gate = requirePermission(...permissions);
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: "Authentication required." });
+    if (!STAFF_ROLES.has(req.user.role)) return next();
+    return gate(req, res, next);
+  };
+}
+
+/** requireAnyPermission restricted to staff roles (see requireStaffPermission). */
+function requireAnyStaffPermission(...permissions) {
+  const gate = requireAnyPermission(...permissions);
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: "Authentication required." });
+    if (!STAFF_ROLES.has(req.user.role)) return next();
+    return gate(req, res, next);
+  };
+}
+
 /** Imperative check for use inside a handler that has already loaded req.user. */
 async function can(req, permission) {
   const held = await loadPermissions(req);
@@ -280,5 +326,7 @@ module.exports = {
   loadPermissions,
   requirePermission,
   requireAnyPermission,
+  requireStaffPermission,
+  requireAnyStaffPermission,
   can,
 };

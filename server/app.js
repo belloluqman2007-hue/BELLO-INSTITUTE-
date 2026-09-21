@@ -338,6 +338,19 @@ function createApp() {
     if (err && err.status === 400 && /JSON/i.test(err.message)) {
       return res.status(400).json({ error: "Invalid JSON body." });
     }
+    // Upload rejections are the caller's fault, not a server fault. Multer
+    // surfaces them as thrown errors, which previously fell through to the
+    // 500 branch below: the upload was correctly refused but the client was
+    // told the server had crashed, and the real reason was swallowed.
+    if (err && err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ error: "That file is too large." });
+    }
+    if (err && (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE")) {
+      return res.status(400).json({ error: "Unexpected file upload." });
+    }
+    if (err && err.expose && err.status >= 400 && err.status < 500) {
+      return res.status(err.status).json({ error: err.message });
+    }
     console.error("Unhandled error:", err);
     res.status(500).json({ error: "Internal server error." });
   });

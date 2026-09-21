@@ -21,6 +21,7 @@ const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId } = require("../middleware/tenant");
+const { requireStaffPermission } = require("../services/permissions");
 
 const router = express.Router();
 // Per-route auth: this router is mounted at "/", so a router-level gate would 401
@@ -260,7 +261,7 @@ router.get("/my-attendance", ...gate, asyncHandler(async (req, res) => {
 
 /* ------------------------------ users ---------------------------------- */
 
-router.get("/users", requireRole("madrasa_admin"), ...gate, asyncHandler(async (req, res) => {
+router.get("/users", requireRole("madrasa_admin"), ...gate, requireStaffPermission("users.manage"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const rows = await db.all(
@@ -270,7 +271,7 @@ router.get("/users", requireRole("madrasa_admin"), ...gate, asyncHandler(async (
   ok(res, { users: rows });
 }));
 
-router.patch("/users/:id", requireRole("madrasa_admin"), ...gate, asyncHandler(async (req, res) => {
+router.patch("/users/:id", requireRole("madrasa_admin"), ...gate, requireStaffPermission("users.manage"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const u = await db.get("SELECT * FROM users WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);

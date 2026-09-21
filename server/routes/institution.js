@@ -33,6 +33,7 @@ const { asyncHandler, err, ok, cleanStr, toNum, logActivity } = require("../util
 const { imageUploader } = require("../middleware/upload");
 const institution = require("../services/institution");
 const mi = require("../services/my-institution");
+const { requireStaffPermission, can } = require("../services/permissions");
 
 const router = express.Router();
 
@@ -220,7 +221,7 @@ async function ensureDefaultPages(madrasaId) {
    ========================================================================== */
 
 module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
-  router.get("/", asyncHandler(async (req, res) => {
+  router.get("/", requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const [pageCount, publishedPages, albumCount, mediaCount, currentSession] = await Promise.all([
@@ -253,6 +254,25 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     }));
   }));
 
+  /**
+   * Each My Institution screen writes different columns, so each one names the
+   * permission it needs rather than sharing a single blanket grant:
+   *   profile / information / contact / settings → institution.settings
+   *   appearance / website copy                  → website.edit
+   * Flipping a visibility switch (publishing the site, listing it in the
+   * public directory, exposing results or admissions) additionally requires
+   * website.publish, whichever screen it is sent from.
+   */
+  const SECTION_PERMISSION = {
+    profile: "institution.settings",
+    information: "institution.settings",
+    contact: "institution.settings",
+    settings: "institution.settings",
+    appearance: "website.edit",
+    website: "website.edit",
+  };
+  const PUBLISH_FIELDS = ["website_published", "public_listing", "public_results", "public_admissions"];
+
   router.put("/", adminOrSupport, asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
@@ -261,6 +281,16 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     const list = mi.TEXT_FIELDS[section];
     // An unknown section must not silently write the whole record.
     if (!list) return err(res, 400, "Unknown institution section.");
+
+    // Server-side authorisation for this specific screen, and for the
+    // visibility switches it may carry.
+    const needed = SECTION_PERMISSION[section] || "institution.settings";
+    if (!(await can(req, needed))) {
+      return err(res, 403, "You do not have permission to perform this action.", { requiredPermission: needed });
+    }
+    if (PUBLISH_FIELDS.some((f) => body[f] !== undefined) && !(await can(req, "website.publish"))) {
+      return err(res, 403, "You do not have permission to change the public visibility of this website.", { requiredPermission: "website.publish" });
+    }
 
     const allowed = new Set(list.map(([field]) => field));
     // Section-specific extras that are not plain text columns.
@@ -310,7 +340,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   }));
 
   /** Resets the whole appearance block back to the category defaults. */
-  router.post("/appearance/reset", adminOrSupport, asyncHandler(async (req, res) => {
+  router.post("/appearance/reset", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const columns = [...mi.COLOR_FIELDS, "font_family", "header_style", "footer_style",
@@ -334,7 +364,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     favicon: { column: "favicon_path", dir: "favicons" },
   };
 
-  router.post("/image/:kind", adminOrSupport, (req, res, next) => {
+  router.post("/image/:kind", adminOrSupport, requireStaffPermission("website.edit"), (req, res, next) => {
     const kind = IMAGE_KINDS[String(req.params.kind || "")];
     if (!kind) return err(res, 400, "Unknown image type.");
     return imageUploader(kind.dir, "image")(req, res, (uploadError) => {
@@ -352,7 +382,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true, kind: req.params.kind, path });
   }));
 
-  router.delete("/image/:kind", adminOrSupport, asyncHandler(async (req, res) => {
+  router.delete("/image/:kind", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const kind = IMAGE_KINDS[String(req.params.kind || "")];
@@ -364,7 +394,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   /* ========================================================================
      3 — Public Website control room
      ======================================================================== */
-  router.get("/website", asyncHandler(async (req, res) => {
+  router.get("/website", requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     await ensureDefaultPages(m.id);
@@ -403,7 +433,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   /* ========================================================================
      5 — Website Pages
      ======================================================================== */
-  router.get("/pages", asyncHandler(async (req, res) => {
+  router.get("/pages", requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     await ensureDefaultPages(m.id);
@@ -411,7 +441,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { pages, defaults: mi.DEFAULT_PAGES.map((p) => ({ ...p })) });
   }));
 
-  router.post("/pages", adminOrSupport, asyncHandler(async (req, res) => {
+  router.post("/pages", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     await ensureDefaultPages(m.id);
@@ -437,7 +467,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true, id: r.lastInsertRowid, slug });
   }));
 
-  router.patch("/pages/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.patch("/pages/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const page = await db.get("SELECT * FROM website_pages WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -459,6 +489,11 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     for (const [key, max] of [["summary", 400], ["body", 60000], ["seo_title", 160], ["seo_description", 320]]) {
       if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(cleanStr(b[key], max)); }
     }
+    // Taking a page live (or pulling it down) changes what the public can see,
+    // so it needs the publishing permission rather than plain edit rights.
+    if (b.is_published !== undefined && !(await can(req, "website.publish"))) {
+      return err(res, 403, "You do not have permission to publish or unpublish website pages.", { requiredPermission: "website.publish" });
+    }
     for (const key of ["is_published", "in_navigation"]) {
       if (b[key] !== undefined) { sets.push(`${key} = ?`); vals.push(truthy(b[key]) ? 1 : 0); }
     }
@@ -470,7 +505,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true });
   }));
 
-  router.delete("/pages/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.delete("/pages/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const page = await db.get("SELECT * FROM website_pages WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -484,7 +519,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true });
   }));
 
-  router.put("/pages/reorder", adminOrSupport, asyncHandler(async (req, res) => {
+  router.put("/pages/reorder", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const order = Array.isArray(req.body && req.body.order) ? req.body.order : [];
@@ -500,7 +535,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   /* ========================================================================
      6 — Gallery: albums and media
      ======================================================================== */
-  router.get("/albums", asyncHandler(async (req, res) => {
+  router.get("/albums", requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const albums = await db.all(
@@ -513,7 +548,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { albums, categories: [...mi.GALLERY_CATEGORIES] });
   }));
 
-  router.post("/albums", adminOrSupport, asyncHandler(async (req, res) => {
+  router.post("/albums", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const b = req.body || {};
@@ -532,7 +567,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true, id: r.lastInsertRowid });
   }));
 
-  router.patch("/albums/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.patch("/albums/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const album = await db.get("SELECT * FROM gallery_albums WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -567,7 +602,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true });
   }));
 
-  router.delete("/albums/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.delete("/albums/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const album = await db.get("SELECT * FROM gallery_albums WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -580,7 +615,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true });
   }));
 
-  router.get("/media", asyncHandler(async (req, res) => {
+  router.get("/media", requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const albumId = toNum(req.query.albumId, 0);
@@ -595,7 +630,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   }));
 
   /** Image upload (multipart) — the same pipeline the old gallery used. */
-  router.post("/media", adminOrSupport, (req, res, next) => {
+  router.post("/media", adminOrSupport, requireStaffPermission("website.edit"), (req, res, next) => {
     imageUploader("gallery", "image")(req, res, (uploadError) => {
       if (uploadError) return err(res, 400, uploadError.message || "Upload failed.");
       next();
@@ -625,7 +660,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   }));
 
   /** Video entry (JSON) — referenced by URL, with an optional poster image. */
-  router.post("/media/video", adminOrSupport, asyncHandler(async (req, res) => {
+  router.post("/media/video", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const b = req.body || {};
@@ -651,7 +686,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true, id: r.lastInsertRowid });
   }));
 
-  router.patch("/media/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.patch("/media/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const item = await db.get("SELECT * FROM gallery_images WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -686,7 +721,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true });
   }));
 
-  router.delete("/media/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.delete("/media/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const item = await db.get("SELECT * FROM gallery_images WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -697,7 +732,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true });
   }));
 
-  router.put("/media/reorder", adminOrSupport, asyncHandler(async (req, res) => {
+  router.put("/media/reorder", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const order = Array.isArray(req.body && req.body.order) ? req.body.order : [];
@@ -712,7 +747,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   /* ========================================================================
      Public programs and achievements
      ======================================================================== */
-  router.get("/programs", asyncHandler(async (req, res) => {
+  router.get("/programs", requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const programs = await db.all(
@@ -721,7 +756,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { programs });
   }));
 
-  router.post("/programs", adminOrSupport, asyncHandler(async (req, res) => {
+  router.post("/programs", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const b = req.body || {};
@@ -743,7 +778,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true, id: r.lastInsertRowid, program: await db.get("SELECT * FROM public_programs WHERE id = ? AND madrasa_id = ?", [r.lastInsertRowid, m.id]) });
   }));
 
-  router.patch("/programs/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.patch("/programs/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const row = await db.get("SELECT * FROM public_programs WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -765,7 +800,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true, program: await db.get("SELECT * FROM public_programs WHERE id = ? AND madrasa_id = ?", [row.id, m.id]) });
   }));
 
-  router.delete("/programs/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.delete("/programs/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     const r = await db.run("DELETE FROM public_programs WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
@@ -774,13 +809,13 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
   }));
 
 
-  router.get("/achievements", asyncHandler(async (req, res) => {
+  router.get("/achievements", requireStaffPermission("website.view"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res);
     if (!m) return;
     ok(res, { achievements: await db.all("SELECT * FROM institution_achievements WHERE madrasa_id = ? ORDER BY sort_order, id", [m.id]) });
   }));
 
-  router.post("/achievements", adminOrSupport, asyncHandler(async (req, res) => {
+  router.post("/achievements", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res); if (!m) return;
     const b = req.body || {}; const title = cleanStr(b.title, 200);
     if (!title) return err(res, 400, "Achievement title is required.");
@@ -793,7 +828,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true, id: r.lastInsertRowid });
   }));
 
-  router.patch("/achievements/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.patch("/achievements/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res); if (!m) return;
     const row = await db.get("SELECT * FROM institution_achievements WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
     if (!row) return err(res, 404, "Achievement not found.");
@@ -806,7 +841,7 @@ module.exports = function institutionRoutes(resolveMadrasa, adminOrSupport) {
     ok(res, { ok: true });
   }));
 
-  router.delete("/achievements/:id", adminOrSupport, asyncHandler(async (req, res) => {
+  router.delete("/achievements/:id", adminOrSupport, requireStaffPermission("website.edit"), asyncHandler(async (req, res) => {
     const m = await resolveMadrasa(req, res); if (!m) return;
     const result = await db.run("DELETE FROM institution_achievements WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), m.id]);
     if (!result.changes) return err(res, 404, "Achievement not found.");

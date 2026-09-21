@@ -16,6 +16,7 @@ const { requireAuth, requireTenant, requireRole } = require("../middleware/auth"
 const { effectiveTenantId, getTeacherAssignments, teacherCanAccess } = require("../middleware/tenant");
 const { fileUploader } = require("../middleware/upload");
 const grading = require("../services/grading");
+const { requireStaffPermission } = require("../services/permissions");
 const communication = require("../services/communication");
 
 const router = express.Router();
@@ -127,8 +128,8 @@ async function listItems(req, res, kind) {
   const total = Number(count ? count.n : 0);
   ok(res, { [kind === "lesson" ? "lessons" : "assignments"]: rows, total, page, perPage, totalPages: Math.max(1, Math.ceil(total / perPage)) });
 }
-router.get("/lessons", asyncHandler((req, res) => listItems(req, res, "lesson")));
-router.get("/assignments", asyncHandler((req, res) => listItems(req, res, "assignment")));
+router.get("/lessons", requireStaffPermission("lessons.view"), asyncHandler((req, res) => listItems(req, res, "lesson")));
+router.get("/assignments", requireStaffPermission("assignments.view"), asyncHandler((req, res) => listItems(req, res, "assignment")));
 
 async function createItem(req, res, kind) {
   const tid = await tenantId(req, res); if (!tid) return;
@@ -165,8 +166,8 @@ async function createItem(req, res, kind) {
   }
   ok(res, { ok: true, id: r.lastInsertRowid, item: await db.get("SELECT * FROM homework WHERE id=? AND madrasa_id=?", [r.lastInsertRowid, tid]) });
 }
-router.post("/lessons", asyncHandler((req, res) => createItem(req, res, "lesson")));
-router.post("/assignments", asyncHandler((req, res) => createItem(req, res, "assignment")));
+router.post("/lessons", requireStaffPermission("lessons.create"), asyncHandler((req, res) => createItem(req, res, "lesson")));
+router.post("/assignments", requireStaffPermission("assignments.create"), asyncHandler((req, res) => createItem(req, res, "assignment")));
 
 async function loadItem(req, res, kind, id) {
   const tid = await tenantId(req, res); if (!tid) return null;
@@ -190,8 +191,8 @@ async function itemDetail(req, res, kind) {
   ]);
   ok(res, { [kind]: loaded.row, attachments, history });
 }
-router.get("/lessons/:id", asyncHandler((req, res) => itemDetail(req, res, "lesson")));
-router.get("/assignments/:id", asyncHandler((req, res) => itemDetail(req, res, "assignment")));
+router.get("/lessons/:id", requireStaffPermission("lessons.view"), asyncHandler((req, res) => itemDetail(req, res, "lesson")));
+router.get("/assignments/:id", requireStaffPermission("assignments.view"), asyncHandler((req, res) => itemDetail(req, res, "assignment")));
 
 async function updateItem(req, res, kind) {
   const loaded = await loadItem(req, res, kind, req.params.id); if (!loaded) return;
@@ -224,8 +225,8 @@ async function updateItem(req, res, kind) {
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: `${kind}.update`, entity: kind, entityId: String(row.id), ip: req.ip });
   ok(res, { ok: true, item: after });
 }
-router.patch("/lessons/:id", asyncHandler((req, res) => updateItem(req, res, "lesson")));
-router.patch("/assignments/:id", asyncHandler((req, res) => updateItem(req, res, "assignment")));
+router.patch("/lessons/:id", requireStaffPermission("lessons.create"), asyncHandler((req, res) => updateItem(req, res, "lesson")));
+router.patch("/assignments/:id", requireStaffPermission("assignments.create"), asyncHandler((req, res) => updateItem(req, res, "assignment")));
 
 async function archiveItem(req, res, kind) {
   const loaded = await loadItem(req, res, kind, req.params.id); if (!loaded) return;
@@ -234,8 +235,8 @@ async function archiveItem(req, res, kind) {
   await addHistory(loaded.tid, kind, loaded.row.id, "archived", req.user.id, loaded.row.status, "archived", cleanStr(req.body && req.body.note, 2000));
   ok(res, { ok: true, archived: true });
 }
-router.delete("/lessons/:id", asyncHandler((req, res) => archiveItem(req, res, "lesson")));
-router.delete("/assignments/:id", asyncHandler((req, res) => archiveItem(req, res, "assignment")));
+router.delete("/lessons/:id", requireStaffPermission("lessons.create"), asyncHandler((req, res) => archiveItem(req, res, "lesson")));
+router.delete("/assignments/:id", requireStaffPermission("assignments.create"), asyncHandler((req, res) => archiveItem(req, res, "assignment")));
 
 async function uploadItemAttachment(req, res, kind) {
   const loaded = await loadItem(req, res, kind, req.params.id); if (!loaded) return;
@@ -259,7 +260,7 @@ router.get("/lessons/:id/attachments/:attachmentId", asyncHandler((req, res) => 
 router.get("/assignments/:id/attachments/:attachmentId", asyncHandler((req, res) => downloadItemAttachment(req, res, "assignment")));
 
 /* -------------------------- assignment submissions --------------------- */
-router.get("/assignments/:id/submissions", STAFF, asyncHandler(async (req, res) => {
+router.get("/assignments/:id/submissions", STAFF, requireStaffPermission("assignments.view"), asyncHandler(async (req, res) => {
   const loaded = await loadItem(req, res, "assignment", req.params.id); if (!loaded) return;
   const rows = await db.all(`SELECT st.id AS student_id, st.student_code, st.admission_no, st.first_name, st.last_name, st.photo_path,
       x.id AS submission_id, x.submission_text, x.original_name, x.submitted_at, x.status AS saved_status, x.score, x.feedback, x.graded_at,
@@ -276,7 +277,7 @@ router.get("/assignments/:id/submissions", STAFF, asyncHandler(async (req, res) 
   });
   ok(res, { assignment: loaded.row, submissions: rows, maximumScore: Number(loaded.row.maximum_score || 100) });
 }));
-router.put("/assignments/:id/submissions/:studentId", STAFF, asyncHandler(async (req, res) => {
+router.put("/assignments/:id/submissions/:studentId", STAFF, requireStaffPermission("assignments.create"), asyncHandler(async (req, res) => {
   const loaded = await loadItem(req, res, "assignment", req.params.id); if (!loaded) return;
   if (!canChangeItem(req, loaded.row)) return err(res, 403, "You cannot grade this assignment.");
   const studentId = toNum(req.params.studentId, 0);
@@ -304,7 +305,7 @@ router.post("/assignments/:id/submissions/me", submissionUpload, asyncHandler(as
   else await db.run("INSERT INTO assignment_submissions (madrasa_id,assignment_id,student_id,submission_text,attachment_path,original_name,mime_type,file_size,submitted_at,status,updated_at) VALUES (?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,'submitted',CURRENT_TIMESTAMP)", [tid, assignment.id, student.id].concat(values));
   ok(res, { ok: true, status: "submitted" });
 }));
-router.get("/assignments/:id/submissions/:studentId/attachment", STAFF, asyncHandler(async (req, res) => {
+router.get("/assignments/:id/submissions/:studentId/attachment", STAFF, requireStaffPermission("assignments.view"), asyncHandler(async (req, res) => {
   const loaded = await loadItem(req, res, "assignment", req.params.id); if (!loaded) return;
   const sub = await db.get("SELECT * FROM assignment_submissions WHERE madrasa_id=? AND assignment_id=? AND student_id=?", [loaded.tid, loaded.row.id, toNum(req.params.studentId, 0)]);
   if (!sub || !sub.attachment_path || !fs.existsSync(sub.attachment_path)) return err(res, 404, "Submission attachment not found.");
@@ -361,8 +362,8 @@ async function listExams(req, res) {
     WHERE ${w} ORDER BY e.exam_date DESC,e.start_time,e.id DESC LIMIT ? OFFSET ?`,params.concat([perPage,offset]));
   const total=Number(count?count.n:0); ok(res,{exams:rows,total,page,perPage,totalPages:Math.max(1,Math.ceil(total/perPage))});
 }
-router.get(["/exams", "/"], asyncHandler(listExams));
-router.post(["/exams", "/"], ADMIN, asyncHandler(async(req,res)=>{
+router.get(["/exams", "/"], requireStaffPermission("exams.view"), asyncHandler(listExams));
+router.post(["/exams", "/"], ADMIN, requireStaffPermission("exams.create"), asyncHandler(async(req,res)=>{
   const tid=await tenantId(req,res);if(!tid)return;const b=req.body||{};const title=cleanStr(b.title||b.name,200);if(!title)return err(res,400,"Examination name is required.");
   const input=await examInput(tid,b);if(input.error)return err(res,400,input.error);const conflict=await examConflict(tid,input,null);if(conflict)return err(res,409,`Timetable conflict with ${conflict.title} (${conflict.start_time}–${conflict.end_time}).`);
   const cfg=await grading.getGradingConfig(tid);const totalMarks=Number(pick(b,"total_marks","maximumMarks"))||cfg.examMax;
@@ -374,29 +375,29 @@ router.post(["/exams", "/"], ADMIN, asyncHandler(async(req,res)=>{
   if (["scheduled", "published"].includes(input.status)) await communication.notifyAudience(tid,{target_type:"specific_class",target_ids:[input.classId]},{type:"examination_scheduled",title:"Examination scheduled",body:`${title} is scheduled for ${input.examDate}.`,entity_type:"exam",entity_id:Number(r.lastInsertRowid)});
   ok(res,{ok:true,id:r.lastInsertRowid,exam:await db.get("SELECT * FROM exams WHERE id=? AND madrasa_id=?",[r.lastInsertRowid,tid])});
 }));
-router.get(["/exams/:id", "/:id"], STAFF, asyncHandler(async(req,res)=>{
+router.get(["/exams/:id", "/:id"], STAFF, requireStaffPermission("exams.view"), asyncHandler(async(req,res)=>{
   const tid=await tenantId(req,res);if(!tid)return;const exam=await db.get(`SELECT e.*,c.name_en AS class_name,s.name_en AS subject_name,a.label AS session_label,t.name_en AS term_name,u.full_name AS invigilator_name FROM exams e LEFT JOIN classes c ON c.id=e.class_id LEFT JOIN subjects s ON s.id=e.subject_id LEFT JOIN academic_sessions a ON a.id=e.session_id LEFT JOIN terms t ON t.id=e.term_id LEFT JOIN users u ON u.id=e.invigilator_id WHERE e.id=? AND e.madrasa_id=?`,[toNum(req.params.id,0),tid]);if(!exam)return err(res,404,"Examination not found.");
   const history=await db.all("SELECT h.*,u.full_name AS changed_by_name FROM academic_item_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.madrasa_id=? AND h.entity_type='exam' AND h.entity_id=? ORDER BY h.id DESC",[tid,exam.id]);ok(res,{exam,history});
 }));
-router.patch(["/exams/:id", "/:id"], ADMIN, asyncHandler(async(req,res)=>{
+router.patch(["/exams/:id", "/:id"], ADMIN, requireStaffPermission("exams.create"), asyncHandler(async(req,res)=>{
   const tid=await tenantId(req,res);if(!tid)return;const id=toNum(req.params.id,0);const row=await db.get("SELECT * FROM exams WHERE id=? AND madrasa_id=?",[id,tid]);if(!row)return err(res,404,"Examination not found.");
   const b=req.body||{};const input=await examInput(tid,b,row);if(input.error)return err(res,400,input.error);const conflict=await examConflict(tid,input,id);if(conflict)return err(res,409,`Timetable conflict with ${conflict.title} (${conflict.start_time}–${conflict.end_time}).`);
   const title=b.title!==undefined?cleanStr(b.title,200):row.title;if(!title)return err(res,400,"Examination name is required.");const total=b.total_marks!==undefined?Number(b.total_marks):Number(row.total_marks);const cfg=await grading.getGradingConfig(tid);if(!(total>0&&total<=cfg.examMax))return err(res,400,`Maximum marks must be between 1 and the configured examination maximum (${cfg.examMax}).`);
   await db.run(`UPDATE exams SET title=?,description=?,class_id=?,subject_id=?,session_id=?,term_id=?,exam_date=?,total_marks=?,status=?,start_time=?,end_time=?,duration_minutes=?,invigilator_id=?,classroom=?,instructions=?,education_track=?,published_at=?,cancelled_at=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?`,[title,b.description!==undefined?cleanStr(b.description,5000):row.description,input.classId,input.subjectId,input.sessionId,input.termId,input.examDate,total,input.status,input.startTime,input.endTime,input.durationMinutes,input.invigilatorId,input.classroom,b.instructions!==undefined?cleanStr(b.instructions,10000):row.instructions,trackOf(b.education_track||row.education_track),input.status==="published"?(row.published_at||new Date().toISOString().slice(0,19).replace("T"," ")):null,input.status==="cancelled"?(row.cancelled_at||new Date().toISOString().slice(0,19).replace("T"," ")):null,id,tid]);
   await addHistory(tid,"exam",id,"updated",req.user.id,row.status,input.status,cleanStr(b.change_note,2000)||`Updated ${title}`);ok(res,{ok:true,exam:await db.get("SELECT * FROM exams WHERE id=? AND madrasa_id=?",[id,tid])});
 }));
-router.delete(["/exams/:id", "/:id"], ADMIN, asyncHandler(async(req,res)=>{
+router.delete(["/exams/:id", "/:id"], ADMIN, requireStaffPermission("exams.create"), asyncHandler(async(req,res)=>{
   const tid=await tenantId(req,res);if(!tid)return;const id=toNum(req.params.id,0);const row=await db.get("SELECT * FROM exams WHERE id=? AND madrasa_id=?",[id,tid]);if(!row)return err(res,404,"Examination not found.");
   await db.run("UPDATE exams SET status='cancelled',cancelled_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",[id,tid]);await addHistory(tid,"exam",id,"cancelled",req.user.id,row.status,"cancelled",cleanStr(req.body&&req.body.note,2000));ok(res,{ok:true,cancelled:true});
 }));
 
-router.get(["/exams/:id/marks", "/:id/marks"], STAFF, asyncHandler(async(req,res)=>{
+router.get(["/exams/:id/marks", "/:id/marks"], STAFF, requireStaffPermission("exams.view"), asyncHandler(async(req,res)=>{
   const tid=await tenantId(req,res);if(!tid)return;const exam=await db.get("SELECT * FROM exams WHERE id=? AND madrasa_id=?",[toNum(req.params.id,0),tid]);if(!exam)return err(res,404,"Examination not found.");
   if(req.user.role==="teacher"){const scope=await getTeacherAssignments(tid,req.user.id);if(Number(exam.invigilator_id)!==Number(req.user.id)&&!teacherCanAccess(scope,exam.class_id,exam.subject_id))return err(res,404,"Examination not found.");}
   const rows=await db.all(`SELECT s.id AS student_id,s.admission_no,s.first_name,s.last_name,r.id AS result_id,r.exam,r.ca,r.total,r.status,r.teacher_remark FROM students s LEFT JOIN results r ON r.student_id=s.id AND r.madrasa_id=s.madrasa_id AND r.term_id=? AND r.subject_id=? WHERE s.madrasa_id=? AND s.class_id=? AND s.status IN ('active','promoted','suspended') ORDER BY s.admission_no`,[exam.term_id,exam.subject_id,tid,exam.class_id]);
   const cfg=await grading.getGradingConfig(tid);ok(res,{exam,students:rows,maximumMarks:Math.min(Number(exam.total_marks),cfg.examMax),config:{caMax:cfg.caMax,examMax:cfg.examMax}});
 }));
-router.put(["/exams/:id/marks", "/:id/marks"], STAFF, asyncHandler(async(req,res)=>{
+router.put(["/exams/:id/marks", "/:id/marks"], STAFF, requireStaffPermission("results.enter"), asyncHandler(async(req,res)=>{
   const tid=await tenantId(req,res);if(!tid)return;const exam=await db.get("SELECT * FROM exams WHERE id=? AND madrasa_id=?",[toNum(req.params.id,0),tid]);if(!exam)return err(res,404,"Examination not found.");
   if(req.user.role==="teacher"){const scope=await getTeacherAssignments(tid,req.user.id);if(!teacherCanAccess(scope,exam.class_id,exam.subject_id))return err(res,403,"You are not assigned to enter these marks.");}
   const cfg=await grading.getGradingConfig(tid);const max=Math.min(Number(exam.total_marks),cfg.examMax);const entries=Array.isArray(req.body&&req.body.entries)?req.body.entries:[];if(!entries.length||entries.length>500)return err(res,400,"Provide between 1 and 500 marks.");let updated=0;

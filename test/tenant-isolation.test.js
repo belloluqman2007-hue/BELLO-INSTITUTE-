@@ -207,3 +207,26 @@ test("super admin can access both madaris", async () => {
   assert.equal(r2.status, 200);
   assert.equal(r2.data.madaris.length, 2);
 });
+
+/* ------------------- filters naming a foreign record --------------------- */
+/* A report filtered by an id belonging to ANOTHER institution must answer
+   "not found", exactly as the student-filtered report already did. Answering
+   200 with an empty result set made a foreign id indistinguishable from a
+   teacher who simply has no attendance marked yet, which both leaks the shape
+   of the neighbouring tenant and hides a genuine mistake from the operator. */
+test("teacher attendance report rejects a teacher id from another madrasa", async () => {
+  const foreign = await adminA.req("GET", `/api/attendance/teacher/${ctx.users.adminB}/report`);
+  assert.equal(foreign.status, 404,
+    `a foreign teacher id must be 404, got ${foreign.status}`);
+
+  // The same endpoint still answers for a teacher who DOES belong to the
+  // caller's institution, so the guard rejects the right thing.
+  const own = await adminA.req("GET", `/api/attendance/teacher/${ctx.users.teacherA}/report`);
+  assert.equal(own.status, 200, "an in-tenant teacher id still reports normally");
+});
+
+test("student-filtered attendance report already rejects a foreign student id", async () => {
+  const r = await adminA.req("GET",
+    `/api/attendance/report?from=2026-01-01&to=2026-12-31&studentId=${ctx.studentB1}`);
+  assert.equal(r.status, 404, `a foreign student id must be 404, got ${r.status}`);
+});

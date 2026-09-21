@@ -20,6 +20,7 @@ const { asyncHandler, err, toNum, cleanStr } = require("../util");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { effectiveTenantId, getTeacherAssignments } = require("../middleware/tenant");
 const csv = require("../services/csv");
+const { requireStaffPermission } = require("../services/permissions");
 
 const router = express.Router();
 router.use(requireAuth);
@@ -53,7 +54,7 @@ function filename(req, kind) {
 
 /* ------------------------------ students -------------------------------- */
 
-router.get("/students.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/students.csv", STAFF, requireStaffPermission("students.export"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classIds = await teacherClassFilter(req, tid, toNum(req.query.classId, 0) || null);
@@ -116,7 +117,7 @@ router.get("/students.csv", STAFF, asyncHandler(async (req, res) => {
 }));
 
 /* -------------------------- student group members ----------------------- */
-router.get("/student-groups/:id.csv", ADMINS, asyncHandler(async (req, res) => {
+router.get("/student-groups/:id.csv", ADMINS, requireStaffPermission("students.export"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const group = await db.get("SELECT id, name FROM student_groups WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
   if (!group) return err(res, 404, "Student group not found.");
@@ -131,7 +132,7 @@ router.get("/student-groups/:id.csv", ADMINS, asyncHandler(async (req, res) => {
 
 /* ------------------------------ results -------------------------------- */
 
-router.get("/results.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/results.csv", STAFF, requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classId = toNum(req.query.classId, 0);
@@ -165,7 +166,7 @@ router.get("/results.csv", STAFF, asyncHandler(async (req, res) => {
 }));
 
 /** One row per student per term: totals, average, position, promotion. */
-router.get("/summary.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/summary.csv", STAFF, requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classId = toNum(req.query.classId, 0);
@@ -204,7 +205,7 @@ router.get("/summary.csv", STAFF, asyncHandler(async (req, res) => {
 
 /* ------------------------------ attendance ------------------------------ */
 
-router.get("/attendance.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/attendance.csv", STAFF, requireStaffPermission("students.export"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classId = toNum(req.query.classId, 0);
@@ -247,7 +248,7 @@ router.get("/attendance.csv", STAFF, asyncHandler(async (req, res) => {
 }));
 
 /* ------------------------- teacher attendance --------------------------- */
-router.get("/teacher-attendance.csv", ADMINS, asyncHandler(async (req, res) => {
+router.get("/teacher-attendance.csv", ADMINS, requireStaffPermission("teachers.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || "")) ? String(req.query.from) : "0000-01-01";
@@ -277,7 +278,7 @@ router.get("/teacher-attendance.csv", ADMINS, asyncHandler(async (req, res) => {
 
 /* ------------------------------ fees ----------------------------------- */
 
-router.get("/fees.csv", ADMINS, asyncHandler(async (req, res) => {
+router.get("/fees.csv", ADMINS, requireStaffPermission("payments.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const termId = toNum(req.query.termId, 0) || null;
@@ -319,7 +320,7 @@ router.get("/fees.csv", ADMINS, asyncHandler(async (req, res) => {
 
 /* ------------------------------ admission queue ----------------------- */
 
-router.get("/admissions.csv", ADMINS, asyncHandler(async (req, res) => {
+router.get("/admissions.csv", ADMINS, requireStaffPermission("admissions.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const status = cleanStr(req.query.status, 20);
@@ -356,7 +357,7 @@ router.get("/admissions.csv", ADMINS, asyncHandler(async (req, res) => {
 
 /* ------------------------------ teachers ------------------------------- */
 
-router.get("/teachers.csv", ADMINS, asyncHandler(async (req, res) => {
+router.get("/teachers.csv", ADMINS, requireStaffPermission("teachers.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const where = ["u.madrasa_id = ?", "u.role = 'teacher'", "COALESCE(p.status, '') <> 'archived'"];
@@ -395,7 +396,7 @@ router.get("/teachers.csv", ADMINS, asyncHandler(async (req, res) => {
 
 /* ------------------------------- classes ------------------------------- */
 
-router.get("/classes.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/classes.csv", STAFF, requireStaffPermission("classes.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const classIds = await teacherClassFilter(req, tid, toNum(req.query.classId, 0) || null);
@@ -434,7 +435,7 @@ router.get("/classes.csv", STAFF, asyncHandler(async (req, res) => {
 
 /* ------------------------------ timetable ------------------------------- */
 
-router.get("/timetable.csv", STAFF, asyncHandler(async (req, res) => {
+router.get("/timetable.csv", STAFF, requireStaffPermission("classes.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const requestedClassId = toNum(req.query.classId, 0) || null;
@@ -473,7 +474,7 @@ router.get("/timetable.csv", STAFF, asyncHandler(async (req, res) => {
 
 /* ------------------------------ expenses ------------------------------- */
 
-router.get("/expenses.csv", ADMINS, asyncHandler(async (req, res) => {
+router.get("/expenses.csv", ADMINS, requireStaffPermission("expenses.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
 

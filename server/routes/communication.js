@@ -6,6 +6,7 @@ const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId } = require("../middleware/tenant");
+const { requireStaffPermission } = require("../services/permissions");
 const comm = require("../services/communication");
 const delivery = require("../services/delivery");
 const audit = require("../services/audit");
@@ -172,7 +173,7 @@ router.put("/notification-preferences", asyncHandler(async (req, res) => {
 }));
 
 /* ---------------------------- parent communication --------------------- */
-router.get("/parents", STAFF, asyncHandler(async (req, res) => {
+router.get("/parents", STAFF, requireStaffPermission("communication.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const q = cleanStr(req.query.search, 120).toLowerCase();
   const where = ["u.madrasa_id = ?", "u.role = 'parent'", "u.is_active = 1"]; const params = [tid];
@@ -183,12 +184,12 @@ router.get("/parents", STAFF, asyncHandler(async (req, res) => {
   }
   ok(res, { parents });
 }));
-router.get("/parents/:id/history", STAFF, asyncHandler(async (req, res) => {
+router.get("/parents/:id/history", STAFF, requireStaffPermission("communication.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const parent = await userInTenant(tid, toNum(req.params.id, 0)); if (!parent || parent.role !== "parent") return res.status(404).json({ error: "Parent not found." });
   ok(res, { history: await db.all("SELECT * FROM communication_history WHERE madrasa_id = ? AND (recipient_user_id = ? OR parent_user_id = ?) ORDER BY id DESC LIMIT 300", [tid,parent.id,parent.id]) });
 }));
-router.post("/parents/send", STAFF, asyncHandler(async (req, res) => {
+router.post("/parents/send", STAFF, requireStaffPermission("communication.send"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {}; let recipientIds = ids(b.parent_ids ?? b.recipient_ids ?? b.parent_id);
   if (b.class_id) {
@@ -209,7 +210,7 @@ router.post("/parents/send", STAFF, asyncHandler(async (req, res) => {
   }
   ok(res, { ok: true, recipientIds, notificationIds });
 }));
-router.get("/history", STAFF, asyncHandler(async (req, res) => {
+router.get("/history", STAFF, requireStaffPermission("communication.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const studentId = toNum(req.query.studentId,0); const parentId = toNum(req.query.parentId,0);
   const where = ["madrasa_id = ?"]; const params = [tid]; if (studentId) { where.push("student_id = ?"); params.push(studentId); } if (parentId) { where.push("(parent_user_id = ? OR recipient_user_id = ?)"); params.push(parentId,parentId); }
@@ -219,14 +220,14 @@ router.get("/history", STAFF, asyncHandler(async (req, res) => {
 /* ------------------------- external delivery providers ------------------ */
 /* Read-only provider status. Deliberately returns booleans only — an API key
  * or password must never reach the browser. */
-router.get("/delivery/providers", ADMIN, asyncHandler(async (req, res) => {
+router.get("/delivery/providers", ADMIN, requireStaffPermission("communication.templates"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   ok(res, { providers: delivery.providerStatus() });
 }));
 
 /* Delivery log = the existing communication_history table filtered to the
  * channels that leave the platform (plus in-app rows when asked). */
-router.get("/delivery/log", STAFF, asyncHandler(async (req, res) => {
+router.get("/delivery/log", STAFF, requireStaffPermission("communication.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const where = ["h.madrasa_id = ?"]; const params = [tid];
   const channel = cleanStr(req.query.channel, 20).toLowerCase();
@@ -260,7 +261,7 @@ router.get("/delivery/log", STAFF, asyncHandler(async (req, res) => {
  * so the delivery log stays one row per message with an honest attempt count.
  */
 const MAX_DELIVERY_RETRIES = 3;
-router.post("/delivery/:id/retry", ADMIN, asyncHandler(async (req, res) => {
+router.post("/delivery/:id/retry", ADMIN, requireStaffPermission("communication.send"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await db.get(
     "SELECT * FROM communication_history WHERE id = ? AND madrasa_id = ?",
@@ -307,7 +308,7 @@ router.post("/delivery/:id/retry", ADMIN, asyncHandler(async (req, res) => {
 }));
 
 /* Send a single test message to the administrator's own address/number. */
-router.post("/delivery/test", ADMIN, asyncHandler(async (req, res) => {
+router.post("/delivery/test", ADMIN, requireStaffPermission("communication.send"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const channel = cleanStr(b.channel, 20).toLowerCase();
@@ -355,7 +356,7 @@ async function resolveBulkRecipients(tid, target) {
   return db.all("SELECT id, full_name, username, email, phone FROM users WHERE madrasa_id = ? AND role = 'parent' AND is_active = 1", [tid]);
 }
 
-router.post("/bulk", ADMIN, asyncHandler(async (req, res) => {
+router.post("/bulk", ADMIN, requireStaffPermission("communication.send"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const channel = cleanStr(b.channel, 20).toLowerCase();

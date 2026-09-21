@@ -593,7 +593,7 @@ router.post("/:id/portal-account", requireRole("madrasa_admin"), asyncHandler(as
   const password = String(b.password || "");
   if (!username || password.length < 8) return err(res, 400, "username and a password of at least 8 characters are required.");
   if (!/^[a-z0-9_.-]{3,}$/.test(username)) return err(res, 400, "Invalid username format.");
-  const hash = require("bcryptjs").hashSync(password, 10);
+  const hash = await require("bcryptjs").hash(password, 10);
 
   const existing = await db.get("SELECT id FROM users WHERE student_id = ? AND madrasa_id = ? AND role = 'student'", [s.id, tid]);
   if (existing) {
@@ -624,7 +624,7 @@ router.post("/:id/parent-account", requireRole("madrasa_admin"), asyncHandler(as
   if (!/^[a-z0-9_.-]{3,}$/.test(username)) return err(res, 400, "Invalid username format.");
   const clash = await db.get("SELECT id FROM users WHERE username = ?", [username]);
   if (clash) return err(res, 400, "That username is already taken.");
-  const hash = require("bcryptjs").hashSync(password, 10);
+  const hash = await require("bcryptjs").hash(password, 10);
   const r = await db.run(
     "INSERT INTO users (madrasa_id, username, password_hash, role, full_name, phone) VALUES (?,?,?,?,?,?)",
     [tid, username, hash, "parent", cleanStr(b.full_name, 160) || s.parent_name, cleanStr(b.phone, 60) || s.parent_phone]

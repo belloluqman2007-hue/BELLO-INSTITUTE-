@@ -16,6 +16,7 @@
    Format: { format: "madrasa-platform-backup/1", createdAt, counts, tables }
    ========================================================================== */
 const fs = require("fs");
+const fsp = fs.promises;
 const path = require("path");
 const config = require("../config");
 
@@ -55,8 +56,8 @@ function stamp(d = new Date()) {
 function fileName(d, reason) {
   return "snapshot-" + stamp(d) + "-" + String(reason || "manual").replace(/[^a-z0-9-]/gi, "") + ".json";
 }
-function ensureDir() {
-  fs.mkdirSync(config.BACKUP_DIR, { recursive: true });
+async function ensureDir() {
+  await fsp.mkdir(config.BACKUP_DIR, { recursive: true });
   return config.BACKUP_DIR;
 }
 
@@ -105,21 +106,26 @@ async function buildSnapshot(db, meta = {}) {
 /** Writes a snapshot to BACKUP_DIR and prunes old ones. Returns its name. */
 async function writeSnapshot(db, { reason = "manual", keep = config.BACKUP_KEEP } = {}) {
   const snapshot = await buildSnapshot(db, { reason });
-  const dir = ensureDir();
+  const dir = await ensureDir();
   const name = fileName(new Date(), reason);
-  fs.writeFileSync(path.join(dir, name), JSON.stringify(snapshot));
-  prune(keep);
-  return { name, path: path.join(dir, name), bytes: fs.statSync(path.join(dir, name)).size, counts: snapshot.counts };
+  const file = path.join(dir, name);
+  // Async write: a snapshot is the whole database as one JSON document, and
+  // this runs on a timer / before migrations / on shutdown. A synchronous
+  // write of tens of MB would freeze every live request for the duration.
+  await fsp.writeFile(file, JSON.stringify(snapshot));
+  await prune(keep);
+  const bytes = (await fsp.stat(file)).size;
+  return { name, path: file, bytes, counts: snapshot.counts };
 }
 
 /** Keeps the newest `keep` snapshots (never deletes a "pre-restore"/"pre-migration"). */
-function prune(keep = config.BACKUP_KEEP) {
-  const dir = ensureDir();
-  const all = listSync();
+async function prune(keep = config.BACKUP_KEEP) {
+  const dir = await ensureDir();
+  const all = await list();
   const prunable = all.filter((f) => !/pre-(restore|migration)/.test(f.name));
   let removed = 0;
   for (const f of prunable.slice(Math.max(0, keep))) {
-    try { fs.unlinkSync(path.join(dir, f.name)); removed++; } catch (e) { /* ignore */ }
+    try { await fsp.unlink(path.join(dir, f.name)); removed++; } catch (e) { /* ignore */ }
   }
   return removed;
 }
@@ -131,38 +137,62 @@ function safeName(name) {
 }
 
 /** Newest first. */
-function listSync() {
-  const dir = ensureDir();
+async function list() {
+  const dir = await ensureDir();
   let entries = [];
-  try { entries = fs.readdirSync(dir); } catch (e) { return []; }
-  return entries
-    .filter(safeName)
-    .map((name) => {
-      const st = fs.statSync(path.join(dir, name));
+  try { entries = await fsp.readdir(dir); } catch (e) { return []; }
+  const out = [];
+  for (const name of entries.filter(safeName)) {
+    const file = path.join(dir, name);
+    try {
+      const st = await fsp.stat(file);
       let counts = null;
       let createdAt = st.mtime.toISOString();
-      // Reading the header of every file is cheap for small snapshots.
+      // The writer's key order puts counts BEFORE the (huge) tables blob, so
+      // the header of the file is enough for the listing. Reading whole
+      // snapshots here would block the event loop on every admin page view
+      // once snapshots grow to tens of MB.
+      const fh = await fsp.open(file, "r");
       try {
-        const raw = fs.readFileSync(path.join(dir, name), "utf8");
-        if (raw.length < 40 * 1024 * 1024) {
-          const parsed = JSON.parse(raw);
-          counts = parsed.counts || null;
-          createdAt = parsed.createdAt || createdAt;
+        const head = Buffer.alloc(HEAD_BYTES);
+        const { bytesRead } = await fh.read(head, 0, HEAD_BYTES, 0);
+        const text = head.toString("utf8", 0, bytesRead);
+        const m = /"createdAt"\s*:\s*"([^"]+)"/.exec(text);
+        if (m) createdAt = m[1];
+        const c = /"counts"\s*:\s*\{([^{}]*)\}/.exec(text);
+        if (c) {
+          counts = {};
+          for (const pair of c[1].split(",")) {
+            const kv = /^\s*"([^"]+)"\s*:\s*(\d+)\s*$/.exec(pair);
+            if (kv) counts[kv[1]] = Number(kv[2]);
+          }
         }
-      } catch (e) { /* fall back to file times */ }
-      return { name, bytes: st.size, createdAt, counts, path: path.join(dir, name) };
-    })
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      } finally {
+        await fh.close();
+      }
+      out.push({ name, bytes: st.size, createdAt, counts, path: file });
+    } catch (e) { /* unreadable entry: skip it rather than fail the listing */ }
+  }
+  return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
+
+const HEAD_BYTES = 256 * 1024;
 
 function readSnapshot(name) {
   const n = safeName(name);
   if (!n) throw Object.assign(new Error("Invalid backup file name."), { status: 400 });
   const file = path.join(config.BACKUP_DIR, n);
-  if (!fs.existsSync(file)) throw Object.assign(new Error("Backup file not found."), { status: 404 });
-  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (!parsed || parsed.format !== FORMAT) throw Object.assign(new Error("Unrecognised backup format."), { status: 400 });
-  return parsed;
+  return fsp.access(file)
+    .then(() => fsp.readFile(file, "utf8"))
+    .then((text) => {
+      const parsed = JSON.parse(text);
+      if (!parsed || parsed.format !== FORMAT) throw Object.assign(new Error("Unrecognised backup format."), { status: 400 });
+      return parsed;
+    })
+    .catch((e) => {
+      if (e && e.status) throw e;
+      throw Object.assign(new Error("Backup file not found."), { status: 404 });
+    });
 }
 
 /**
@@ -170,7 +200,7 @@ function readSnapshot(name) {
  * `dryRun` returns what WOULD change. Restoring takes a safety snapshot first.
  */
 async function restore(db, source, { dryRun = false } = {}) {
-  const snapshot = typeof source === "string" ? readSnapshot(source) : source;
+  const snapshot = typeof source === "string" ? await readSnapshot(source) : source;
   if (!snapshot || snapshot.format !== FORMAT) throw Object.assign(new Error("Unrecognised backup format."), { status: 400 });
   const liveTables = await discoverTables(db);
   const wanted = Object.keys(snapshot.tables || {});
@@ -265,7 +295,7 @@ module.exports = {
   buildSnapshot,
   writeSnapshot,
   snapshotBefore,
-  listSync,
+  list,
   readSnapshot,
   restore,
   parseJson,

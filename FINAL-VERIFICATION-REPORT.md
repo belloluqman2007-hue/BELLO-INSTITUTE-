@@ -136,3 +136,19 @@ Also noted, deliberately left alone: `server/migrate.js` has two migrations shar
 ## FINAL STATUS
 
 PASS — ALL VERIFICATIONS PASSED
+
+---
+
+## Addendum — Load & Scalability Verification (2026-09-21)
+
+A follow-up campaign load-tested the running server against a seeded
+55-tenant / 10,900-student / ~200k-row database: staged concurrency to
+5,000 authenticated users, paced load, a 300 s memory soak, a login storm,
+and a two-instance horizontal-scaling run with no sticky sessions. The suite
+grew to **495/495 passing** after the performance and correctness changes
+made during that work (session touch throttling, SQLite PRAGMAs, listen
+backlog, PTM/portal N+1 removal, async backup writes; full detail, numbers
+and remaining caveats in [`LOAD-VERIFICATION-REPORT.md`](LOAD-VERIFICATION-REPORT.md)).
+The one standing caveat is unchanged: **the MySQL driver is statically
+audited but not runtime-verified** — smoke-test it against a real MySQL 8
+instance before the first production deploy.

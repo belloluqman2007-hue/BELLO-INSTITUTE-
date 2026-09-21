@@ -166,11 +166,40 @@ const DB_CONFIG = {
   ssl: String(process.env.DB_SSL || "false").toLowerCase() !== "false",
 };
 
+/* MySQL connection pool (production driver).
+   ---------------------------------------------------------------------------
+   Thousands of HTTP users are served by a SMALL pool of reusable connections:
+   one Node process must never open one MySQL connection per user. The values
+   below are the production sizing knobs — see docs/DATABASE.md → "Connection
+   pool sizing" for how to choose them against MySQL's max_connections.
+
+   • MYSQL_POOL_SIZE — max connections this PROCESS may hold (default 10).
+     Recommended: keep total across all Node processes ≤ 70-80% of MySQL
+     max_connections, leaving headroom for ops tooling and burst traffic.
+   • MYSQL_QUEUE_LIMIT — requests waiting for a free connection. 0 (default)
+     means unlimited waiting (requests slow down under pressure instead of
+     failing). A positive value fails excess requests fast with a clear error.
+   • MYSQL_CONNECT_TIMEOUT_MS — giving up on establishing a NEW connection.
+   • MYSQL_MAX_IDLE / MYSQL_IDLE_TIMEOUT_MS — idle connections are closed and
+     re-opened on demand, so quiet periods do not pin MySQL threads.
+--------------------------------------------------------------------------- */
+const MYSQL_POOL = {
+  connectionLimit: Math.max(1, Number(process.env.MYSQL_POOL_SIZE || 10)),
+  queueLimit: Math.max(0, Number(process.env.MYSQL_QUEUE_LIMIT || 0)),
+  connectTimeout: Math.max(1000, Number(process.env.MYSQL_CONNECT_TIMEOUT_MS || 10000)),
+  maxIdle: Math.max(1, Number(process.env.MYSQL_MAX_IDLE || process.env.MYSQL_POOL_SIZE || 10)),
+  idleTimeout: Math.max(1000, Number(process.env.MYSQL_IDLE_TIMEOUT_MS || 60000)),
+};
+
 /* ---------------------------------------------------------------------------
    AUTH / SECRETS
 --------------------------------------------------------------------------- */
 const SESSION_SECRET = String(process.env.SESSION_SECRET || "").trim();
 const SESSION_MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_HOURS || 12) * 60 * 60 * 1000;
+// How often (minutes) expired session rows are pruned from app_sessions.
+// Sessions are the ONE table that grows on every login, so without a sweep
+// the store would grow forever. 0 disables the timer.
+const SESSION_PRUNE_MINUTES = Number(process.env.SESSION_PRUNE_MINUTES || 60);
 
 // Usernames are stored and compared in lower case (POST /api/auth/login
 // lower-cases whatever is typed). A configured "Admin"/"ADMIN" would therefore
@@ -199,11 +228,28 @@ const CORS_ORIGINS = String(process.env.CORS_ORIGINS || "")
 
 /* ---------------------------------------------------------------------------
    RATE LIMITING
+   All limiters are per-IP (per process — see docs/DEPLOYMENT.md when scaling
+   to multiple Node instances). The LOGIN and PUBLIC limiters protect
+   unauthenticated surfaces and stay strict; the global API limiter only
+   throttles already-authenticated traffic, so it must stay generous enough
+   that a whole school office sharing one NAT/proxy IP (each dashboard session
+   fires dozens of API calls per minute) is never starved by it.
 --------------------------------------------------------------------------- */
 const LOGIN_RATE_LIMIT = Number(process.env.LOGIN_RATE_LIMIT || 10);
 // Development gets room to breathe: the end-to-end smoke script and a dev
 // clicking around must not be throttled by a limit meant for the internet.
-const API_RATE_LIMIT = Number(process.env.API_RATE_LIMIT || (IS_PRODUCTION ? 300 : 5000));
+// Production default: 2000 requests / 15 min / IP — an active staff of dozens
+// behind one proxy stays well under it while scripted abuse still gets cut.
+const API_RATE_LIMIT = Number(process.env.API_RATE_LIMIT || (IS_PRODUCTION ? 2000 : 5000));
+
+// TCP accept-queue depth for the HTTP listener (Node default: 511). Raise it
+// on hosts that see connection bursts (deploys, load spikes, login rushes).
+const LISTEN_BACKLOG = Math.max(511, Number(process.env.LISTEN_BACKLOG || 1024));
+
+// PERF_MONITOR=1 enables the super-admin-only /api/perf diagnostics endpoint
+// (event-loop lag, heap, CPU, pool stats) for staging/load testing. Off by
+// default — it collects nothing unless explicitly turned on.
+const PERF_MONITOR = ["1", "true", "yes"].includes(String(process.env.PERF_MONITOR || "").toLowerCase());
 
 /* ---------------------------------------------------------------------------
    UPLOADS
@@ -452,10 +498,12 @@ module.exports = {
   DATABASE_DRIVER,
   DATABASE_URL,
   DB_CONFIG,
+  MYSQL_POOL,
   API_BASE_URL,
   EFFECTIVE_API_BASE,
   SESSION_SECRET,
   SESSION_MAX_AGE_MS,
+  SESSION_PRUNE_MINUTES,
   SUPER_ADMIN_USERNAME,
   SUPER_ADMIN_PASSWORD,
   PUBLIC_URL,
@@ -491,6 +539,8 @@ module.exports = {
   DELIVERY,
   LOGIN_RATE_LIMIT,
   API_RATE_LIMIT,
+  PERF_MONITOR,
+  LISTEN_BACKLOG,
   UPLOAD_DIR,
   MAX_UPLOAD_MB,
   AI,

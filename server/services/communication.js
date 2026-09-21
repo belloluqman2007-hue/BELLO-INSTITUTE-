@@ -86,17 +86,48 @@ async function createNotifications(madrasaId, userIds, payload = {}) {
   const title = cleanStr(payload.title, 200);
   const body = cleanStr(payload.body, 5000);
   if (!title || !body) return [];
+  // Validate all recipients in ONE batched query (was one SELECT per user —
+  // an N+1 that made a whole-tenant announcement run thousands of queries).
+  const valid = new Set();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const cm = chunk.map(() => "?").join(",");
+    const rows = await db.all(`SELECT id FROM users WHERE madrasa_id = ? AND id IN (${cm}) AND is_active = 1`, [madrasaId].concat(chunk));
+    for (const r of rows) valid.add(Number(r.id));
+  }
+  const recipients = ids.filter((id) => valid.has(Number(id)));
+  if (!recipients.length) return [];
+  const type = cleanStr(payload.type, 50) || "school_notice";
+  const entityType = cleanStr(payload.entity_type, 50);
+  const entityId = payload.entity_id ? toNum(payload.entity_id, 0) : null;
+  const channel = cleanStr(payload.channel, 20) || "in_app";
+  // Multi-row INSERT in chunks: one statement per 500 recipients instead of
+  // one statement per recipient. Auto-increment ids of a multi-row insert are
+  // one contiguous block on both SQLite and MySQL/InnoDB, so the returned ids
+  // (callers echo them back) stay accurate.
   const out = [];
-  for (const userId of ids) {
-    const u = await db.get("SELECT id FROM users WHERE id = ? AND madrasa_id = ? AND is_active = 1", [userId, madrasaId]);
-    if (!u) continue;
-    const r = await db.run(
-      "INSERT INTO notifications (madrasa_id, recipient_user_id, type, title, body, entity_type, entity_id, channel) VALUES (?,?,?,?,?,?,?,?)",
-      [madrasaId, userId, cleanStr(payload.type, 50) || "school_notice", title, body, cleanStr(payload.entity_type, 50), payload.entity_id ? toNum(payload.entity_id, 0) : null, cleanStr(payload.channel, 20) || "in_app"]
-    );
-    out.push(Number(r.lastInsertRowid));
-    // The in-app notification above is the source of truth; external delivery
-    // is best-effort and can never fail this loop.
+  const dialect = await db.dialect();
+  for (let i = 0; i < recipients.length; i += 500) {
+    const chunk = recipients.slice(i, i + 500);
+    const values = chunk.map(() => "(?,?,?,?,?,?,?,?)").join(",");
+    const params = [];
+    for (const userId of chunk) params.push(madrasaId, userId, type, title, body, entityType, entityId, channel);
+    const r = await db.run(`INSERT INTO notifications (madrasa_id, recipient_user_id, type, title, body, entity_type, entity_id, channel) VALUES ${values}`, params);
+    const reported = Number(r.lastInsertRowid);
+    const affected = Number(r.changes || chunk.length);
+    // A multi-row INSERT allocates ONE contiguous id block on both drivers,
+    // but they report different ends of it: SQLite → LAST rowid, MySQL → FIRST.
+    // Callers only echo these ids back, and 0 means "not reconstructed".
+    if (reported > 0 && affected === chunk.length) {
+      const firstId = dialect === "mysql" ? reported : reported - chunk.length + 1;
+      for (let k = 0; k < chunk.length; k++) out.push(firstId + k);
+    } else {
+      for (let k = 0; k < chunk.length; k++) out.push(0);
+    }
+  }
+  // The in-app notification above is the source of truth; external delivery
+  // is best-effort and can never fail this loop.
+  for (const userId of recipients) {
     await dispatchExternal(madrasaId, userId, { type: payload.type, title, body, student_id: payload.student_id || null, sent_by: payload.sent_by || null });
   }
   return out;

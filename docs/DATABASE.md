@@ -90,6 +90,30 @@ Seed the demo madaris (2 madaris, users, classes, results):
 npm run seed -- --demo
 ```
 
+## Connection pool sizing (MySQL)
+
+Thousands of HTTP users are served by a **small pool of reusable connections**:
+one Node process must never open one MySQL connection per user. The pool knobs
+(all optional, defaults in parentheses):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MYSQL_POOL_SIZE` | 10 | Max connections this process may hold. |
+| `MYSQL_QUEUE_LIMIT` | 0 | Requests waiting for a free connection. `0` = wait forever (requests slow down under pressure instead of failing); a positive value fails excess requests fast with a clear error. |
+| `MYSQL_CONNECT_TIMEOUT_MS` | 10000 | Giving up on establishing a *new* connection. |
+| `MYSQL_MAX_IDLE` | = `MYSQL_POOL_SIZE` | Idle connections are closed and re-opened on demand, so quiet periods do not pin MySQL threads. |
+| `MYSQL_IDLE_TIMEOUT_MS` | 60000 | How long an idle connection is kept before closing. |
+
+**Sizing rule:** keep the total across all Node processes ≤ 70–80 % of MySQL's
+`max_connections`, leaving headroom for ops tooling and burst traffic. One
+process with the default 10 easily serves hundreds of concurrent users because
+queries are short (single-digit milliseconds); the pool — not the database — is
+the multiplier that decides how many instances you can run.
+
+Current pool utilisation is visible at `/api/perf` (super admin, with
+`PERF_MONITOR=1`): `configuredLimit`, `activeConnections`, `idleConnections`
+and `queuedRequests` tell you whether the pool is the bottleneck.
+
 ## Safety rules
 
 - **Never** copy the old `.env` or old connection string into this project.

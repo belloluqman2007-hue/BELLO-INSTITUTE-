@@ -10,7 +10,10 @@
     "backup": "node --disable-warning=ExperimentalWarning server/backup.js",
     "seed": "node --disable-warning=ExperimentalWarning server/seed.js",
     "reset-admin-password": "node --disable-warning=ExperimentalWarning server/reset-admin-password.js",
-    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
+    "loadtest:seed": "node --disable-warning=ExperimentalWarning loadtest/seed.js",
+    "loadtest:smoke": "node --disable-warning=ExperimentalWarning loadtest/run.js --stage 20 --steps 20 --hold 15 --url http://127.0.0.1:3100 --manage-server --isolation",
+    "loadtest:stage": "node --disable-warning=ExperimentalWarning loadtest/run.js --url http://127.0.0.1:3100 --manage-server --isolation"
   },
   "engines": {
     "node": ">=22.22.3 <23.0.0"
@@ -28,6 +31,7 @@
     "mysql2": "^3.14.0"
   },
   "devDependencies": {
+    "autocannon": "^7.15.0",
     "js-yaml": "^5.4.1",
     "jsdom": "^30.0.1"
   }

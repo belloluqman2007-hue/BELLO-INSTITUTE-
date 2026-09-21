@@ -189,8 +189,8 @@ test("writeSnapshot stores it in BACKUP_DIR and prunes the oldest", async () => 
   assert.ok(written.every((n) => /^snapshot-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}-manual\.json$/.test(n)), written[0]);
   assert.equal(new Set(written).size, 3, "three saves in a row are three different files");
   for (const n of written) assert.ok(fs.existsSync(path.join(backupDir(), n)));
-  assert.equal(backup.prune(3), 0, "nothing to remove at keep=3");
-  assert.ok(backup.prune(1) >= 2, "older ones go");
+  assert.equal(await backup.prune(3), 0, "nothing to remove at keep=3");
+  assert.ok((await backup.prune(1)) >= 2, "older ones go");
   const left = fs.readdirSync(backupDir());
   assert.equal(left.filter((n) => /-manual\.json$/.test(n)).length, 1, "only the newest manual snapshot is left: " + left.join(","));
   assert.ok(left.some((n) => /pre-migration/.test(n)), "…while the pre-migration safety copy is still there");
@@ -201,7 +201,7 @@ test("pre-restore and pre-migration snapshots are never pruned away", async () =
   fs.writeFileSync(path.join(dir, "snapshot-2020-01-01T00-00-00-pre-restore.json"), JSON.stringify({ format: backup.FORMAT, tables: {}, counts: {} }));
   for (let i = 0; i < 4; i++) await backup.writeSnapshot(ctx.db, { reason: "scheduled", keep: 2 });
   assert.ok(fs.existsSync(path.join(dir, "snapshot-2020-01-01T00-00-00-pre-restore.json")), "the safety copy survives pruning");
-  const listed = backup.listSync();
+  const listed = await backup.list();
   assert.ok(listed.some((b) => b.name.includes("pre-restore")), "it is still listed for the operator to see");
   assert.ok(listed.filter((b) => /-scheduled/.test(b.name)).length <= 2, "scheduled ones were capped at keep=2");
 });

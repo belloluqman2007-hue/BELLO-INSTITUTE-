@@ -129,7 +129,7 @@ router.post("/madaris", asyncHandler(async (req, res) => {
   // like it "disappeared".
   let adminCreated = false;
   let mid = 0;
-  const adminHash = adminGiven ? bcrypt.hashSync(adminPass, 10) : "";
+  const adminHash = adminGiven ? await bcrypt.hash(adminPass, 10) : "";
   try {
     const created = await db.transaction(async (tx) => {
       const cols = ["slug", "name_en", "name_ar", "category", "institution_type", "brand_color",
@@ -271,7 +271,7 @@ router.post("/madaris/:id/admin", asyncHandler(async (req, res) => {
   const existing = await db.get("SELECT id, username FROM users WHERE madrasa_id = ? AND role = 'madrasa_admin'", [m.id]);
   if (existing) {
     // Reset existing admin (optionally change the username)
-    const hash = bcrypt.hashSync(password, 10);
+    const hash = await bcrypt.hash(password, 10);
     if (existing.username !== username) {
       const clash = await db.get("SELECT id FROM users WHERE username = ?", [username]);
       if (clash) return err(res, 400, "That username is taken by another account.");
@@ -284,7 +284,7 @@ router.post("/madaris/:id/admin", asyncHandler(async (req, res) => {
   } else {
     const clash = await db.get("SELECT id FROM users WHERE username = ?", [username]);
     if (clash) return err(res, 400, "That username is taken by another account.");
-    const hash = bcrypt.hashSync(password, 10);
+    const hash = await bcrypt.hash(password, 10);
     const r = await db.run(
       "INSERT INTO users (madrasa_id, username, password_hash, role, full_name, email, phone) VALUES (?,?,?,?,?,?,?)",
       [m.id, username, hash, "madrasa_admin", cleanStr(b.full_name, 160) || "Madrasa Administrator", cleanStr(b.email, 120), cleanStr(b.phone, 60)]
@@ -377,7 +377,7 @@ router.post("/registrations/:id/approve", asyncHandler(async (req, res) => {
     adminUsername = `${slug}-admin-${reg.id}`;
   }
   const adminPasswordHash = reg.admin_password_hash
-    || bcrypt.hashSync(crypto_randomPassword(), 10); // safety net for legacy rows with no stored hash
+    || await bcrypt.hash(crypto_randomPassword(), 10); // safety net for legacy rows with no stored hash
 
   let mid = 0;
   try {
@@ -524,7 +524,7 @@ router.get("/diagnostics", asyncHandler(async (req, res) => {
   const backup = require("../services/backup");
   const config = require("../config");
   const report = await persistence.report(db);
-  const backups = backup.listSync();
+  const backups = await backup.list();
   ok(res, {
     persistence: report,
     backups: {

@@ -254,7 +254,7 @@ router.post("/change-password", async (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found." });
   const match = await bcrypt.compare(current, user.password_hash);
   if (!match) return res.status(400).json({ error: "Current password is incorrect." });
-  const hash = bcrypt.hashSync(next, 10);
+  const hash = await bcrypt.hash(next, 10);
   await db.run("UPDATE users SET password_hash = ? WHERE id = ?", [hash, req.user.id]);
   logActivity(db, { madrasaId: req.user.madrasaId, userId: req.user.id, action: "change_password", entity: "auth", entityId: String(req.user.id), ip: req.ip });
   res.json({ ok: true });

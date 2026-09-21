@@ -7,6 +7,8 @@ const { migrate } = require("./migrate");
 const { createApp } = require("./app");
 const { seedPlans, seedSuperAdmin } = require("./seed");
 const db = require("./db");
+const DBSessionStore = require("./session-store");
+const sessionStore = new DBSessionStore(); // stateless store; shared prune helper
 const backup = require("./services/backup");
 const persistence = require("./services/persistence");
 
@@ -65,7 +67,26 @@ const persistence = require("./services/persistence");
     // container can always be restored from Platform -> Backups.
     backup.startAutoBackup(db);
     const app = createApp();
-    const server = app.listen(config.PORT, "0.0.0.0", () => {
+    // Sweep expired session rows on a timer. app_sessions is the one table
+    // that grows on every login; without this sweep a long-lived deployment
+    // accumulates dead sessions forever. Best-effort: a failed prune logs and
+    // tries again on the next tick, it never takes the app down.
+    if (config.SESSION_PRUNE_MINUTES > 0) {
+      const pruneSessions = async (why) => {
+        try {
+          const r = await sessionStore.prune();
+          if (r && r.changes) console.log(`Session prune (${why}): removed ${r.changes} expired session(s).`);
+        } catch (e) { console.error("Session prune failed:", e.message); }
+      };
+      await pruneSessions("boot");
+      const pruneTimer = setInterval(() => { pruneSessions("timer"); }, config.SESSION_PRUNE_MINUTES * 60 * 1000);
+      if (pruneTimer.unref) pruneTimer.unref();
+    }
+    // The listen backlog shields the accept queue when many clients connect
+    // at once (a load spike, a deploy rolling, or a login rush). Node's
+    // default of 511 drops SYNs under exactly those bursts; a deeper queue
+    // lets the kernel hold them until the event loop can accept.
+    const server = app.listen(config.PORT, "0.0.0.0", config.LISTEN_BACKLOG, () => {
       console.log("==============================================");
       console.log("  Multi-Madrasa Management Platform");
       console.log(`  env:    ${config.NODE_ENV}`);

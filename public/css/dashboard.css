@@ -781,3 +781,118 @@ body.dash-western .dash-western-insight { border-color:#cdeaff; }
   .dash-modal-backdrop { padding:10px; }
   .dash-modal-body { padding:16px; }
 }
+
+/* ==========================================================================
+   Admin upgrade — needs-attention, global search, permissions, audit log.
+   These reuse the existing design tokens (--d-*) so the new surfaces are
+   indistinguishable from the screens that were already here.
+   ========================================================================== */
+
+/* Screen-reader-only text: visible to assistive tech, invisible on screen.
+   Used for table captions and the search label, so the visual design is
+   unchanged while the markup becomes properly describable. */
+.sr-only {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+
+/* ------------------------------ needs attention -------------------------- */
+.dash-attention-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.dash-attention-row {
+  width:100%; display:flex; align-items:center; gap:12px; padding:11px 13px;
+  border:1px solid var(--d-line); border-radius:11px; background:var(--d-surface);
+  color:var(--d-text); font:inherit; font-size:.87rem; text-align:left; cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.dash-attention-row:hover { border-color:var(--d-primary-700); background:var(--d-surface-2); }
+.dash-attention-row:focus-visible { outline:2px solid var(--d-primary-700); outline-offset:2px; }
+.dash-attention-count {
+  flex:0 0 auto; min-width:34px; padding:3px 9px; border-radius:999px;
+  font-weight:800; font-size:.8rem; text-align:center;
+}
+.dash-attention-info   { background:rgba(41,98,176,.13); color:#1f4f8f; }
+.dash-attention-warn   { background:rgba(181,121,42,.16); color:var(--d-warn); }
+.dash-attention-danger { background:rgba(176,58,48,.14); color:var(--d-danger); }
+.dash-attention-label { flex:1 1 auto; min-width:0; }
+.dash-attention-go { flex:0 0 auto; color:var(--d-muted); display:inline-flex; }
+.dash-attention-go svg { width:15px; height:15px; }
+@media (prefers-reduced-motion: reduce) { .dash-attention-row { transition:none; } }
+
+/* ------------------------------ global search ---------------------------- */
+.dash-header-search { position:relative; flex:0 1 300px; min-width:0; }
+.dash-header-search input {
+  width:100%; padding:8px 12px; border:1px solid var(--d-line); border-radius:9px;
+  background:var(--d-surface); color:var(--d-text); font:inherit; font-size:.84rem;
+}
+.dash-header-search input:focus-visible { outline:2px solid var(--d-primary-700); outline-offset:1px; }
+.dash-search-results {
+  position:absolute; top:calc(100% + 6px); right:0; width:min(420px, 92vw);
+  max-height:min(460px, 70vh); overflow-y:auto; z-index:60;
+  background:var(--d-surface); border:1px solid var(--d-line); border-radius:12px;
+  box-shadow:0 18px 44px rgba(12,18,32,.18); padding:6px;
+}
+.dash-search-note { margin:0; padding:14px; font-size:.83rem; color:var(--d-muted); }
+.dash-search-group + .dash-search-group { border-top:1px solid var(--d-line); margin-top:5px; padding-top:5px; }
+.dash-search-group-label {
+  padding:7px 11px 4px; font-size:.7rem; font-weight:800; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--d-muted);
+}
+.dash-search-group ul { list-style:none; margin:0; padding:0; }
+.dash-search-item {
+  width:100%; display:flex; flex-direction:column; gap:2px; padding:8px 11px;
+  border:0; border-radius:8px; background:transparent; color:var(--d-text);
+  font:inherit; text-align:left; cursor:pointer;
+}
+.dash-search-item:hover, .dash-search-item:focus-visible { background:var(--d-surface-2); }
+.dash-search-item:focus-visible { outline:2px solid var(--d-primary-700); outline-offset:-2px; }
+.dash-search-item strong { font-size:.86rem; font-weight:650; }
+.dash-search-item small { font-size:.75rem; color:var(--d-muted); }
+
+/* --------------------------- permissions & audit ------------------------- */
+.dash-fieldset { border:1px solid var(--d-line); border-radius:11px; padding:12px 14px; margin:0 0 13px; }
+.dash-fieldset legend { padding:0 7px; font-size:.79rem; font-weight:800; color:var(--d-text); }
+.dash-fieldset .dash-toggle { display:flex; align-items:flex-start; gap:9px; padding:5px 0; font-size:.84rem; }
+.dash-fieldset .dash-toggle code { font-size:.72rem; color:var(--d-muted); }
+.dash-modal-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:16px; flex-wrap:wrap; }
+
+.dash-filter-row { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+.dash-filter-row .dash-field { flex:1 1 165px; min-width:0; margin:0; }
+.dash-filter-row .dash-field label { display:block; font-size:.76rem; font-weight:700; margin-bottom:4px; }
+.dash-filter-row .dash-field input, .dash-filter-row .dash-field select {
+  width:100%; padding:8px 10px; border:1px solid var(--d-line); border-radius:8px;
+  background:var(--d-surface); color:var(--d-text); font:inherit; font-size:.84rem;
+}
+
+.dash-pager { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.dash-detail-list { display:grid; grid-template-columns:auto 1fr; gap:6px 16px; margin:0 0 16px; font-size:.85rem; }
+.dash-detail-list dt { font-weight:700; color:var(--d-muted); }
+.dash-detail-list dd { margin:0; }
+.dash-pre {
+  background:var(--d-surface-2); border:1px solid var(--d-line); border-radius:9px;
+  padding:11px; font-size:.76rem; line-height:1.5; overflow-x:auto; max-height:230px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; word-break:break-word;
+}
+
+/* --------------------------------- mobile -------------------------------- */
+@media (max-width: 860px) {
+  /* The search box moves onto its own row rather than squeezing the header
+     title and user block into unusable slivers. */
+  .dash-header-search { order:10; flex:1 1 100%; margin-top:8px; }
+  .dash-search-results { width:100%; right:auto; left:0; }
+}
+@media (max-width: 720px) {
+  .dash-attention-row { flex-wrap:nowrap; padding:10px 11px; font-size:.84rem; }
+  .dash-attention-label { white-space:normal; }
+  /* Filter controls stack instead of clipping their labels. */
+  .dash-filter-row .dash-field { flex:1 1 100%; }
+  .dash-filter-row > .dash-btn { width:100%; justify-content:center; }
+  .dash-detail-list { grid-template-columns:1fr; gap:2px 0; }
+  .dash-detail-list dd { margin-bottom:8px; }
+  /* Tables stay readable by scrolling horizontally rather than compressing
+     columns into unreadable slivers; the wrapper is focusable so a keyboard
+     user can scroll it too. */
+  .dash-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .dash-table { min-width:640px; }
+  /* Touch targets stay at least ~44px tall. */
+  .dash-btn, .dash-attention-row, .dash-search-item { min-height:42px; }
+}

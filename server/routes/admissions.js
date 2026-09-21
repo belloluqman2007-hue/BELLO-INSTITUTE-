@@ -25,6 +25,7 @@ const db = require("../db");
 const config = require("../config");
 const { asyncHandler, err, ok, cleanStr, toNum, logActivity, checkPlanLimits } = require("../util");
 const { requireAuth, requireRole } = require("../middleware/auth");
+const { requirePermission } = require("../services/permissions");
 const { effectiveTenantId } = require("../middleware/tenant");
 const admission = require("../services/admission");
 const { fileUploader, imageUploader } = require("../middleware/upload");
@@ -143,7 +144,7 @@ router.get("/requirements", asyncHandler(async (req, res) => {
     WHERE ${where.join(" AND ")} ORDER BY r.status='active' DESC,r.is_required DESC,r.name`, params);
   ok(res, { requirements });
 }));
-router.post("/requirements", ADMIN, asyncHandler(async (req, res) => {
+router.post("/requirements", requirePermission("admissions.create"), asyncHandler(async (req, res) => {
   const tid = await resolveTenant(req, res); if (tid === undefined || tid === null) return tid === null ? err(res, 400, "Institution context required.") : undefined;
   const b=req.body||{}; const name=cleanStr(b.name||b.requirement_name,200); if(!name)return err(res,400,"Requirement name is required.");
   const classId=toNum(b.class_id||b.classId,0)||null;const sessionId=toNum(b.session_id||b.sessionId,0)||null;
@@ -154,7 +155,7 @@ router.post("/requirements", ADMIN, asyncHandler(async (req, res) => {
   const r=await db.run("INSERT INTO admission_requirements (madrasa_id,name,description,is_required,document_type,class_id,program,education_track,session_id,status,created_by,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",[tid,name,cleanStr(b.description,5000),b.is_required===false||b.is_required==="false"?0:1,cleanStr(b.document_type,100),classId,cleanStr(b.program,120),track,sessionId,status,req.user.id]);
   logActivity(db,{madrasaId:tid,userId:req.user.id,action:"admission_requirement.create",entity:"admission_requirement",entityId:String(r.lastInsertRowid),ip:req.ip});ok(res,{ok:true,id:r.lastInsertRowid});
 }));
-router.patch("/requirements/:id", ADMIN, asyncHandler(async (req,res)=>{
+router.patch("/requirements/:id", requirePermission("admissions.create"), asyncHandler(async (req,res)=>{
   const tid=await resolveTenant(req,res);if(tid===undefined||tid===null)return tid===null?err(res,400,"Institution context required."):undefined;const id=toNum(req.params.id,0);const row=await db.get("SELECT * FROM admission_requirements WHERE id=? AND madrasa_id=?",[id,tid]);if(!row)return err(res,404,"Requirement not found.");const b=req.body||{};const sets=[];const vals=[];
   for(const [key,max] of [["name",200],["description",5000],["document_type",100],["program",120]])if(b[key]!==undefined){const value=cleanStr(b[key],max);if(key==="name"&&!value)return err(res,400,"Requirement name is required.");sets.push(`${key}=?`);vals.push(value);}
   if(b.is_required!==undefined){sets.push("is_required=?");vals.push(b.is_required===true||b.is_required==="true"?1:0);}
@@ -163,7 +164,7 @@ router.patch("/requirements/:id", ADMIN, asyncHandler(async (req,res)=>{
   for(const [key,table] of [["class_id","classes"],["session_id","academic_sessions"]])if(b[key]!==undefined){const value=toNum(b[key],0)||null;if(value&&!await db.get(`SELECT id FROM ${table} WHERE id=? AND madrasa_id=?`,[value,tid]))return err(res,400,`${key==="class_id"?"Class":"Session"} not found.`);sets.push(`${key}=?`);vals.push(value);}
   if(!sets.length)return err(res,400,"Nothing to update.");sets.push("updated_at=CURRENT_TIMESTAMP");vals.push(id,tid);await db.run(`UPDATE admission_requirements SET ${sets.join(",")} WHERE id=? AND madrasa_id=?`,vals);ok(res,{ok:true,requirement:await db.get("SELECT * FROM admission_requirements WHERE id=? AND madrasa_id=?",[id,tid])});
 }));
-router.delete("/requirements/:id", ADMIN, asyncHandler(async(req,res)=>{
+router.delete("/requirements/:id", requirePermission("admissions.create"), asyncHandler(async(req,res)=>{
   const tid=await resolveTenant(req,res);if(tid===undefined||tid===null)return tid===null?err(res,400,"Institution context required."):undefined;const id=toNum(req.params.id,0);const r=await db.run("UPDATE admission_requirements SET status='archived',archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",[id,tid]);if(!r.changes)return err(res,404,"Requirement not found.");ok(res,{ok:true,archived:true});
 }));
 
@@ -181,7 +182,7 @@ router.get("/settings", asyncHandler(async(req,res)=>{
   const m=await db.get("SELECT public_admissions FROM madaris WHERE id=?",[tid]);if(settings.admission_open===undefined)settings.admission_open=Number(m&&m.public_admissions)===1;
   ok(res,{settings});
 }));
-router.put("/settings", ADMIN, asyncHandler(async(req,res)=>{
+router.put("/settings", requirePermission("institution.settings"), asyncHandler(async(req,res)=>{
   const tid=await resolveTenant(req,res);if(tid===undefined||tid===null)return tid===null?err(res,400,"Institution context required."):undefined;const b=req.body||{};
   const start=b.application_start_date?String(b.application_start_date).slice(0,10):null;const close=b.application_closing_date?String(b.application_closing_date).slice(0,10):null;if((start&&!/^\d{4}-\d{2}-\d{2}$/.test(start))||(close&&!/^\d{4}-\d{2}-\d{2}$/.test(close)))return err(res,400,"Application dates must use YYYY-MM-DD.");if(start&&close&&close<start)return err(res,400,"Application closing date cannot be before its start date.");
   for(const key of ["available_session_ids","available_class_ids"]){if(b[key]!==undefined&&!Array.isArray(b[key]))return err(res,400,`${key} must be a list.`);if(Array.isArray(b[key])){const table=key==="available_session_ids"?"academic_sessions":"classes";for(const id of b[key])if(!await db.get(`SELECT id FROM ${table} WHERE id=? AND madrasa_id=?`,[toNum(id,0),tid]))return err(res,400,`One selected ${key==="available_session_ids"?"session":"class"} was not found.`);}}
@@ -210,7 +211,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
   ok(res, { request, class: cls, session, student, history, documents, requirements: requirements.map((requirement) => Object.assign(requirement, { submitted: submittedRequirementIds.has(Number(requirement.id)) })) });
 }));
 
-router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/:id", requirePermission("admissions.create"), asyncHandler(async (req, res) => {
   const row = await loadRequest(req, res, req.params.id); if (!row) return;
   const b = req.body || {}; const sets = []; const vals = [];
   const fields = [
@@ -335,8 +336,8 @@ async function approveApplication(req, res) {
   ok(res, { ok: true, status: finalStatus, studentId: out.studentId, admissionNo, portalCreated: out.portalCreated, username: out.username, parentUsername: out.parentUsername || "" });
 }
 
-router.post("/:id/approve", ADMIN, asyncHandler(approveApplication));
-router.post("/:id/convert", ADMIN, asyncHandler(approveApplication));
+router.post("/:id/approve", requirePermission("admissions.approve"), asyncHandler(approveApplication));
+router.post("/:id/convert", requirePermission("admissions.approve"), asyncHandler(approveApplication));
 
 async function setStatus(req, res, status) {
   const row = await loadRequest(req, res, req.params.id);
@@ -355,14 +356,14 @@ async function setStatus(req, res, status) {
   ok(res, { ok: true, status });
 }
 
-router.post("/:id/reject", ADMIN, asyncHandler((req, res) => setStatus(req, res, "rejected")));
+router.post("/:id/reject", requirePermission("admissions.reject"), asyncHandler((req, res) => setStatus(req, res, "rejected")));
 router.post("/:id/hold", ADMIN, asyncHandler((req, res) => setStatus(req, res, "on_hold")));
 router.post("/:id/waitlist", ADMIN, asyncHandler((req, res) => setStatus(req, res, "waitlisted")));
 router.post("/:id/request-info", ADMIN, asyncHandler((req, res) => setStatus(req, res, "needs_info")));
 router.post("/:id/under-review", ADMIN, asyncHandler((req, res) => setStatus(req, res, "under_review")));
 router.post("/:id/shortlist", ADMIN, asyncHandler((req, res) => setStatus(req, res, "shortlisted")));
 router.post("/:id/interviewed", ADMIN, asyncHandler((req, res) => setStatus(req, res, "interviewed")));
-router.post("/:id/accept", ADMIN, asyncHandler((req, res) => setStatus(req, res, "accepted")));
+router.post("/:id/accept", requirePermission("admissions.approve"), asyncHandler((req, res) => setStatus(req, res, "accepted")));
 router.post("/:id/reopen", ADMIN, asyncHandler((req, res) => setStatus(req, res, "pending")));
 router.patch("/:id/review", ADMIN, asyncHandler(async (req, res) => {
   const row = await loadRequest(req, res, req.params.id); if (!row) return;
@@ -411,7 +412,7 @@ router.get("/:id/documents/:documentId", ADMIN, asyncHandler(async (req, res) =>
   res.download(doc.storage_path, doc.original_name || doc.document_name);
 }));
 
-router.delete("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id", requirePermission("admissions.approve"), asyncHandler(async (req, res) => {
   const row = await loadRequest(req, res, req.params.id);
   if (!row) return;
   if (row.student_id) return err(res, 400, "This application was admitted — delete the student record instead.");

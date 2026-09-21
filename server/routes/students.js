@@ -15,6 +15,8 @@ const { requireAuth, requireTenant, requireRole } = require("../middleware/auth"
 const { effectiveTenantId, getTeacherAssignments } = require("../middleware/tenant");
 const { imageUploader, fileUploader } = require("../middleware/upload");
 const admission = require("../services/admission");
+const { requirePermission } = require("../services/permissions");
+const audit = require("../services/audit");
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
@@ -38,7 +40,7 @@ async function groupRow(req, res, id, tid) {
 // Groups are deliberately separate from classes. A student can be a member of
 // many groups at once, while the existing class_id remains the academic
 // placement used by attendance, results and timetable.
-router.get("/groups", asyncHandler(async (req, res) => {
+router.get("/groups", requirePermission("students.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   if (!["madrasa_admin", "teacher", "super_admin"].includes(req.user.role)) return err(res, 403, "Permission denied.");
   const where = ["g.madrasa_id = ?"]; const params = [tid];
@@ -56,7 +58,7 @@ router.get("/groups", asyncHandler(async (req, res) => {
   ok(res, { groups: groups.map((g) => Object.assign(g, { member_count: Number(g.member_count || 0) })) });
 }));
 
-router.post("/groups", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/groups", requirePermission("students.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {}; const name = cleanStr(b.name, 160);
   if (!name) return err(res, 400, "Group name is required.");
@@ -84,7 +86,7 @@ router.get("/groups/:id", asyncHandler(async (req, res) => {
   ok(res, { group, members, teachers });
 }));
 
-router.patch("/groups/:id", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.patch("/groups/:id", requirePermission("students.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const group = await groupRow(req, res, req.params.id, tid); if (!group) return;
   const b = req.body || {}; const sets = []; const vals = [];
@@ -105,7 +107,7 @@ router.patch("/groups/:id", requireRole("madrasa_admin"), asyncHandler(async (re
   ok(res, { ok: true });
 }));
 
-router.delete("/groups/:id", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.delete("/groups/:id", requirePermission("students.delete"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const group = await groupRow(req, res, req.params.id, tid); if (!group) return;
   await db.run("UPDATE student_groups SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?", [group.id, tid]);
@@ -113,7 +115,7 @@ router.delete("/groups/:id", requireRole("madrasa_admin"), asyncHandler(async (r
   ok(res, { ok: true });
 }));
 
-router.post("/groups/:id/members", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/groups/:id/members", requirePermission("students.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const group = await groupRow(req, res, req.params.id, tid); if (!group) return;
   const ids = Array.isArray(req.body && req.body.student_ids) ? req.body.student_ids : [req.body && req.body.student_id];
@@ -124,7 +126,7 @@ router.post("/groups/:id/members", requireRole("madrasa_admin"), asyncHandler(as
   ok(res, { ok: true, added });
 }));
 
-router.delete("/groups/:id/members/:studentId", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.delete("/groups/:id/members/:studentId", requirePermission("students.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const group = await groupRow(req, res, req.params.id, tid); if (!group) return;
   await db.run("DELETE FROM student_group_members WHERE madrasa_id = ? AND group_id = ? AND student_id = ?", [tid, group.id, toNum(req.params.studentId, 0)]);
@@ -133,7 +135,7 @@ router.delete("/groups/:id/members/:studentId", requireRole("madrasa_admin"), as
 
 /* ------------------------------ list ----------------------------------- */
 
-router.get("/", asyncHandler(async (req, res) => {
+router.get("/", requirePermission("students.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   // Only staff may list students (admins: whole madrasa, teachers: assigned classes)
@@ -198,7 +200,7 @@ router.get("/", asyncHandler(async (req, res) => {
   ok(res, { students: rows, total: Number(total.n), page, perPage, totalPages: Math.max(1, Math.ceil(Number(total.n) / perPage)) });
 }));
 
-router.get("/stats", asyncHandler(async (req, res) => {
+router.get("/stats", requirePermission("students.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   if (!["madrasa_admin", "teacher", "super_admin"].includes(req.user.role)) return err(res, 403, "Permission denied.");
   const total = await db.get("SELECT COUNT(*) AS n FROM students WHERE madrasa_id = ?", [tid]);
@@ -215,7 +217,7 @@ router.get("/stats", asyncHandler(async (req, res) => {
 
 /* ------------------------------ create --------------------------------- */
 
-router.post("/", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/", requirePermission("students.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const b = req.body || {};
@@ -272,13 +274,13 @@ router.post("/", requireRole("madrasa_admin"), asyncHandler(async (req, res) => 
     ]
   );
   if (classId || sessionId) await db.run("INSERT INTO student_class_history (madrasa_id, student_id, from_class_id, to_class_id, from_session_id, to_session_id, action, changed_by) VALUES (?,?,?,?,?,?,?,?)", [tid, r.lastInsertRowid, null, classId, null, sessionId, "enrollment", req.user.id]);
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.create", entity: "student", entityId: String(r.lastInsertRowid), meta: { admission_no: admissionNo, student_code: studentCode }, ip: req.ip });
+  await audit.record(req, { action: "student.create", module: "students", entity: "student", entityId: r.lastInsertRowid, after: { admission_no: admissionNo, student_code: studentCode, first_name: firstName, last_name: lastName, class_id: classId } });
   ok(res, { ok: true, id: r.lastInsertRowid, studentId: studentCode, studentCode, admissionNo });
 }));
 
 /* ------------------------------ read one ------------------------------- */
 
-router.get("/:id", asyncHandler(async (req, res) => {
+router.get("/:id", requirePermission("students.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   // Only staff may fetch a student record by id. Students/parents use /api/portal.
@@ -329,7 +331,7 @@ router.get("/:id", asyncHandler(async (req, res) => {
 
 /* ------------------------------ update --------------------------------- */
 
-router.patch("/:id", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.patch("/:id", requirePermission("students.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const s = await db.get("SELECT * FROM students WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
@@ -407,13 +409,14 @@ router.patch("/:id", requireRole("madrasa_admin"), asyncHandler(async (req, res)
       await db.run("INSERT INTO student_class_history (madrasa_id, student_id, from_class_id, to_class_id, from_session_id, to_session_id, action, changed_by) VALUES (?,?,?,?,?,?,?,?)", [tid, s.id, oldClass, newClass, oldSession, newSession, "placement", req.user.id]);
     }
   }
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.update", entity: "student", entityId: String(s.id), ip: req.ip });
+  const after = await db.get("SELECT * FROM students WHERE id = ? AND madrasa_id = ?", [s.id, tid]);
+  await audit.record(req, { action: "student.update", module: "students", entity: "student", entityId: s.id, before: s, after });
   ok(res, { ok: true });
 }));
 
 /* ------------------------------ status / promote ----------------------- */
 
-router.patch("/:id/status", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.patch("/:id/status", requirePermission("students.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const s = await db.get("SELECT * FROM students WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
@@ -427,12 +430,12 @@ router.patch("/:id/status", requireRole("madrasa_admin"), asyncHandler(async (re
     await tx.run("UPDATE students SET status = ?, archived_at = CASE WHEN ? IN ('inactive','withdrawn') THEN CURRENT_TIMESTAMP ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [status, status, s.id]);
     await tx.run("INSERT INTO student_status_history (madrasa_id, student_id, from_status, to_status, reason, changed_by) VALUES (?,?,?,?,?,?)", [tid, s.id, s.status || null, status, reason, req.user.id]);
   });
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.status", entity: "student", entityId: String(s.id), meta: { from: s.status, status, reason }, ip: req.ip });
+  await audit.record(req, { action: "student.status", module: "students", entity: "student", entityId: s.id, before: { status: s.status }, after: { status }, meta: { reason } });
   ok(res, { ok: true });
 }));
 
 /** Promote a student to another class (optionally next session). */
-router.post("/:id/promote", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/:id/promote", requirePermission("students.promote"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const s = await db.get("SELECT * FROM students WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
@@ -452,12 +455,12 @@ router.post("/:id/promote", requireRole("madrasa_admin"), asyncHandler(async (re
     await tx.run("INSERT INTO student_class_history (madrasa_id, student_id, from_class_id, to_class_id, from_session_id, to_session_id, action, changed_by) VALUES (?,?,?,?,?,?,?,?)", [tid, s.id, s.class_id, classId || s.class_id, s.session_id, sessionId || s.session_id, "promotion", req.user.id]);
     if (s.status !== "promoted") await tx.run("INSERT INTO student_status_history (madrasa_id, student_id, from_status, to_status, reason, changed_by) VALUES (?,?,?,?,?,?)", [tid, s.id, s.status, "promoted", "Promoted by administrator", req.user.id]);
   });
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.promote", entity: "student", entityId: String(s.id), meta: { class_id: classId, session_id: sessionId }, ip: req.ip });
+  await audit.record(req, { action: "student.promote", module: "students", entity: "student", entityId: s.id, before: { class_id: s.class_id, session_id: s.session_id, status: s.status }, after: { class_id: classId || s.class_id, session_id: sessionId || s.session_id, status: "promoted" } });
   ok(res, { ok: true });
 }));
 
 /** Bulk promote: all students of a class -> target class (admin). */
-router.post("/bulk-promote", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/bulk-promote", requirePermission("students.promote"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const b = req.body || {};
@@ -472,11 +475,11 @@ router.post("/bulk-promote", requireRole("madrasa_admin"), asyncHandler(async (r
     "UPDATE students SET class_id = ?, status = 'promoted', updated_at = CURRENT_TIMESTAMP WHERE madrasa_id = ? AND class_id = ? AND status IN ('active','promoted')",
     [toClassId || fromClassId, tid, fromClassId]
   );
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.bulk_promote", entity: "class", entityId: String(fromClassId), meta: { moved: res2.changes }, ip: req.ip });
+  await audit.record(req, { action: "student.bulk_promote", module: "students", entity: "class", entityId: fromClassId, before: { class_id: fromClassId }, after: { class_id: toClassId || fromClassId }, meta: { moved: res2.changes } });
   ok(res, { ok: true, moved: res2.changes });
 }));
 
-router.post("/bulk-status", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/bulk-status", requirePermission("students.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const ids = Array.isArray(req.body && req.body.student_ids) ? req.body.student_ids.map((x) => toNum(x, 0)).filter(Boolean) : [];
   const status = cleanStr(req.body && req.body.status, 20);
@@ -492,11 +495,11 @@ router.post("/bulk-status", requireRole("madrasa_admin"), asyncHandler(async (re
     });
     changed++;
   }
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.bulk_status", entity: "student", meta: { count: changed, status }, ip: req.ip });
+  await audit.record(req, { action: "student.bulk_status", module: "students", entity: "student", after: { status }, meta: { count: changed, requested: ids.length } });
   ok(res, { ok: true, changed });
 }));
 
-router.post("/:id/restore", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/:id/restore", requirePermission("students.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const s = await db.get("SELECT id, status FROM students WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
   if (!s) return err(res, 404, "Student not found.");
@@ -504,7 +507,7 @@ router.post("/:id/restore", requireRole("madrasa_admin"), asyncHandler(async (re
     await tx.run("UPDATE students SET status = 'active', archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?", [s.id, tid]);
     await tx.run("INSERT INTO student_status_history (madrasa_id, student_id, from_status, to_status, reason, changed_by) VALUES (?,?,?,?,?,?)", [tid, s.id, s.status, "active", cleanStr(req.body && req.body.reason, 500) || "Restored by administrator", req.user.id]);
   });
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.restore", entity: "student", entityId: String(s.id), ip: req.ip });
+  await audit.record(req, { action: "student.restore", module: "students", entity: "student", entityId: s.id, before: { status: s.status }, after: { status: "active" } });
   ok(res, { ok: true });
 }));
 
@@ -643,7 +646,7 @@ router.post("/:id/parent-account", requireRole("madrasa_admin"), asyncHandler(as
  * pre-create classes). Duplicate admission numbers are never produced: each
  * import row gets the next sequential number.
  */
-router.post("/import", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {
+router.post("/import", requirePermission("students.import"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const text = String((req.body || {}).csv || (req.body || {}).file || "");
@@ -700,7 +703,7 @@ router.post("/import", requireRole("madrasa_admin"), asyncHandler(async (req, re
     );
     results.inserted++;
   }
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "student.import", entity: "student", meta: { inserted: results.inserted, errors: results.errors.length }, ip: req.ip });
+  await audit.record(req, { action: "student.import", module: "students", entity: "student", meta: { inserted: results.inserted, errors: results.errors.length } });
   ok(res, results);
 }));
 

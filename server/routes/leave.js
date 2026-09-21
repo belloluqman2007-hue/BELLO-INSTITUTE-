@@ -28,6 +28,7 @@ const express = require("express");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, clampNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
+const { requirePermission } = require("../services/permissions");
 const { effectiveTenantId } = require("../middleware/tenant");
 const csv = require("../services/csv");
 const { DAYS } = require("./timetable");
@@ -328,7 +329,7 @@ function validateType(body, fallback = {}) {
   };
 }
 
-router.post("/types", ADMIN, asyncHandler(async (req, res) => {
+router.post("/types", ADMIN, requirePermission("staff_leave.approve"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureLeaveTypes(tid);
   const v = validateType(req.body);
@@ -662,7 +663,22 @@ router.post("/", STAFF, asyncHandler(async (req, res) => {
 
   const clash = await overlappingApproved(tid, person.id, start, end);
   if (clash) {
-    return err(res, 409, `This staff member already has approved ${clash.type_name} from ${String(clash.start_date).slice(0, 10)} to ${String(clash.end_date).slice(0, 10)}.`);
+    return err(res, 409, `This staff member already has approved ${clash.type_name} from ${String(clash.start_date).slice(0, 10)} to ${String(clash.end_date).slice(0, 10)}.`, { code: "LEAVE_OVERLAP" });
+  }
+  // An IDENTICAL pending request (same staff member, same type, same dates)
+  // is a duplicate submission — a double-clicked form, or two administrators
+  // filing the same application. Merely *overlapping* pending requests stay
+  // allowed: they are legitimate competing applications, and the overlap is
+  // enforced at approval time, when only one of them can win.
+  const duplicate = await db.get(
+    `SELECT id FROM leave_requests
+      WHERE madrasa_id = ? AND user_id = ? AND type_id = ?
+        AND start_date = ? AND end_date = ? AND status = 'pending'
+      LIMIT 1`,
+    [tid, person.id, type.id, start, end]
+  );
+  if (duplicate) {
+    return err(res, 409, `An identical ${type.name} request for ${start} to ${end} is already awaiting approval.`, { code: "LEAVE_DUPLICATE", requestId: duplicate.id });
   }
 
   const session = b.session_id ? await sessionInTenant(tid, b.session_id) : await sessionForDate(tid, start);

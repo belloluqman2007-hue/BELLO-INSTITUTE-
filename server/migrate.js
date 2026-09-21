@@ -2201,6 +2201,121 @@ const MIGRATIONS = [
       }
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    // Granular permissions. The five broad roles (super_admin, madrasa_admin,
+    // teacher, student, parent) remain the authoritative account type — this
+    // migration adds per-user GRANT/REVOKE overrides on top of the role
+    // defaults, plus the richer audit columns the admin Audit Log needs.
+    //
+    // Nothing here changes an existing account's effective access: with no
+    // override rows, every user keeps exactly the role defaults they have
+    // today (see server/services/permissions.js).
+    id: "033_granular_permissions_and_audit",
+    up: async (api, dialect) => {
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+
+      // Per-user permission overrides, always tenant-scoped. effect is
+      // 'grant' or 'revoke'; a revoke always wins over a grant.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS user_permissions (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          user_id INT NOT NULL,
+          permission VARCHAR(80) NOT NULL,
+          effect VARCHAR(10) NOT NULL DEFAULT 'grant',
+          granted_by INT,
+          created_at ${D.ts()},
+          UNIQUE (madrasa_id, user_id, permission)
+        )${D.engine(dialect)}
+      `);
+      await api.run("CREATE INDEX idx_user_permissions_lookup ON user_permissions (madrasa_id, user_id)");
+
+      // The audit log already exists as activity_log. Rather than build a
+      // second log, it gains the columns the audit interface needs.
+      const addColumn = async (table, name, type) => {
+        try { await api.run(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      };
+      for (const [name, type] of [
+        ["module", "VARCHAR(40) NOT NULL DEFAULT ''"],
+        ["user_role", "VARCHAR(30) NOT NULL DEFAULT ''"],
+        ["before_value", "TEXT"],
+        ["after_value", "TEXT"],
+      ]) await addColumn("activity_log", name, type);
+      try { await api.run("CREATE INDEX idx_activity_log_audit ON activity_log (madrasa_id, module, action, created_at)"); }
+      catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      try { await api.run("CREATE INDEX idx_activity_log_user ON activity_log (madrasa_id, user_id, created_at)"); }
+      catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+
+      // Result lifecycle completion: DRAFT → SUBMITTED → UNDER REVIEW →
+      // RETURNED/APPROVED → PUBLISHED → LOCKED. The existing status column
+      // already carries draft/submitted/approved/published; these columns
+      // record the review and locking stages that had no storage.
+      for (const [name, type] of [
+        ["review_note", "TEXT"],
+        ["reviewed_by", "INT"],
+        ["reviewed_at", nullableTs],
+        ["locked_by", "INT"],
+        ["locked_at", nullableTs],
+      ]) await addColumn("results", name, type);
+
+      // Payment lifecycle: EXPECTED → INITIATED → SUCCESSFUL → VERIFIED →
+      // RECONCILED. The existing status column keeps its meaning; these
+      // columns record verification/reconciliation separately so a verified
+      // payment is never confused with a merely successful one.
+      for (const [name, type] of [
+        ["verification_status", "VARCHAR(20) NOT NULL DEFAULT 'unverified'"],
+        ["verified_by", "INT"],
+        ["verified_at", nullableTs],
+        ["reconciled_at", nullableTs],
+        ["payment_channel", "VARCHAR(40) NOT NULL DEFAULT ''"],
+      ]) await addColumn("fee_payments", name, type);
+      try { await api.run("CREATE INDEX idx_fee_payments_verification ON fee_payments (madrasa_id, verification_status, status)"); }
+      catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+
+      // Duplicate-payment protection at the database level. Existing rows may
+      // share an empty reference, so the constraint only covers non-empty
+      // references — enforced as a partial index on SQLite and by the route's
+      // explicit pre-check on MySQL (which has no partial indexes).
+      if (dialect === "sqlite") {
+        try { await api.run("CREATE UNIQUE INDEX idx_fee_payments_unique_ref ON fee_payments (madrasa_id, reference) WHERE reference <> ''"); }
+        catch (e) { /* pre-existing duplicates: keep the route-level guard */ }
+      }
+
+      // Library: copy-level detail the module was missing.
+      for (const [name, type] of [
+        ["edition", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["shelf_location", "VARCHAR(120) NOT NULL DEFAULT ''"],
+        ["barcode", "VARCHAR(80) NOT NULL DEFAULT ''"],
+        ["replacement_cost_ngn", "DECIMAL(10,2) NOT NULL DEFAULT 0"],
+        ["acquisition_date", "DATE"],
+      ]) await addColumn("library_books", name, type);
+      for (const [name, type] of [
+        ["renewal_count", "INT NOT NULL DEFAULT 0"],
+        ["condition_on_return", "VARCHAR(30) NOT NULL DEFAULT ''"],
+      ]) await addColumn("library_loans", name, type);
+
+      // Notification delivery retry accounting on the existing delivery log.
+      for (const [name, type] of [
+        ["retry_count", "INT NOT NULL DEFAULT 0"],
+        ["delivered_at", nullableTs],
+      ]) await addColumn("communication_history", name, type);
+
+      // Performance: indexes justified by the dashboard/"Needs attention"
+      // queries and the global search, which scan these columns on every load.
+      const idx = async (sql) => {
+        try { await api.run(sql); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      };
+      await idx("CREATE INDEX idx_students_tenant_status ON students (madrasa_id, status, class_id)");
+      await idx("CREATE INDEX idx_students_search ON students (madrasa_id, last_name, first_name)");
+      await idx("CREATE INDEX idx_admission_requests_status ON admission_requests (madrasa_id, status, id)");
+      await idx("CREATE INDEX idx_attendance_tenant_day ON attendance (madrasa_id, day, status)");
+      await idx("CREATE INDEX idx_users_tenant_role ON users (madrasa_id, role, is_active)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

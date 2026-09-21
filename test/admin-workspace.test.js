@@ -111,7 +111,16 @@ test("the administrator share link renders the institution’s live public page"
       window.fetch = (input, init) => fetch(new URL(String(input), ctx.base), init);
     },
   });
-  await new Promise((resolve) => setTimeout(resolve, 1200));
+  // The page renders after its own fetches resolve. A fixed sleep made this
+  // test flaky on a loaded machine, so poll for the rendered result instead
+  // and only then assert — the assertions themselves are unchanged.
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const ready = /Welcome to Test Madrasa A/.test(dom.window.document.body.textContent)
+      && dom.window.document.getElementById("publicApplicationForm");
+    if (ready) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   assert.match(dom.window.document.body.textContent, /Welcome to Test Madrasa A/);
   assert.ok(dom.window.document.getElementById("publicApplicationForm"), "public admission form uses the live class list");
   assert.deepEqual(errors, []);

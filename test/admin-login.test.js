@@ -43,6 +43,17 @@ try {
 
 const skipUI = !JSDOM ? "jsdom devDependency not installed" : false;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Waits until `fn()` is truthy, or the timeout expires. Never asserts —
+    the caller's own assertions still decide pass/fail, so a genuine
+    regression fails exactly as loudly as before, only without the flake. */
+async function waitFor(fn, timeoutMs = 10000, stepMs = 50) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try { if (await fn()) return true; } catch (e) { /* keep polling */ }
+    await sleep(stepMs);
+  }
+  return false;
+}
 
 const ROOT = path.join(__dirname, "..");
 const DASH_JS = fs.readFileSync(path.join(ROOT, "public", "js", "dashboard.js"), "utf8");
@@ -163,7 +174,8 @@ async function openAdminApp(urlPath, initialCookie) {
       };
     },
   });
-  await sleep(1600);
+  await waitFor(() => dom.window.document.getElementById("dashLoginForm")
+    || dom.window.document.querySelector(".dash-root"));
   return {
     dom,
     jar,
@@ -221,7 +233,7 @@ test("wrong credentials keep the visitor on the form with the API's error", { sk
   page.doc.getElementById("dlUser").value = "testadmin";
   page.doc.getElementById("dlPass").value = "not-the-password";
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await sleep(1500);
+  await waitFor(() => page.doc.querySelector(".dash-login-error"));
   assert.ok(page.form(), "still on the sign-in form");
   assert.ok(!page.shell(), "no admin console is rendered");
   const err = page.doc.querySelector(".dash-login-error");
@@ -235,7 +247,7 @@ test("correct credentials sign the admin in and mount the console", { skip: skip
   page.doc.getElementById("dlUser").value = "testadmin";
   page.doc.getElementById("dlPass").value = SA_PASSWORD;
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await sleep(2500);
+  await waitFor(() => !page.form() && page.shell());
   assert.ok(!page.form(), "the form is gone after a successful sign-in");
   assert.ok(page.shell(), "the admin console is mounted");
   assert.equal(page.dom.window.location.pathname, "/admin",
@@ -259,7 +271,7 @@ test("a session that ends server-side bounces the open console back to the form"
   // Navigate inside the SPA: the old code re-rendered the admin shell from
   // stale in-memory state; now the 401 must bounce to the sign-in form.
   page.dom.window.location.hash = "#/app/platform/madaris";
-  await sleep(2500);
+  await waitFor(() => page.form() && page.doc.querySelector(".dash-login-error"));
   assert.ok(page.form(), "the sign-in form is back");
   assert.ok(!page.shell(), "no admin console survives the dead session");
   const err = page.doc.querySelector(".dash-login-error");
@@ -281,8 +293,7 @@ test("a valid NON-ADMIN account (teacher) is told why the console will not open"
   page.doc.getElementById("dlUser").value = "teacher-a";
   page.doc.getElementById("dlPass").value = "Passw0rd!123";
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await sleep(2000);
-
+  await waitFor(() => page.doc.querySelector(".dash-login-error"));
   assert.ok(!page.shell(), "a teacher never gets the admin console");
   assert.ok(page.form(), "the visitor stays on the sign-in form");
   const err = page.doc.querySelector(".dash-login-error");
@@ -300,8 +311,7 @@ test("a valid NON-ADMIN account (student) is told why the console will not open"
   page.doc.getElementById("dlUser").value = "student-a1";
   page.doc.getElementById("dlPass").value = "Passw0rd!123";
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await sleep(2000);
-
+  await waitFor(() => page.doc.querySelector(".dash-login-error"));
   assert.ok(!page.shell(), "a student never gets the admin console");
   const err = page.doc.querySelector(".dash-login-error");
   assert.ok(err && /student account has no administrator dashboard/i.test(err.textContent),
@@ -314,8 +324,10 @@ test("a failed attempt restores the Sign In button and keeps the typed username"
   page.doc.getElementById("dlUser").value = "testadmin";
   page.doc.getElementById("dlPass").value = "not-the-password";
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await sleep(1800);
-
+  await waitFor(() => {
+    const b = page.doc.querySelector(".dash-login-submit");
+    return b && b.disabled === false && /Sign In/i.test(b.textContent);
+  });
   const btn = page.doc.querySelector(".dash-login-submit");
   assert.ok(btn, "the submit button is still there");
   assert.equal(btn.disabled, false, "the button is re-enabled — a retry is possible");
@@ -331,8 +343,7 @@ test("submitting an empty form states what is missing instead of doing nothing",
   page.doc.getElementById("dlUser").value = "";
   page.doc.getElementById("dlPass").value = "";
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await sleep(800);
-
+  await waitFor(() => page.doc.querySelector(".dash-login-error"));
   const err = page.doc.querySelector(".dash-login-error");
   assert.ok(err, "an empty submit is not silently swallowed");
   assert.match(err.textContent, /Enter both your username and your password/i);

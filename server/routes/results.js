@@ -18,6 +18,29 @@ const { effectiveTenantId, getTeacherAssignments, teacherCanAccess } = require("
 const grading = require("../services/grading");
 const { fileUploader } = require("../middleware/upload");
 const communication = require("../services/communication");
+const { requirePermission, can } = require("../services/permissions");
+const audit = require("../services/audit");
+
+/* ----------------------------- result lifecycle -------------------------
+   DRAFT → SUBMITTED → UNDER REVIEW → RETURNED | APPROVED → PUBLISHED → LOCKED
+
+   Only the transitions below are legal, and each one names the permission it
+   needs. Any other requested move is refused with 409 rather than silently
+   applied, so a result can never skip review or be edited after locking.
+------------------------------------------------------------------------- */
+const RESULT_TRANSITIONS = {
+  submit:    { from: ["draft", "returned"],            to: "submitted",    permission: "results.submit",  stamp: "submitted_at=CURRENT_TIMESTAMP" },
+  review:    { from: ["submitted"],                    to: "under_review", permission: "results.approve", stamp: "reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP", extraParam: "user" },
+  return:    { from: ["submitted", "under_review"],    to: "returned",     permission: "results.approve", stamp: "reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note=?", extraParam: "user+note" },
+  approve:   { from: ["submitted", "under_review"],    to: "approved",     permission: "results.approve", stamp: "approved_by=?,approved_at=CURRENT_TIMESTAMP", extraParam: "user" },
+  publish:   { from: ["approved"],                     to: "published",    permission: "results.publish", stamp: "published_at=CURRENT_TIMESTAMP" },
+  unpublish: { from: ["published"],                    to: "approved",     permission: "results.publish", stamp: "published_at=NULL" },
+  lock:      { from: ["published"],                    to: "locked",       permission: "results.publish", stamp: "locked_by=?,locked_at=CURRENT_TIMESTAMP", extraParam: "user" },
+  unlock:    { from: ["locked"],                       to: "published",    permission: "results.publish", stamp: "locked_by=NULL,locked_at=NULL" },
+};
+
+/** Statuses whose scores may no longer be changed by ordinary result entry. */
+const FROZEN_STATUSES = ["published", "locked"];
 const resultImport = fileUploader("imports", "file", { dir: path.join(config.DATA_DIR, "private-result-imports"), extensions: [".csv"], mimeTypes: ["text/csv", "application/vnd.ms-excel", "text/plain", "application/csv"], maxMb: 5 });
 
 const router = express.Router();
@@ -196,6 +219,24 @@ router.put("/", asyncHandler(async (req, res) => {
   }
   if (errors.length) return err(res, 400, errors.join(" "));
   const term = await db.get("SELECT session_id FROM terms WHERE id = ? AND madrasa_id = ?", [termId, tid]);
+
+  // Published and locked results are final. Rather than silently overwriting
+  // them, refuse the whole request and name the students involved so the
+  // administrator can unpublish deliberately (which is itself audited).
+  const frozen = await db.all(
+    `SELECT student_id, status FROM results
+      WHERE madrasa_id=? AND class_id=? AND term_id=? AND subject_id=? AND status IN ('published','locked')`,
+    [tid, classId, termId, subjectId]
+  );
+  const frozenIds = new Set(frozen.map((r) => Number(r.student_id)));
+  const blocked = prepared.filter((e) => frozenIds.has(Number(e.studentId)));
+  if (blocked.length) {
+    return err(res, 409, `${blocked.length} result(s) in this subject are already published or locked and cannot be changed. Unpublish them first.`, {
+      code: "RESULTS_FROZEN",
+      studentIds: blocked.map((e) => e.studentId),
+    });
+  }
+
   await db.transaction(async (tx) => {
     for (const entry of prepared) {
       const existing = await tx.get(
@@ -215,7 +256,7 @@ router.put("/", asyncHandler(async (req, res) => {
   });
   const updated = prepared.length;
   if (updated) await db.run("UPDATE term_summaries SET published_at=NULL WHERE madrasa_id=? AND class_id=? AND term_id=?", [tid, classId, termId]);
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: requestedStatus === "submitted" ? "results.submit" : "results.entry", entity: "results", meta: { class_id: classId, term_id: termId, subject_id: subjectId, updated }, ip: req.ip });
+  await audit.record(req, { action: requestedStatus === "submitted" ? "results.submit" : "results.entry", module: "academic", entity: "results", entityId: `${classId}:${termId}:${subjectId}`, after: { status: requestedStatus }, meta: { class_id: classId, term_id: termId, subject_id: subjectId, updated } });
   ok(res, { ok: true, updated, errors: [], status: requestedStatus });
 }));
 
@@ -258,6 +299,12 @@ router.post("/import", resultImport, asyncHandler(async (req, res) => {
 }));
 
 /* ------------------------------ moderation workflow -------------------- */
+/*
+   The complete result lifecycle. Every stage checks a granular permission on
+   the server, and every stage writes an audit record with the previous and
+   new status — including the exceptional moves (unpublish, unlock) that
+   reopen an otherwise final result.
+*/
 router.post("/workflow", asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
@@ -265,28 +312,64 @@ router.post("/workflow", asyncHandler(async (req, res) => {
   const termId = toNum(b.termId || b.term_id, 0);
   const subjectId = toNum(b.subjectId || b.subject_id, 0);
   const action = String(b.action || "").toLowerCase();
-  if (!classId || !termId || !subjectId || !["submit", "approve", "publish", "unpublish"].includes(action)) {
-    return err(res, 400, "classId, termId, subjectId and a valid workflow action are required.");
+  const note = String(b.note || b.review_note || "").slice(0, 2000);
+
+  const transition = RESULT_TRANSITIONS[action];
+  if (!classId || !termId || !subjectId || !transition) {
+    return err(res, 400, `classId, termId, subjectId and a valid action (${Object.keys(RESULT_TRANSITIONS).join(", ")}) are required.`);
   }
   const cls = await guardAccess(req, res, tid, classId, subjectId, termId); if (!cls) return;
-  const adminOnly = ["approve", "publish", "unpublish"].includes(action);
-  if (adminOnly && !["madrasa_admin", "super_admin"].includes(req.user.role)) return err(res, 403, "Only administrators may approve or publish results.");
-  const transitions = {
-    submit: { from: ["draft"], to: "submitted", stamp: "submitted_at=CURRENT_TIMESTAMP" },
-    approve: { from: ["draft", "submitted"], to: "approved", stamp: "approved_by=?,approved_at=CURRENT_TIMESTAMP" },
-    publish: { from: ["approved"], to: "published", stamp: "published_at=CURRENT_TIMESTAMP" },
-    unpublish: { from: ["published"], to: "approved", stamp: "published_at=NULL" },
-  };
-  const transition = transitions[action];
-  const placeholders = transition.from.map(() => "?").join(",");
+
+  // Server-side permission check for this specific stage.
+  if (!(await can(req, transition.permission))) {
+    return err(res, 403, "You do not have permission to perform this action.", { requiredPermission: transition.permission });
+  }
+  // A teacher may only move their OWN entries forward to submitted.
+  if (req.user.role === "teacher" && !["submit"].includes(action)) {
+    return err(res, 403, "Teachers may submit results for review; approval and publishing are done by the administration.");
+  }
+  if (action === "return" && !note) {
+    return err(res, 400, "Explain what must be corrected before returning results to the teacher.");
+  }
+
+  // Report what is actually there, so an illegal move gets a useful 409
+  // instead of a bare "nothing to do".
+  const present = await db.all(
+    "SELECT status, COUNT(*) AS n FROM results WHERE madrasa_id=? AND class_id=? AND term_id=? AND subject_id=? GROUP BY status",
+    [tid, classId, termId, subjectId]
+  );
+  if (!present.length) return err(res, 404, "No results have been entered for this class, subject and term yet.");
+
   const params = [transition.to];
-  if (action === "approve") params.push(req.user.id);
+  if (transition.extraParam === "user") params.push(req.user.id);
+  if (transition.extraParam === "user+note") params.push(req.user.id, note);
   params.push(req.user.id, tid, classId, termId, subjectId, ...transition.from);
-  const result = await db.run(`UPDATE results SET status=?,${transition.stamp},modified_by=?,updated_at=CURRENT_TIMESTAMP
-    WHERE madrasa_id=? AND class_id=? AND term_id=? AND subject_id=? AND status IN (${placeholders})`, params);
-  if (!result.changes) return err(res, 400, `No results are ready to ${action}.`);
-  if (action === "unpublish") await db.run("UPDATE term_summaries SET published_at=NULL WHERE madrasa_id=? AND class_id=? AND term_id=?", [tid, classId, termId]);
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: `results.${action}`, entity: "results", entityId: `${classId}:${termId}:${subjectId}`, meta: { count: result.changes }, ip: req.ip });
+  const placeholders = transition.from.map(() => "?").join(",");
+
+  const result = await db.run(
+    `UPDATE results SET status=?,${transition.stamp},modified_by=?,updated_at=CURRENT_TIMESTAMP
+      WHERE madrasa_id=? AND class_id=? AND term_id=? AND subject_id=? AND status IN (${placeholders})`,
+    params
+  );
+  if (!result.changes) {
+    return err(res, 409, `No results are in a state that can be ${action}ed. Current state: ` +
+      present.map((r) => `${r.n} ${r.status}`).join(", ") + ".", {
+      code: "INVALID_STATUS_TRANSITION",
+      expected: transition.from,
+      current: present.map((r) => ({ status: r.status, count: Number(r.n) })),
+    });
+  }
+  if (action === "unpublish") {
+    await db.run("UPDATE term_summaries SET published_at=NULL WHERE madrasa_id=? AND class_id=? AND term_id=?", [tid, classId, termId]);
+  }
+
+  await audit.record(req, {
+    action: `results.${action}`, module: "academic", entity: "results",
+    entityId: `${classId}:${termId}:${subjectId}`,
+    before: { statuses: present.map((r) => ({ status: r.status, count: Number(r.n) })) },
+    after: { status: transition.to, count: result.changes },
+    meta: { class_id: classId, term_id: termId, subject_id: subjectId, note: note || undefined },
+  });
   ok(res, { ok: true, action, status: transition.to, count: result.changes });
 }));
 
@@ -347,13 +430,13 @@ router.put("/summary/:studentId", asyncHandler(async (req, res) => {
     sets.push("promotion_status = ?"); vals.push(b.promotion_status);
   }
   if (b.publish !== undefined) {
-    if (!["madrasa_admin", "super_admin"].includes(req.user.role)) return err(res, 403, "Only administrators may publish report cards.");
+    if (!(await can(req, "results.publish"))) return err(res, 403, "You do not have permission to publish report cards.", { requiredPermission: "results.publish" });
     sets.push(b.publish ? "published_at = CURRENT_TIMESTAMP" : "published_at = NULL");
   }
   if (!sets.length) return err(res, 400, "Nothing to update.");
   vals.push(row.id);
   await db.run(`UPDATE term_summaries SET ${sets.join(", ")} WHERE id = ?`, vals);
-  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "results.summary", entity: "term_summary", entityId: String(row.id), ip: req.ip });
+  await audit.record(req, { action: "results.summary", module: "academic", entity: "term_summary", entityId: row.id, before: { published_at: row.published_at, promotion_status: row.promotion_status }, after: { updated: sets.length } });
   ok(res, { ok: true });
 }));
 
@@ -368,8 +451,8 @@ router.put("/summary/:studentId", asyncHandler(async (req, res) => {
 async function publishSummaries(req, res) {
   const tid = await tenantId(req, res);
   if (tid == null) return;
-  if (!["madrasa_admin", "super_admin", "support_admin"].includes(req.user.role)) {
-    return res.status(403).json({ error: "Only the madrasa administration may publish results." });
+  if (!(await can(req, "results.publish"))) {
+    return res.status(403).json({ error: "Only the madrasa administration may publish results.", requiredPermission: "results.publish" });
   }
   const b = req.body || {};
   const classId = toNum(b.classId !== undefined ? b.classId : req.query.classId, 0);
@@ -383,7 +466,7 @@ async function publishSummaries(req, res) {
 
   let count = 0;
   if (publish) {
-    const pending = await db.get("SELECT COUNT(*) AS n FROM results WHERE madrasa_id=? AND class_id=? AND term_id=? AND status NOT IN ('approved','published')", [tid, classId, termId]);
+    const pending = await db.get("SELECT COUNT(*) AS n FROM results WHERE madrasa_id=? AND class_id=? AND term_id=? AND status NOT IN ('approved','published','locked')", [tid, classId, termId]);
     if (Number(pending && pending.n || 0) > 0) return err(res, 409, "Submit and approve every result before publishing report cards.");
     await grading.computeClassTerm(tid, classId, termId, req.user.id);
     await db.run("UPDATE results SET status='published',published_at=CURRENT_TIMESTAMP,modified_by=?,updated_at=CURRENT_TIMESTAMP WHERE madrasa_id=? AND class_id=? AND term_id=? AND status='approved'", [req.user.id, tid, classId, termId]);

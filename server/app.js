@@ -48,6 +48,7 @@ const academicRouter = require("./routes/academic");
 const libraryRouter = require("./routes/library");
 const documentsRouter = require("./routes/documents");
 const healthRouter = require("./routes/health");
+const adminRouter = require("./routes/admin");
 const institution = require("./services/institution");
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
@@ -225,6 +226,11 @@ function createApp() {
   api.get("/csrf-token", (req, res) => res.json({ csrfToken: ensureCsrfToken(req) }));
 
   api.use("/auth", authRouter);
+  // Cross-cutting admin capabilities (granular permissions, the institution
+  // audit log, dashboard "needs attention" and global search). It owns no new
+  // data model — it reads the tables the existing modules already own, always
+  // through the same session/tenant guards.
+  api.use("/admin", adminRouter);
   api.use("/platform", platformRouter);
   api.use("/madrasa", madrasaRouter);
   api.use("/classes", classesRouter);

@@ -8,6 +8,7 @@ const { requireAuth, requireTenant, requireRole } = require("../middleware/auth"
 const { effectiveTenantId } = require("../middleware/tenant");
 const comm = require("../services/communication");
 const delivery = require("../services/delivery");
+const audit = require("../services/audit");
 const { fileUploader } = require("../middleware/upload");
 const messageAttachment = fileUploader("message-attachments", "attachment", { extensions: [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".jpg", ".jpeg", ".png", ".webp"], maxMb: 15 });
 
@@ -236,7 +237,8 @@ router.get("/delivery/log", STAFF, asyncHandler(async (req, res) => {
   const limit = Math.min(500, Math.max(1, toNum(req.query.limit, 200)));
   const rows = await db.all(
     `SELECT h.id, h.channel, h.message_type, h.subject, h.message, h.delivery_status, h.error_message,
-            h.provider, h.provider_message_id, h.recipient_address, h.created_at AS sent_at, h.recipient_user_id,
+            h.provider, h.provider_message_id, h.recipient_address, h.retry_count, h.delivered_at,
+            h.created_at AS sent_at, h.recipient_user_id,
             u.full_name AS recipient_name, u.username AS recipient_username
        FROM communication_history h
        LEFT JOIN users u ON u.id = h.recipient_user_id AND u.madrasa_id = h.madrasa_id
@@ -247,6 +249,61 @@ router.get("/delivery/log", STAFF, asyncHandler(async (req, res) => {
     [tid]
   );
   ok(res, { log: rows, totals });
+}));
+
+/**
+ * Retries a FAILED outbound message.
+ *
+ * Only a failed row can be retried (a delivered message must never be sent
+ * twice), the retry count is capped so a permanently bad address cannot be
+ * hammered, and the original row is updated in place rather than duplicated —
+ * so the delivery log stays one row per message with an honest attempt count.
+ */
+const MAX_DELIVERY_RETRIES = 3;
+router.post("/delivery/:id/retry", ADMIN, asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const row = await db.get(
+    "SELECT * FROM communication_history WHERE id = ? AND madrasa_id = ?",
+    [toNum(req.params.id, 0), tid]
+  );
+  if (!row) return err(res, 404, "Message not found.");
+  if (row.delivery_status !== "failed") {
+    return err(res, 409, "Only a failed message can be retried.", { code: "INVALID_STATUS_TRANSITION", current: row.delivery_status });
+  }
+  const attempts = Number(row.retry_count || 0);
+  if (attempts >= MAX_DELIVERY_RETRIES) {
+    return err(res, 409, `This message has already been retried ${attempts} times. Correct the recipient's contact details first.`, { code: "RETRY_LIMIT" });
+  }
+
+  // Re-resolve the address from the user record so a corrected phone number
+  // or email address is actually picked up by the retry.
+  let address = cleanStr(row.recipient_address, 255);
+  if (row.recipient_user_id) {
+    const user = await db.get("SELECT email, phone FROM users WHERE id = ? AND madrasa_id = ?", [row.recipient_user_id, tid]);
+    if (user) {
+      const resolved = row.channel === "email" ? delivery.validEmail(user.email) : delivery.normalisePhone(user.phone);
+      if (resolved) address = resolved;
+    }
+  }
+  if (!address) return err(res, 400, "There is still no contact detail on file for this recipient.");
+
+  const result = await delivery.send(row.channel, address, { subject: row.subject, message: row.message });
+  const status = result.ok ? "sent" : result.skipped ? "skipped" : "failed";
+  await db.run(
+    `UPDATE communication_history
+        SET delivery_status = ?, error_message = ?, provider = ?, provider_message_id = ?,
+            recipient_address = ?, retry_count = ?, delivered_at = CASE WHEN ? = 'sent' THEN CURRENT_TIMESTAMP ELSE delivered_at END
+      WHERE id = ? AND madrasa_id = ?`,
+    [status, cleanStr(result.error || result.reason || "", 500), cleanStr(result.provider || "", 30),
+     cleanStr(result.id || result.messageId || "", 160), address, attempts + 1, status, row.id, tid]
+  );
+  await audit.record(req, {
+    action: "communication.retry", module: "communication", entity: "communication_history", entityId: row.id,
+    before: { delivery_status: "failed", retry_count: attempts },
+    after: { delivery_status: status, retry_count: attempts + 1 },
+    meta: { channel: row.channel },
+  });
+  ok(res, { ok: result.ok === true, status, retry_count: attempts + 1, error: result.error || result.reason || null });
 }));
 
 /* Send a single test message to the administrator's own address/number. */

@@ -17,6 +17,7 @@ const {
   logActivity, checkPlanLimits,
 } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
+const { requirePermission } = require("../services/permissions");
 const { effectiveTenantId, getTeacherAssignments } = require("../middleware/tenant");
 const { imageUploader, fileUploader } = require("../middleware/upload");
 const staff = require("../services/staff");
@@ -305,7 +306,7 @@ async function loadTeacher(tid, id, res) {
 
 /* ------------------------------ stats ---------------------------------- */
 
-router.get("/stats", ADMIN, asyncHandler(async (req, res) => {
+router.get("/stats", requirePermission("teachers.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   await ensureProfilesForTenant(tid);
   const row = await db.get(
@@ -326,7 +327,7 @@ router.get("/stats", ADMIN, asyncHandler(async (req, res) => {
 
 /* ------------------------------ list ----------------------------------- */
 
-router.get("/", ADMIN, asyncHandler(async (req, res) => {
+router.get("/", requirePermission("teachers.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   await ensureProfilesForTenant(tid);
@@ -401,7 +402,7 @@ router.get("/", ADMIN, asyncHandler(async (req, res) => {
 
 /* ------------------------- recruitment applications --------------------- */
 
-router.get("/applications", ADMIN, asyncHandler(async (req, res) => {
+router.get("/applications", requirePermission("teachers.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   await ensureApplicationRefs(tid);
@@ -429,7 +430,7 @@ router.get("/applications", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { applications: rows.map(appPublic), total: Number(total.n || 0), page, perPage, totalPages: Math.max(1, Math.ceil(Number(total.n || 0) / perPage)) });
 }));
 
-router.post("/applications", ADMIN, asyncHandler(async (req, res) => {
+router.post("/applications", requirePermission("teachers.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const b = req.body || {};
@@ -468,7 +469,7 @@ async function loadApplication(req, res, id) {
   return app;
 }
 
-router.get("/applications/:id", ADMIN, asyncHandler(async (req, res) => {
+router.get("/applications/:id", requirePermission("teachers.view"), asyncHandler(async (req, res) => {
   const app = await loadApplication(req, res, req.params.id); if (!app) return;
   const [history, documents, teacher] = await Promise.all([
     db.all("SELECT * FROM teacher_application_history WHERE madrasa_id = ? AND application_id = ? ORDER BY id DESC", [app.madrasa_id, app.id]),
@@ -478,7 +479,7 @@ router.get("/applications/:id", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { application: appPublic(app), history, documents, teacher });
 }));
 
-router.patch("/applications/:id", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/applications/:id", requirePermission("teachers.edit"), asyncHandler(async (req, res) => {
   const app = await loadApplication(req, res, req.params.id); if (!app) return;
   const b = req.body || {};
   const status = b.status !== undefined ? normalizeAppStatus(b.status, app.status) : normalizeAppStatus(app.status);
@@ -583,7 +584,7 @@ router.get("/applications/:id/documents/:documentId", ADMIN, asyncHandler(async 
 
 /* ------------------------------ create --------------------------------- */
 
-router.post("/", ADMIN, asyncHandler(async (req, res) => {
+router.post("/", requirePermission("teachers.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const b = req.body || {};
@@ -643,7 +644,7 @@ router.post("/", ADMIN, asyncHandler(async (req, res) => {
 
 /* ------------------------------ details -------------------------------- */
 
-router.get("/:id", STAFF_READ, asyncHandler(async (req, res) => {
+router.get("/:id", requirePermission("teachers.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const row = await loadTeacher(tid, req.params.id, res); if (!row) return;
   if (req.user.role === "teacher" && Number(req.user.id) !== Number(row.id)) return err(res, 403, "Permission denied.");
@@ -670,7 +671,7 @@ router.get("/:id", STAFF_READ, asyncHandler(async (req, res) => {
 
 /* ------------------------------ update --------------------------------- */
 
-router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/:id", requirePermission("teachers.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
   if (tid == null) return;
   const u = await loadTeacher(tid, req.params.id, res);
@@ -733,7 +734,7 @@ router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true });
 }));
 
-router.patch("/:id/status", ADMIN, asyncHandler(async (req, res) => {
+router.patch("/:id/status", requirePermission("teachers.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const t = await loadTeacher(tid, req.params.id, res); if (!t) return;
   const status = normalizeTeacherStatus(req.body && req.body.status, "active");
@@ -746,7 +747,7 @@ router.patch("/:id/status", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { ok: true, status });
 }));
 
-router.post("/bulk-status", ADMIN, asyncHandler(async (req, res) => {
+router.post("/bulk-status", requirePermission("teachers.edit"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const ids = arr(req.body && req.body.teacher_ids).map((x) => toNum(x, 0)).filter(Boolean);
   const status = normalizeTeacherStatus(req.body && req.body.status, "active");
@@ -802,7 +803,7 @@ router.delete("/:id/documents/:documentId", ADMIN, asyncHandler(async (req, res)
   ok(res, { ok: true });
 }));
 
-router.delete("/:id", ADMIN, asyncHandler(async (req, res) => {
+router.delete("/:id", requirePermission("teachers.delete"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const t = await loadTeacher(tid, req.params.id, res); if (!t) return;
   await db.transaction(async (tx) => {

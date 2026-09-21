@@ -23,6 +23,7 @@ const express = require("express");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, toNum, clampNum, validDate, logActivity } = require("../util");
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
+const { requirePermission } = require("../services/permissions");
 const { effectiveTenantId } = require("../middleware/tenant");
 const csv = require("../services/csv");
 
@@ -117,7 +118,7 @@ function validateStructure(body) {
   return { grade, base, allowances, deductions, effectiveFrom };
 }
 
-router.post("/structures", ADMIN, asyncHandler(async (req, res) => {
+router.post("/structures", requirePermission("payroll.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const teacher = await teacherInTenant(tid, b.user_id ?? b.userId);
@@ -212,7 +213,7 @@ router.get("/periods", ADMIN, asyncHandler(async (req, res) => {
   ok(res, { periods: rows.map((row) => Object.assign({}, row, { label: periodLabel(row.month, row.year) })) });
 }));
 
-router.post("/periods", ADMIN, asyncHandler(async (req, res) => {
+router.post("/periods", requirePermission("payroll.create"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;
   const b = req.body || {};
   const session = await sessionInTenant(tid, b.session_id ?? b.sessionId);

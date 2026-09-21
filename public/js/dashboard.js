@@ -184,7 +184,7 @@
       },
       {
         key: "settings", label: "Settings", icon: "settings",
-        items: [[t.settingsLabel, "settings/institution"], ["Administrator Account", "settings/account"], ["Staff Accounts", "settings/staff"], ["Roles & Permissions", "settings/roles"], ["Password & Security", "settings/security"], ["Notifications", "settings/notifications"]],
+        items: [[t.settingsLabel, "settings/institution"], ["Administrator Account", "settings/account"], ["Staff Accounts", "settings/staff"], ["Roles & Permissions", "settings/roles"], ["Audit Log", "settings/audit"], ["Password & Security", "settings/security"], ["Notifications", "settings/notifications"]],
       },
     ];
 
@@ -232,8 +232,21 @@
     regStatusFilter: "", // Platform -> Registrations status filter (survives re-render)
     profile: null,       // /api/madrasa/profile cache
     dashboardData: null, // /api/madrasa/dashboard cache
+    // The caller's resolved permissions, from /api/auth/me. This is a DISPLAY
+    // aid only — it lets the UI hide actions that would be refused anyway.
+    // Every one of these permissions is independently enforced on the server.
+    permissions: new Set(),
     cache: {},           // generic per-route data cache
   };
+
+  /** True when the signed-in user holds this granular permission. */
+  function can(permission) {
+    return state.permissions.has(permission);
+  }
+  /** Renders `markup` only when the permission is held. */
+  function ifCan(permission, markup) {
+    return can(permission) ? markup : "";
+  }
 
   function esc(s) {
     return String(s === null || s === undefined ? "" : s)
@@ -303,6 +316,7 @@
 
   function resetSessionState() {
     state.me = null;
+    state.permissions = new Set();
     state.superAdmin = false;
     state.profile = null;
     state.dashboardData = null;
@@ -369,6 +383,7 @@
       return;
     }
     state.me = me;
+    state.permissions = new Set(Array.isArray(me.permissions) ? me.permissions : []);
     state.superAdmin = me.role === "super_admin";
     state.category = me.category === "western" ? "western" : "islamic";
     // The super admin is not a tenant: it gets its own indigo/slate console
@@ -602,7 +617,7 @@
     // re-authenticate instead.
     if (!state.me) { boot(); return; }
     const cat = state.category;
-    const schema = state.superAdmin ? superAdminSchema() : sidebarSchema(cat);
+    const schema = state.superAdmin ? superAdminSchema() : filterSchemaByPermission(sidebarSchema(cat));
     const t = T();
     const m = (state.profile && state.profile.madrasa) || {};
     const verified = Number(m.verified) === 1;
@@ -633,6 +648,13 @@
                 <div class="sub">Welcome, ${esc(state.me.user.fullName || state.me.user.username)}</div>
               </div>
               <div class="dash-header-spacer"></div>
+              ${state.superAdmin ? "" : `<div class="dash-header-search">
+                <label class="sr-only" for="dashGlobalSearch">Search this institution</label>
+                <input id="dashGlobalSearch" type="search" placeholder="Search students, staff, payments…"
+                       autocomplete="off" role="combobox" aria-expanded="false"
+                       aria-controls="dashSearchResults" aria-autocomplete="list">
+                <div class="dash-search-results" id="dashSearchResults" role="listbox" hidden></div>
+              </div>`}
               ${state.superAdmin
                 ? `<span class="dash-badge verified">${I.shield} Super Admin</span>`
                 : `<span class="dash-badge ${verified ? "verified" : "pending"}">${verified ? I.check + " Verified" : I.clock + " Pending Review"}</span>`}
@@ -666,10 +688,98 @@
       // A real navigation away: fresh page, fresh state, no session cookie.
       window.location.replace("/");
     });
+    bindGlobalSearch(root);
     root.querySelector("#dashBurger").addEventListener("click", () => setSidebarOpen(root, true));
     root.querySelector("#dashOverlay").addEventListener("click", () => setSidebarOpen(root, false));
 
     renderRoute(root);
+  }
+
+
+  /* --------------------------------------------------------------------
+     Global admin search. The server scopes every result to this institution
+     and to what the caller may see, so the browser only has to render what
+     comes back.
+     -------------------------------------------------------------------- */
+  function bindGlobalSearch(root) {
+    const input = root.querySelector("#dashGlobalSearch");
+    const panel = root.querySelector("#dashSearchResults");
+    if (!input || !panel) return;
+    let timer = null;
+    let lastQuery = "";
+
+    const hide = () => { panel.hidden = true; panel.innerHTML = ""; input.setAttribute("aria-expanded", "false"); };
+
+    const run = async () => {
+      const q = input.value.trim();
+      if (q === lastQuery) return;
+      lastQuery = q;
+      if (q.length < 2) { hide(); return; }
+      panel.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      panel.innerHTML = `<p class="dash-search-note" role="status">Searching…</p>`;
+      try {
+        const data = await window.API.get(`/admin/search?q=${encodeURIComponent(q)}`);
+        if (input.value.trim() !== q) return; // a newer keystroke won
+        const groups = data.groups || [];
+        if (!groups.length) {
+          panel.innerHTML = `<p class="dash-search-note">No matches for “${esc(q)}” in this institution.</p>`;
+          return;
+        }
+        panel.innerHTML = groups.map((g) => `
+          <div class="dash-search-group">
+            <div class="dash-search-group-label" id="sg-${esc(g.key)}">${esc(g.label)}</div>
+            <ul role="group" aria-labelledby="sg-${esc(g.key)}">
+              ${g.items.map((item) => `<li role="option">
+                <button type="button" class="dash-search-item" data-nav-route="${esc(item.route)}">
+                  <strong>${esc(item.title)}</strong>
+                  ${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ""}
+                </button></li>`).join("")}
+            </ul>
+          </div>`).join("");
+        panel.querySelectorAll("[data-nav-route]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            go(btn.getAttribute("data-nav-route"));
+            input.value = ""; lastQuery = ""; hide();
+          });
+        });
+      } catch (e) {
+        panel.innerHTML = `<p class="dash-search-note">${esc(e.message || "Search is unavailable right now.")}</p>`;
+      }
+    };
+
+    // Debounced so typing does not fire a request per keystroke.
+    input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 250); });
+    input.addEventListener("keydown", (e) => { if (e.key === "Escape") { input.value = ""; lastQuery = ""; hide(); } });
+    document.addEventListener("click", (e) => {
+      if (!panel.hidden && !panel.contains(e.target) && e.target !== input) hide();
+    });
+  }
+
+
+  /** Marks overflowing table wrappers as keyboard-scrollable regions. Called
+      after each route renders; a scroll container that cannot receive focus
+      is unusable with a keyboard alone. */
+  function enhanceTables(scope) {
+    (scope || document).querySelectorAll(".dash-table-wrap").forEach((wrap) => {
+      if (wrap.dataset.a11yBound === "1") return;
+      wrap.dataset.a11yBound = "1";
+      const check = () => {
+        const scrolls = wrap.scrollWidth > wrap.clientWidth + 1;
+        if (scrolls) {
+          wrap.setAttribute("tabindex", "0");
+          wrap.setAttribute("role", "region");
+          if (!wrap.hasAttribute("aria-label")) wrap.setAttribute("aria-label", "Scrollable table");
+        } else {
+          wrap.removeAttribute("tabindex");
+          wrap.removeAttribute("role");
+        }
+      };
+      check();
+      if (typeof window.ResizeObserver === "function") {
+        try { new window.ResizeObserver(check).observe(wrap); } catch (e) { /* non-fatal */ }
+      }
+    });
   }
 
   function bindNavLinks(root) {
@@ -685,6 +795,48 @@
   function setSidebarOpen(root, open) {
     root.querySelector("#dashSidebar").classList.toggle("is-open", open);
     root.querySelector("#dashOverlay").classList.toggle("is-open", open);
+  }
+
+
+  /* --------------------------------------------------------------------
+     Sidebar permission filter.
+
+     The sidebar STRUCTURE is unchanged — the same sections in the same order
+     with the same labels. A section is only dropped when the signed-in user
+     holds none of the permissions it needs, which keeps a restricted account
+     from staring at menu items that would only 403. An administrator with the
+     usual full permission set sees exactly the menu they see today.
+     -------------------------------------------------------------------- */
+  const SECTION_PERMISSIONS = {
+    dashboard: ["dashboard.view"],
+    institution: ["website.view", "website.edit", "institution.settings"],
+    students: ["students.view"],
+    documents: ["documents.view", "documents.generate"],
+    teachers: ["teachers.view"],
+    classes: ["classes.view"],
+    subjects: ["classes.view"],
+    attendance: ["dashboard.view"],
+    academic: ["lessons.view", "assignments.view", "exams.view", "results.enter", "report_cards.view"],
+    quran: ["lessons.view", "results.enter"],
+    admissions: ["admissions.view"],
+    library: ["library.view"],
+    communication: ["communication.view"],
+    finance: ["fees.view", "payments.view", "expenses.view", "finance.reports"],
+    payroll: ["payroll.view", "payslips.view"],
+    hr: ["staff_leave.view"],
+    settings: ["institution.settings", "users.manage", "roles.manage", "audit.view"],
+  };
+
+  function filterSchemaByPermission(schema) {
+    // With no permission list (an older session, or the call failed) show the
+    // full menu and let the server decide — never hide a whole workspace on
+    // the strength of missing client data.
+    if (!state.permissions || state.permissions.size === 0) return schema;
+    return schema.filter((section) => {
+      const needed = SECTION_PERMISSIONS[section.key];
+      if (!needed) return true;
+      return needed.some((p) => state.permissions.has(p));
+    });
   }
 
   function renderNav(schema) {
@@ -736,7 +888,37 @@
   /* --------------------------------------------------------------------
      Route dispatch
      -------------------------------------------------------------------- */
+  /** Renders the active route, then applies the shared post-render
+      enhancements (currently keyboard-scrollable tables). */
+  /**
+   * Strips controls the signed-in user cannot actually use.
+   *
+   * Showing a button that always answers 403 is worse than showing nothing:
+   * it reads as a broken system rather than a withheld capability. The server
+   * remains the authority — this only removes dead ends from the screen.
+   */
+  function applyPermissionGates(scope) {
+    if (!scope) return;
+    // No permission list (older session, or the fetch failed) means we cannot
+    // tell — leave the UI fully intact rather than blanking out real controls.
+    if (!state.permissions || !state.permissions.size) return;
+    scope.querySelectorAll("[data-needs]").forEach((el) => {
+      const needed = (el.getAttribute("data-needs") || "")
+        .split(/[,\s]+/).filter(Boolean);
+      if (needed.length && !needed.some((perm) => can(perm))) el.remove();
+    });
+  }
+
   async function renderRoute(root) {
+    const content = root.querySelector("#dashContent");
+    try { return await renderRouteInner(root); }
+    finally {
+      try { applyPermissionGates(content); } catch (e) { /* non-fatal */ }
+      try { enhanceTables(content); } catch (e) { /* non-fatal */ }
+    }
+  }
+
+  async function renderRouteInner(root) {
     const content = root.querySelector("#dashContent");
     content.innerHTML = `<div class="dash-coming-soon"><div class="icon">${I.clock}</div><h3>Loading…</h3></div>`;
     const route = state.route;
@@ -860,6 +1042,7 @@
       if (route === "settings/account" || route === "settings/security") return await pageAccountSettings(content);
       if (route === "settings/staff") return await pageTeachers(content);
       if (route === "settings/roles") return await pageRoles(content);
+      if (route === "settings/audit") return await pageAuditLog(content);
       if (route === "settings/notifications") return await pageNotificationSettings(content);
       return pageComingSoon(content, "Dashboard", route);
     } catch (e) {
@@ -912,16 +1095,94 @@
     return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="dash-donut">${segs}<circle cx="${c}" cy="${c}" r="${r * 0.55}" fill="var(--d-surface)"></circle></svg>`;
   }
 
+
+  /* --------------------------------------------------------------------
+     "Needs attention" — actionable items only.
+
+     Every row comes from a real count returned by /api/admin/needs-attention,
+     which omits anything with a count of zero and anything the signed-in user
+     lacks permission to act on. When nothing needs attention we deliberately
+     show a calm empty state rather than a wall of zeroes.
+     -------------------------------------------------------------------- */
+  function needsAttentionCard(attention) {
+    const items = (attention && Array.isArray(attention.items)) ? attention.items : [];
+    if (!attention) {
+      return `<div class="dash-card dash-attention" style="margin-bottom:18px">
+        <div class="dash-card-head"><h3>Needs attention</h3></div>
+        <div class="dash-card-pad"><p class="hint">This summary could not be loaded. Refresh the page to try again.</p></div>
+      </div>`;
+    }
+    if (!items.length) {
+      return `<div class="dash-card dash-attention" style="margin-bottom:18px">
+        <div class="dash-card-head"><h3>Needs attention</h3></div>
+        <div class="dash-card-pad"><div class="dash-empty-state dash-empty-state--compact">
+          <div class="dash-empty-state-icon">${I.check}</div>
+          <h3>Everything is up to date</h3>
+          <p>There are no pending approvals, overdue items or failed deliveries right now.</p>
+        </div></div>
+      </div>`;
+    }
+    return `<div class="dash-card dash-attention" style="margin-bottom:18px">
+      <div class="dash-card-head">
+        <h3>Needs attention</h3>
+        <span class="hint">${items.length} item${items.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="dash-card-pad">
+        <ul class="dash-attention-list" role="list">
+          ${items.map((item) => `
+            <li>
+              <button type="button" class="dash-attention-row" data-nav-route="${esc(item.route)}"
+                      aria-label="${esc(item.label)}: ${esc(item.count)}. Open ${esc(item.route)}">
+                <span class="dash-attention-count dash-attention-${esc(item.tone || "info")}">${esc(item.count)}</span>
+                <span class="dash-attention-label">${esc(item.label)}</span>
+                <span class="dash-attention-go" aria-hidden="true">${I.external || "&rsaquo;"}</span>
+              </button>
+            </li>`).join("")}
+        </ul>
+      </div>
+    </div>`;
+  }
+
+  /** A compact sparkline for a monthly series. Renders nothing when the
+      series carries no data, so an empty institution never sees a flat line
+      pretending to be a trend. */
+  function trendCard(title, series, formatter) {
+    const points = (series || []).filter((p) => p && Number.isFinite(Number(p.value)));
+    const hasData = points.some((p) => Number(p.value) > 0);
+    if (!points.length || !hasData) {
+      return `<div class="dash-card"><div class="dash-card-head"><h3>${esc(title)}</h3></div>
+        <div class="dash-card-pad"><div class="dash-empty-state dash-empty-state--compact">
+          <div class="dash-empty-state-icon">${I.chart || I.activity || ""}</div>
+          <h3>Not enough data yet</h3>
+          <p>This trend appears once there is activity to chart.</p>
+        </div></div></div>`;
+    }
+    const max = Math.max(...points.map((p) => Number(p.value)));
+    const fmt = formatter || ((v) => String(v));
+    const w = 100 / points.length;
+    return `<div class="dash-card"><div class="dash-card-head"><h3>${esc(title)}</h3>
+        <span class="hint">${esc(fmt(points[points.length - 1].value))} latest</span></div>
+      <div class="dash-card-pad"><div class="dash-bars">
+        ${points.map((p) => `<div class="dash-bar-col" style="width:${w}%" title="${esc(p.label)}: ${esc(fmt(p.value))}">
+            <div class="dash-bar" style="height:${Math.max(4, Math.round((Number(p.value) / max) * 100))}px"></div>
+            <div class="dash-bar-label">${esc(p.label)}</div>
+          </div>`).join("")}
+      </div></div></div>`;
+  }
+
   async function pageDashboard(content) {
     const t = T();
-    let data; let analytics; let hifzOverview = null;
+    let data; let analytics; let hifzOverview = null; let attention = null;
     try {
-      [data, analytics, hifzOverview] = await Promise.all([
+      [data, analytics, hifzOverview, attention] = await Promise.all([
         window.API.get("/madrasa/dashboard"),
         window.API.get("/madrasa/analytics?months=6&attendanceDays=30"),
         t.hifzEnabledByDefault ? window.API.get("/quran-progress/config")
           .then((config) => config.enabled ? window.API.get("/quran-progress/overview") : config)
           .catch(() => null) : Promise.resolve(null),
+        // "Needs attention" is additive: if it fails, the rest of the
+        // dashboard still renders rather than the whole page erroring.
+        window.API.get("/admin/needs-attention").catch(() => null),
       ]);
     } catch (e) { data = null; analytics = null; }
     state.dashboardData = data;
@@ -950,6 +1211,8 @@
           <button class="dash-btn dash-btn-ghost" data-nav-route="institution/appearance" style="color:#fff;border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.08);">${I.edit} Edit Website</button>
         </div>
       </div>
+
+      ${needsAttentionCard(attention)}
 
       <div class="dash-stats-grid">
         ${statCard("users", s.totalStudents, "Total Students")}
@@ -991,6 +1254,19 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Trends. Each card renders only when the underlying series actually
+           carries data; otherwise it shows an explicit "not enough data yet"
+           state rather than an invented line. -->
+      <div class="dash-grid-2" style="margin-bottom:18px;">
+        ${trendCard("Student growth", (reportAnalytics.enrolment && reportAnalytics.enrolment.trend) || [])}
+        ${trendCard("Fee collection", (finance && finance.trend) || [], (v) => fmtMoney(v))}
+      </div>
+
+      <div class="dash-grid-2" style="margin-bottom:18px;">
+        ${trendCard("Attendance", ((reportAnalytics.attendance && reportAnalytics.attendance.daily) || []).map((d) => ({ label: d.label || d.day || "", value: Number(d.rate !== undefined ? d.rate : d.present) || 0 })), (v) => `${v}%`)}
+        ${trendCard("Expenses", ((reportAnalytics.expenses && reportAnalytics.expenses.trend) || []), (v) => fmtMoney(v))}
       </div>
 
       <div class="dash-grid-2" style="margin-bottom:18px;">
@@ -1209,6 +1485,41 @@
   function emptyRow(cols, copy) {
     return `<tr class="dash-empty-row"><td colspan="${cols}">${esc(copy)}</td></tr>`;
   }
+
+  /* --------------------------------------------------------------------
+     Shared page states, so every admin screen loads, empties and fails in
+     the same recognisable way. aria-busy / aria-live let a screen reader
+     announce the transition instead of the content changing silently.
+     -------------------------------------------------------------------- */
+  function loadingBlock(crumb, title) {
+    return `<div class="dash-page-head"><div><div class="dash-crumb">${esc(crumb)}</div><h2>${esc(title)}</h2></div></div>
+      <div class="dash-card" aria-busy="true"><div class="dash-card-pad">
+        <p class="hint" role="status">Loading ${esc(title)}…</p>
+      </div></div>`;
+  }
+  /** A user-facing failure. Server messages are already safe to show; an
+      unexpected failure falls back to neutral copy so no internal detail
+      (stack trace, SQL, provider payload) can reach the browser. */
+  function errorBlock(crumb, title, e) {
+    const status = e && e.status;
+    let message = (e && e.message) || "";
+    if (!message || status >= 500) message = "Something went wrong on our side. Please try again.";
+    if (status === 403) message = message || "You do not have permission to view this.";
+    if (status === 404) message = message || "This record no longer exists.";
+    return `<div class="dash-page-head"><div><div class="dash-crumb">${esc(crumb)}</div><h2>${esc(title)}</h2></div></div>
+      <div class="dash-card"><div class="dash-card-pad"><div class="dash-empty-state" role="alert">
+        <div class="dash-empty-state-icon">${I.close}</div>
+        <h3>${esc(title)} could not be loaded</h3>
+        <p>${esc(message)}</p>
+        <button class="dash-btn dash-btn-ghost" type="button" data-action="reload">Try again</button>
+      </div></div></div>`;
+  }
+  // Bound once, at module scope: inline `onclick` is blocked by our
+  // `script-src 'self'` CSP, so retry buttons must be wired in JS.
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target && ev.target.closest && ev.target.closest('[data-action="reload"]');
+    if (btn) { ev.preventDefault(); window.location.reload(); }
+  });
   function todayIso() { return new Date().toISOString().slice(0, 10); }
   function routeTitle(route) { return routeLabel(route).replace(/\b\w/g, (c) => c.toUpperCase()); }
   async function catalogue() {
@@ -1354,7 +1665,7 @@
       catch (e) { content.querySelector("#studentRows").innerHTML = emptyRow(8, e.message || "Could not load students."); }
       finally { content.querySelector("#studentLoading").hidden = true; content.querySelector("#studentTableCard").classList.remove("is-loading"); }
     };
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>All Students</h2><p>One secure directory for Islamic, Western and dual-track learners.</p></div><div class="dash-actions"><button id="printStudents" class="dash-btn dash-btn-ghost">${I.external} Print</button><a id="exportStudents" class="dash-btn dash-btn-ghost" href="${window.API.url("/exports/students.csv")}" target="_blank" rel="noopener">${I.download} Export</a><button class="dash-btn dash-btn-primary" data-nav-route="students/add">${I.plus} Add Student</button></div></div>
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>All Students</h2><p>One secure directory for Islamic, Western and dual-track learners.</p></div><div class="dash-actions"><button id="printStudents" class="dash-btn dash-btn-ghost">${I.external} Print</button><a id="exportStudents" class="dash-btn dash-btn-ghost" href="${window.API.url("/exports/students.csv")}" target="_blank" rel="noopener">${I.download} Export</a><button class="dash-btn dash-btn-primary" data-nav-route="students/add" data-needs="students.create">${I.plus} Add Student</button></div></div>
       <div class="dash-stats-grid student-stat-grid">${statCard("users", stats.total || 0, "Total students")}${statCard("check", stats.active || 0, "Active students")}${statCard("plus", stats.newStudents || 0, "New in last 30 days", true)}${statCard("academic", stats.graduated || 0, "Graduated")}${statCard("close", stats.withdrawn || 0, "Withdrawn")}</div>
       <div class="dash-card student-filter-card"><div class="dash-card-pad"><div class="student-filter-head"><div><strong>Find a student</strong><small>Search by name, student ID, admission number or guardian</small></div><button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" id="toggleStudentFilters">Advanced filters</button></div><div class="student-filter-grid"><div class="dash-field student-search-field"><label>Search</label><input id="studentSearch" type="search" placeholder="e.g. Bello, STU0001 or guardian phone"></div><div class="dash-field"><label>Class / level</label><select id="studentClass"><option value="">All classes</option>${options(base.classes)}</select></div><div class="dash-field"><label>Academic session</label><select id="studentSession"><option value="">All sessions</option>${options(base.sessions, null, (x) => x.label)}</select></div><div class="dash-field"><label>Status</label><select id="studentStatus"><option value="">All statuses</option>${Object.entries(studentStatusLabels).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></div></div><div id="studentAdvancedFilters" class="student-advanced-filters" hidden><div class="dash-field"><label>Program</label><input id="studentProgram" placeholder="Program name"></div><div class="dash-field"><label>Gender</label><select id="studentGender"><option value="">All genders</option><option value="M">Male</option><option value="F">Female</option><option value="Other">Other / not specified</option></select></div><div class="dash-field"><label>Education track</label><select id="studentTrack"><option value="">Islamic + Western</option><option value="islamic">Islamic only</option><option value="western">Western only</option><option value="both">Both tracks</option></select></div><div class="dash-field"><label>Sort by</label><select id="studentSort"><option value="admission">Admission number</option><option value="name">Name</option><option value="newest">Newest added</option><option value="class">Class</option><option value="status">Status</option></select></div><div class="dash-field"><label>Direction</label><select id="studentDirection"><option value="asc">Ascending</option><option value="desc">Descending</option></select></div></div></div></div>
       <div id="studentBulkBar" class="student-bulk-bar" hidden><strong><span data-selected-count>0</span> selected</strong><div class="dash-actions"><select id="bulkStudentAction"><option value="">Bulk action</option><option value="active">Restore / activate</option><option value="inactive">Archive as inactive</option><option value="suspended">Suspend</option><option value="graduated">Mark graduated</option><option value="withdrawn">Mark withdrawn</option></select><button class="dash-btn dash-btn-primary dash-btn-sm" id="applyBulkStudent">Apply</button><button class="dash-btn dash-btn-ghost dash-btn-sm" id="clearStudentSelection">Clear</button></div></div>
@@ -1430,7 +1741,7 @@
   async function pageCertificateTemplates(content) {
     const data = await window.API.get("/documents/templates");
     const templates = data.templates || [];
-    const render = () => { content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Documents</div><h2>Certificate Templates</h2><p>Create reusable A4 landscape certificates for either Islamic or Western programmes. The same placeholders work for every category.</p></div><button id="addCertificateTemplate" class="dash-btn dash-btn-primary">${I.plus} Add template</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>${templates.length ? templates.map((t) => `<tr><td><strong>${esc(t.name)}</strong><small>${esc((t.html_template || "").replace(/<[^>]+>/g, "").slice(0, 100))}</small></td><td>${esc(t.type)}</td><td><span class="dash-pill ${t.archived_at ? "danger" : "ok"}">${t.archived_at ? "archived" : "active"}</span></td><td>${fmtDate(t.created_at)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-edit-template="${t.id}">${I.edit} Edit</button>${!t.archived_at ? `<button class="dash-btn dash-btn-ghost dash-btn-sm" data-issue-template="${t.id}">Issue</button>` : ""}</td></tr>`).join("") : emptyRow(5, "No certificate templates yet.")}</tbody></table></div></div>`;
+    const render = () => { content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Documents</div><h2>Certificate Templates</h2><p>Create reusable A4 landscape certificates for either Islamic or Western programmes. The same placeholders work for every category.</p></div><button id="addCertificateTemplate" data-needs="documents.generate" class="dash-btn dash-btn-primary">${I.plus} Add template</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>${templates.length ? templates.map((t) => `<tr><td><strong>${esc(t.name)}</strong><small>${esc((t.html_template || "").replace(/<[^>]+>/g, "").slice(0, 100))}</small></td><td>${esc(t.type)}</td><td><span class="dash-pill ${t.archived_at ? "danger" : "ok"}">${t.archived_at ? "archived" : "active"}</span></td><td>${fmtDate(t.created_at)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-edit-template="${t.id}">${I.edit} Edit</button>${!t.archived_at ? `<button class="dash-btn dash-btn-ghost dash-btn-sm" data-issue-template="${t.id}">Issue</button>` : ""}</td></tr>`).join("") : emptyRow(5, "No certificate templates yet.")}</tbody></table></div></div>`;
       content.querySelector("#addCertificateTemplate").addEventListener("click", () => openCertificateTemplateModal(null, async () => { const fresh = await window.API.get("/documents/templates"); templates.splice(0, templates.length, ...(fresh.templates || [])); render(); }));
       content.querySelectorAll("[data-edit-template]").forEach((button) => button.addEventListener("click", () => { const row = templates.find((x) => Number(x.id) === Number(button.dataset.editTemplate)); if (row) openCertificateTemplateModal(row, async () => { const fresh = await window.API.get("/documents/templates"); templates.splice(0, templates.length, ...(fresh.templates || [])); render(); }); }));
       content.querySelectorAll("[data-issue-template]").forEach((button) => button.addEventListener("click", () => { go("documents/issue"); }));
@@ -1466,7 +1777,7 @@
 
   async function pageStudentProfiles(content) {
     const data = await window.API.get("/students?perPage=200"); const rows = data.students || [];
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>Student profiles</h2><p>Open the complete academic, family, finance, documents and communication record for any student.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="students/add">${I.plus} Add student</button></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Search profiles</label><input id="profileSearch" type="search" placeholder="Name or student ID"></div></div></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Student ID</th><th>Class / track</th><th>Guardian</th><th>Status</th><th></th></tr></thead><tbody id="profileRows"></tbody></table></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>Student profiles</h2><p>Open the complete academic, family, finance, documents and communication record for any student.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="students/add" data-needs="students.create">${I.plus} Add student</button></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Search profiles</label><input id="profileSearch" type="search" placeholder="Name or student ID"></div></div></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Student ID</th><th>Class / track</th><th>Guardian</th><th>Status</th><th></th></tr></thead><tbody id="profileRows"></tbody></table></div></div>`;
     const draw = () => { const q = content.querySelector("#profileSearch").value.toLowerCase(); const shown = rows.filter((s) => `${s.first_name} ${s.last_name} ${s.student_code || ""} ${s.admission_no}`.toLowerCase().includes(q)); content.querySelector("#profileRows").innerHTML = shown.length ? shown.map((s) => `<tr><td><div class="student-name-cell">${studentAvatar(s, true)}<strong>${esc(s.first_name)} ${esc(s.last_name)}</strong></div></td><td>${esc(s.student_code || s.admission_no)}<small>${esc(s.admission_no)}</small></td><td>${esc(s.class_en || "Unassigned")}<small>${esc([s.islamic_class_name ? `Islamic: ${s.islamic_class_name}` : "", s.western_class_name ? `Western: ${s.western_class_name}` : "", s.education_track || "both"].filter(Boolean).join(" · "))}</small></td><td>${esc(s.parent_name || s.guardian_name || "—")}</td><td>${studentStatusPill(s.status)}</td><td><button class="dash-btn dash-btn-primary dash-btn-sm" data-profile-open="${s.id}">Open profile</button></td></tr>`).join("") : emptyRow(6, "No profiles match your search."); content.querySelectorAll("[data-profile-open]").forEach((b) => b.addEventListener("click", () => openStudentProfile(Number(b.dataset.profileOpen), false))); };
     content.querySelector("#profileSearch").addEventListener("input", draw); draw(); bindRouteButtons(content);
   }
@@ -1492,10 +1803,10 @@
         overview: `<div class="student-profile-summary">${[["Student ID", s.student_code || s.admission_no], ["Admission no.", s.admission_no], ["Current class", s.class_en || "Unassigned"], ["Section / arm", s.section || "—"], ["Islamic class", s.islamic_class_name || "—"], ["Western class", s.western_class_name || "—"], ["Program", s.program || "—"], ["Education track", s.education_track || "both"], ["Academic session", s.session_label || "—"], ["Admission date", fmtDate(s.admission_date || s.created_at)], ["Current status", studentStatusPill(s.status)]].map(([l, v]) => `<div><small>${esc(l)}</small><strong>${typeof v === "string" && v.startsWith("<span") ? v : esc(v)}</strong></div>`).join("")}</div><div class="dash-grid-2 student-profile-columns"><div class="dash-card"><div class="dash-card-head"><h3>Recent academic performance</h3></div><div class="dash-card-pad">${(record.terms || []).length ? `<div class="dash-table-wrap"><table class="dash-table"><tbody>${record.terms.slice(0, 6).map((t) => `<tr><td>${esc(t.term_name || "Term")}</td><td>${esc(String(t.average ?? "—"))}%</td><td>${esc(t.overall_grade || "—")}</td></tr>`).join("")}</tbody></table></div>` : `<p class="hint">No report-card summaries yet. Results will appear here when teachers publish them.</p>`}</div></div><div class="dash-card"><div class="dash-card-head"><h3>Attendance snapshot</h3></div><div class="dash-card-pad"><div class="dash-kpi-line"><strong>${present}</strong><span>present days</span></div><div class="dash-kpi-line"><strong>${attendance.length - present}</strong><span>other marks</span></div><p class="hint">Attendance records from the existing attendance module.</p></div></div></div><div class="dash-card"><div class="dash-card-head"><h3>Quick actions</h3></div><div class="dash-card-pad"><div class="dash-actions"><button class="dash-btn dash-btn-ghost dash-btn-sm" data-status-action="suspended">Suspend</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-status-action="graduated">Graduate</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-status-action="withdrawn">Withdraw</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-placement-action="transfer">Change class</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-placement-action="promote">Promote</button><button class="dash-btn dash-btn-ghost dash-btn-sm" id="profilePrintId">${I.external} Print ID card</button><button class="dash-btn dash-btn-accent dash-btn-sm" data-status-action="active">Activate</button></div></div></div>`,
         personal: `<div class="dash-info-grid student-profile-info">${[["Date of birth", fmtDate(s.date_of_birth)], ["Gender", s.gender || "—"], ["Nationality", s.nationality || "—"], ["State / LGA", [s.state_of_origin, s.lga].filter(Boolean).join(" / ") || "—"], ["Religion", s.religion || "—"], ["Address", s.residential_address || s.address || "—"], ["Father", s.father_name || "—"], ["Mother", s.mother_name || "—"], ["Guardian", [s.guardian_name || s.parent_name, s.guardian_relationship].filter(Boolean).join(" · ") || "—"], ["Contact", [s.parent_phone, s.alternative_phone, s.parent_email].filter(Boolean).join(" · ") || "—"], ["Emergency", [s.emergency_contact, s.emergency_info].filter(Boolean).join(" · ") || "—"]].map(([l, v]) => `<div><b>${esc(l)}</b><br>${esc(v)}</div>`).join("")}</div>`,
         academic: `<div class="student-profile-block-grid"><div class="dash-card"><div class="dash-card-head"><h3>Results & report cards</h3></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Term</th><th>Subject</th><th>CA</th><th>Exam</th><th>Total</th></tr></thead><tbody>${(record.results || []).length ? record.results.map((r) => `<tr><td>${esc(r.term_name || "—")}</td><td>${esc(r.subject_name || "—")}</td><td>${esc(r.ca)}</td><td>${esc(r.exam)}</td><td>${esc(r.total)}</td></tr>`).join("") : emptyRow(5, "No subject results yet.")}</tbody></table></div></div><div class="dash-card"><div class="dash-card-head"><h3>Academic history</h3></div><div class="dash-card-pad">${(record.classHistory || []).length ? record.classHistory.map((h) => `<p class="student-history-line">${esc(h.action)} · ${esc(h.from_class_name || "Unassigned")} → ${esc(h.to_class_name || "Unassigned")}<small>${fmtDate(h.created_at)}</small></p>`).join("") : `<p class="hint">No placement or promotion history yet.</p>`}</div></div><div class="dash-card"><div class="dash-card-head"><h3>Attendance</h3></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody>${attendance.length ? attendance.slice(0, 20).map((a) => `<tr><td>${fmtDate(a.day)}</td><td>${esc(a.class_name || "—")}</td><td>${studentStatusPill(a.status)}</td></tr>`).join("") : emptyRow(3, "No attendance records yet.")}</tbody></table></div></div></div>`,
-        life: `<div class="dash-card"><div class="dash-card-head"><h3>Groups, clubs and activities</h3><span class="hint">${(record.groups || []).length} group(s)</span></div><div class="dash-card-pad">${(record.groups || []).length ? `<div class="student-profile-chip-list">${record.groups.map((g) => `<span class="dash-pill info">${esc(g.name)} · ${esc(g.group_type)}</span>`).join("")}</div>` : `<p class="hint">This student is not assigned to a group yet.</p>`}<h3 class="student-subheading">Awards, achievements and records</h3><div class="student-life-records">${(record.lifeRecords || []).length ? record.lifeRecords.map((r) => `<article class="student-life-record"><span class="dash-pill ${r.category === "discipline" ? "warn" : "ok"}">${esc(r.category)}</span><strong>${esc(r.title)}</strong><small>${fmtDate(r.record_date || r.created_at)}</small><p>${esc(r.details || "")}</p></article>`).join("") : `<p class="hint">No awards, activities or disciplinary records have been added.</p>`}</div><button id="addLifeRecord" class="dash-btn dash-btn-ghost dash-btn-sm" style="margin-top:12px">${I.plus} Add student-life record</button><h3 class="student-subheading">Status history</h3>${(record.statusHistory || []).length ? record.statusHistory.map((h) => `<p class="student-history-line">${studentStatusPill(h.to_status)}<small>${fmtDate(h.created_at)}${h.reason ? ` · ${esc(h.reason)}` : ""}</small></p>`).join("") : `<p class="hint">No status changes recorded.</p>`}</div></div><div class="dash-card" style="margin-top:14px"><div class="dash-card-head"><h3>Assignments / learning tasks</h3></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Assignment</th><th>Subject</th><th>Due</th></tr></thead><tbody>${(record.homework || []).length ? record.homework.map((h) => `<tr><td>${esc(h.title)}<small>${esc(h.details || "")}</small></td><td>${esc(h.subject_name || "—")}</td><td>${fmtDate(h.due_date)}</td></tr>`).join("") : emptyRow(3, "No assignments posted for this student's class.")}</tbody></table></div></div>`,
+        life: `<div class="dash-card"><div class="dash-card-head"><h3>Groups, clubs and activities</h3><span class="hint">${(record.groups || []).length} group(s)</span></div><div class="dash-card-pad">${(record.groups || []).length ? `<div class="student-profile-chip-list">${record.groups.map((g) => `<span class="dash-pill info">${esc(g.name)} · ${esc(g.group_type)}</span>`).join("")}</div>` : `<p class="hint">This student is not assigned to a group yet.</p>`}<h3 class="student-subheading">Awards, achievements and records</h3><div class="student-life-records">${(record.lifeRecords || []).length ? record.lifeRecords.map((r) => `<article class="student-life-record"><span class="dash-pill ${r.category === "discipline" ? "warn" : "ok"}">${esc(r.category)}</span><strong>${esc(r.title)}</strong><small>${fmtDate(r.record_date || r.created_at)}</small><p>${esc(r.details || "")}</p></article>`).join("") : `<p class="hint">No awards, activities or disciplinary records have been added.</p>`}</div><button id="addLifeRecord" data-needs="students.edit" class="dash-btn dash-btn-ghost dash-btn-sm" style="margin-top:12px">${I.plus} Add student-life record</button><h3 class="student-subheading">Status history</h3>${(record.statusHistory || []).length ? record.statusHistory.map((h) => `<p class="student-history-line">${studentStatusPill(h.to_status)}<small>${fmtDate(h.created_at)}${h.reason ? ` · ${esc(h.reason)}` : ""}</small></p>`).join("") : `<p class="hint">No status changes recorded.</p>`}</div></div><div class="dash-card" style="margin-top:14px"><div class="dash-card-head"><h3>Assignments / learning tasks</h3></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Assignment</th><th>Subject</th><th>Due</th></tr></thead><tbody>${(record.homework || []).length ? record.homework.map((h) => `<tr><td>${esc(h.title)}<small>${esc(h.details || "")}</small></td><td>${esc(h.subject_name || "—")}</td><td>${fmtDate(h.due_date)}</td></tr>`).join("") : emptyRow(3, "No assignments posted for this student's class.")}</tbody></table></div></div>`,
         finance: `<div class="student-profile-summary"><div><small>Total billed</small><strong>${fmtMoney(finance.billed)}</strong></div><div><small>Paid</small><strong>${fmtMoney(finance.paid)}</strong></div><div><small>Outstanding</small><strong>${fmtMoney(finance.outstanding)}</strong></div></div><div class="dash-card"><div class="dash-card-head"><h3>Payment history</h3></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Date</th><th>Fee</th><th>Method</th><th>Reference</th><th>Amount</th></tr></thead><tbody>${(record.payments || []).length ? record.payments.map((p) => `<tr><td>${fmtDate(p.payment_date)}</td><td>${esc(p.fee_name || "—")}</td><td>${esc(p.method)}</td><td>${esc(p.reference || "—")}</td><td>${fmtMoney(p.amount_ngn)}</td></tr>`).join("") : emptyRow(5, "No payments recorded yet.")}</tbody></table></div></div>`,
         documents: `<div class="dash-card"><div class="dash-card-head"><h3>Student documents</h3><label class="dash-btn dash-btn-primary dash-btn-sm">${I.plus} Upload<input id="profileDocumentUpload" type="file" hidden></label></div><div class="dash-card-pad">${(record.documents || []).length ? `<div class="student-document-list">${record.documents.map((d) => `<div><span>${I.file}</span><strong>${esc(d.document_name)}</strong><small>${esc(d.mime_type)} · ${Math.ceil(Number(d.file_size || 0) / 1024)} KB</small><a class="dash-btn dash-btn-ghost dash-btn-sm" href="/api/students/${id}/documents/${d.id}" target="_blank">Download</a><button class="dash-btn dash-btn-danger dash-btn-sm" data-delete-doc="${d.id}">Remove</button></div>`).join("")}</div>` : `<p class="hint">No documents have been uploaded.</p>`}</div></div>`,
-        communication: `<div class="dash-card"><div class="dash-card-head"><h3>Communication history</h3><button id="addStudentCommunication" class="dash-btn dash-btn-primary dash-btn-sm">${I.plus} Add note</button></div><div class="dash-card-pad">${(record.communications || []).length ? record.communications.map((c) => `<article class="student-communication"><strong>${esc(c.subject || c.channel)}</strong><small>${fmtDate(c.created_at)}</small><p>${esc(c.message)}</p></article>`).join("") : `<p class="hint">No direct communication notes yet.</p>`}</div></div><div class="dash-card" style="margin-top:14px"><div class="dash-card-head"><h3>School communication</h3></div><div class="dash-card-pad">${(record.communicationHistory || []).slice(0, 10).map((m) => `<article class="student-communication"><strong>${esc(m.author_name || "School")}</strong><small>${fmtDate(m.created_at)}</small><p>${esc(m.body)}</p></article>`).join("") || `<p class="hint">No general messages yet.</p>`}</div></div>`
+        communication: `<div class="dash-card"><div class="dash-card-head"><h3>Communication history</h3><button id="addStudentCommunication" data-needs="communication.send" class="dash-btn dash-btn-primary dash-btn-sm">${I.plus} Add note</button></div><div class="dash-card-pad">${(record.communications || []).length ? record.communications.map((c) => `<article class="student-communication"><strong>${esc(c.subject || c.channel)}</strong><small>${fmtDate(c.created_at)}</small><p>${esc(c.message)}</p></article>`).join("") : `<p class="hint">No direct communication notes yet.</p>`}</div></div><div class="dash-card" style="margin-top:14px"><div class="dash-card-head"><h3>School communication</h3></div><div class="dash-card-pad">${(record.communicationHistory || []).slice(0, 10).map((m) => `<article class="student-communication"><strong>${esc(m.author_name || "School")}</strong><small>${fmtDate(m.created_at)}</small><p>${esc(m.body)}</p></article>`).join("") || `<p class="hint">No general messages yet.</p>`}</div></div>`
       }[name] || ""; panel.innerHTML = render;
       const idPrint = panel.querySelector("#profilePrintId");
       if (idPrint) idPrint.addEventListener("click", () => printDocument(`/documents/id-card/${id}?qr=1`));
@@ -1531,7 +1842,7 @@
   /* =============================== STAFF =============================== */
   async function pageTeachers(content) {
     const data = await window.API.get("/teachers"); const teachers = data.teachers || [];
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Teachers</div><h2>All Teachers</h2><p>${teachers.length} teacher account(s). Assignments decide access to class registers and results.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="teachers/add">${I.plus} Add Teacher</button></div>
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Teachers</div><h2>All Teachers</h2><p>${teachers.length} teacher account(s). Assignments decide access to class registers and results.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="teachers/add" data-needs="teachers.create">${I.plus} Add Teacher</button></div>
       <div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Teacher</th><th>Username</th><th>Assignments</th><th>Status</th><th></th></tr></thead><tbody>${teachers.length ? teachers.map((t) => `<tr><td><strong>${esc(t.full_name)}</strong>${t.full_name_ar ? `<small class="dash-ar">${esc(t.full_name_ar)}</small>` : ""}</td><td>${esc(t.username)}</td><td>${esc((t.assignments || []).map((a) => `${a.class ? a.class.name_en : "All classes"}${a.subject ? ` · ${a.subject.name_en}` : ""}`).join(", ") || "Not assigned")}</td><td><span class="dash-pill ${t.is_active ? "ok" : "danger"}">${t.is_active ? "active" : "inactive"}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-teacher="${t.id}">${I.edit} Manage</button></td></tr>`).join("") : emptyRow(5, "No teacher accounts yet.")}</tbody></table></div></div>`;
     content.querySelectorAll("[data-teacher]").forEach((b) => b.addEventListener("click", () => openTeacherModal(Number(b.dataset.teacher), data)));
     bindRouteButtons(content);
@@ -1539,7 +1850,7 @@
 
   async function pageTeacherForm(content) {
     const { classes, subjects } = await catalogue();
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Teachers</div><h2>Add Teacher</h2><p>Create a secure staff account, then choose the classes and subjects it can manage.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="teacherForm"><div class="dash-form-grid"><div class="dash-field"><label>Full Name <span class="req">*</span></label><input name="full_name" required></div><div class="dash-field"><label>Arabic Name</label><input name="full_name_ar" dir="rtl"></div><div class="dash-field"><label>Username <span class="req">*</span></label><input name="username" required autocomplete="off"></div><div class="dash-field"><label>Temporary Password <span class="req">*</span></label><input name="password" required minlength="8" type="password"></div><div class="dash-field"><label>Email</label><input name="email" type="email"></div><div class="dash-field"><label>Phone</label><input name="phone"></div></div><div class="dash-field" style="margin-top:16px"><label>Teaching assignments</label><div id="assignmentRows"></div><button class="dash-btn dash-btn-ghost dash-btn-sm" id="addAssignment" type="button" style="margin-top:8px">${I.plus} Add assignment</button></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Create Teacher</button></form></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Teachers</div><h2>Add Teacher</h2><p>Create a secure staff account, then choose the classes and subjects it can manage.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="teacherForm"><div class="dash-form-grid"><div class="dash-field"><label>Full Name <span class="req">*</span></label><input name="full_name" required></div><div class="dash-field"><label>Arabic Name</label><input name="full_name_ar" dir="rtl"></div><div class="dash-field"><label>Username <span class="req">*</span></label><input name="username" required autocomplete="off"></div><div class="dash-field"><label>Temporary Password <span class="req">*</span></label><input name="password" required minlength="8" type="password"></div><div class="dash-field"><label>Email</label><input name="email" type="email"></div><div class="dash-field"><label>Phone</label><input name="phone"></div></div><div class="dash-field" style="margin-top:16px"><label>Teaching assignments</label><div id="assignmentRows"></div><button class="dash-btn dash-btn-ghost dash-btn-sm" id="addAssignment" data-needs="assignments.create" type="button" style="margin-top:8px">${I.plus} Add assignment</button></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Create Teacher</button></form></div></div>`;
     const addRow = () => { const r = document.createElement("div"); r.className = "dash-assignment-row"; r.innerHTML = `<select class="assign-class"><option value="">All classes</option>${options(classes)}</select><select class="assign-subject"><option value="">All subjects in class</option>${options(subjects)}</select><button type="button" class="dash-icon-btn" aria-label="Remove assignment">${I.close}</button>`; r.querySelector("button").addEventListener("click", () => r.remove()); content.querySelector("#assignmentRows").appendChild(r); };
     content.querySelector("#addAssignment").addEventListener("click", addRow); addRow();
     content.querySelector("#teacherForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); const body = {}; ["full_name", "full_name_ar", "username", "password", "email", "phone"].forEach((k) => body[k] = fd.get(k)); body.assignments = [...content.querySelectorAll(".dash-assignment-row")].map((r) => ({ class_id: r.querySelector(".assign-class").value || null, subject_id: r.querySelector(".assign-subject").value || null })); try { await window.API.post("/teachers", body); toast("Teacher account created.", "success"); go("teachers/all"); } catch (err) { toast(err.message || "Could not create teacher.", "error"); } });
@@ -1601,7 +1912,7 @@
 
   async function pageClassTeacherRoster(content) {
     const data = await window.API.get("/teachers"); const classes = data.classes || [];
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>Class Teachers</h2><p>Teaching assignments by class and subject.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="teachers/add">${I.plus} Add Teacher</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Class</th><th>Assigned Teachers</th></tr></thead><tbody>${classes.length ? classes.map((c) => { const assigned = (data.teachers || []).flatMap((t) => (t.assignments || []).filter((a) => Number(a.classId) === Number(c.id) || !a.classId).map((a) => `${t.full_name}${a.subject ? ` — ${a.subject.name_en}` : ""}`)); return `<tr><td>${esc(c.name_en)}</td><td>${esc(assigned.join(", ") || "No teachers assigned")}</td></tr>`; }).join("") : emptyRow(2, "No classes have been created.")}</tbody></table></div></div>`; bindRouteButtons(content);
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>Class Teachers</h2><p>Teaching assignments by class and subject.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="teachers/add" data-needs="teachers.create">${I.plus} Add Teacher</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Class</th><th>Assigned Teachers</th></tr></thead><tbody>${classes.length ? classes.map((c) => { const assigned = (data.teachers || []).flatMap((t) => (t.assignments || []).filter((a) => Number(a.classId) === Number(c.id) || !a.classId).map((a) => `${t.full_name}${a.subject ? ` — ${a.subject.name_en}` : ""}`)); return `<tr><td>${esc(c.name_en)}</td><td>${esc(assigned.join(", ") || "No teachers assigned")}</td></tr>`; }).join("") : emptyRow(2, "No classes have been created.")}</tbody></table></div></div>`; bindRouteButtons(content);
   }
 
   async function pageSubjectDetail(content, categoryName, detailId) {
@@ -1828,7 +2139,7 @@
   /* ============================= ACADEMIC ============================== */
   async function pageHomework(content, route) {
     const [data, base] = await Promise.all([window.API.get(`/homework?kind=${route.endsWith("lessons") ? "lesson" : "assignment"}`), catalogue()]); const label = route.endsWith("lessons") ? "Lessons" : "Assignments";
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>${label}</h2><p>Post classroom work with optional subject, due date and instructions.</p></div><button id="addHomework" class="dash-btn dash-btn-primary">${I.plus} Add ${label.slice(0, -1)}</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Title</th><th>Class</th><th>Subject</th><th>Due</th><th>Posted by</th><th></th></tr></thead><tbody>${(data.homework || []).length ? data.homework.map((h) => `<tr><td><strong>${esc(h.title)}</strong><small>${esc((h.details || "").slice(0, 120))}</small></td><td>${esc(h.class_en || "All classes")}</td><td>${esc(h.subject_en || "—")}</td><td>${fmtDate(h.due_date)}</td><td>${esc(h.author || "—")}</td><td><button class="dash-btn dash-btn-danger dash-btn-sm" data-delete-homework="${h.id}">${I.trash}</button></td></tr>`).join("") : emptyRow(6, `No ${label.toLowerCase()} have been posted yet.`)}</tbody></table></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>${label}</h2><p>Post classroom work with optional subject, due date and instructions.</p></div><button id="addHomework" data-needs="assignments.create" class="dash-btn dash-btn-primary">${I.plus} Add ${label.slice(0, -1)}</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Title</th><th>Class</th><th>Subject</th><th>Due</th><th>Posted by</th><th></th></tr></thead><tbody>${(data.homework || []).length ? data.homework.map((h) => `<tr><td><strong>${esc(h.title)}</strong><small>${esc((h.details || "").slice(0, 120))}</small></td><td>${esc(h.class_en || "All classes")}</td><td>${esc(h.subject_en || "—")}</td><td>${fmtDate(h.due_date)}</td><td>${esc(h.author || "—")}</td><td><button class="dash-btn dash-btn-danger dash-btn-sm" data-delete-homework="${h.id}">${I.trash}</button></td></tr>`).join("") : emptyRow(6, `No ${label.toLowerCase()} have been posted yet.`)}</tbody></table></div></div>`;
     content.querySelector("#addHomework").addEventListener("click", () => { const modal = openModal(`Add ${label.slice(0, -1)}`, `<form id="homeworkForm"><div class="dash-form-grid"><div class="dash-field" style="grid-column:1/-1"><label>Title</label><input name="title" required></div><div class="dash-field"><label>Class</label><select name="class_id"><option value="">All classes</option>${options(base.classes)}</select></div><div class="dash-field"><label>Subject</label><select name="subject_id"><option value="">Not specified</option>${options(base.subjects)}</select></div><div class="dash-field"><label>Due date</label><input name="due_date" type="date"></div><div class="dash-field" style="grid-column:1/-1"><label>Instructions</label><textarea name="details"></textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Post</button></form>`); modal.querySelector("#homeworkForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.post("/homework", Object.assign(Object.fromEntries(new FormData(e.target)), { kind: route.endsWith("lessons") ? "lesson" : "assignment" })); toast(`${label.slice(0, -1)} posted.`, "success"); closeModal(); pageHomework(content, route); } catch (err) { toast(err.message || "Could not post work.", "error"); } }); });
     content.querySelectorAll("[data-delete-homework]").forEach((b) => b.addEventListener("click", async () => { if (!window.confirm("Remove this item?")) return; try { await window.API.del(`/homework/${b.dataset.deleteHomework}`); toast("Item removed.", "success"); pageHomework(content, route); } catch (err) { toast(err.message || "Could not remove item.", "error"); } }));
   }
@@ -1971,7 +2282,7 @@
   /* ============================== FINANCE =============================== */
   async function pageFees(content) {
     const [data, base] = await Promise.all([window.API.get("/fees/items"), catalogue()]); const items = data.items || []; const terms = allTerms(base.sessions);
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>${T().feesLabel}</h2><p>Set amounts billed to each active student for a term.</p></div><button id="addFeeItem" class="dash-btn dash-btn-primary">${I.plus} Add Fee</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Fee</th><th>Term</th><th>Amount</th><th></th></tr></thead><tbody>${items.length ? items.map((f) => `<tr><td>${esc(f.name_en)}${f.name_ar ? `<small class="dash-ar">${esc(f.name_ar)}</small>` : ""}</td><td>${esc((terms.find((t) => Number(t.id) === Number(f.term_id)) || {}).name_en || "All terms")}</td><td>${fmtMoney(f.amount_ngn)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-fee-item="${f.id}">${I.edit}</button></td></tr>`).join("") : emptyRow(4, "No fee items yet.")}</tbody></table></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Finance</div><h2>${T().feesLabel}</h2><p>Set amounts billed to each active student for a term.</p></div><button id="addFeeItem" data-needs="fees.create" class="dash-btn dash-btn-primary">${I.plus} Add Fee</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Fee</th><th>Term</th><th>Amount</th><th></th></tr></thead><tbody>${items.length ? items.map((f) => `<tr><td>${esc(f.name_en)}${f.name_ar ? `<small class="dash-ar">${esc(f.name_ar)}</small>` : ""}</td><td>${esc((terms.find((t) => Number(t.id) === Number(f.term_id)) || {}).name_en || "All terms")}</td><td>${fmtMoney(f.amount_ngn)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-fee-item="${f.id}">${I.edit}</button></td></tr>`).join("") : emptyRow(4, "No fee items yet.")}</tbody></table></div></div>`;
     const open = (f) => openFeeItemModal(f, terms, () => pageFees(content)); content.querySelector("#addFeeItem").addEventListener("click", () => open(null)); content.querySelectorAll("[data-fee-item]").forEach((b) => b.addEventListener("click", () => open(items.find((x) => Number(x.id) === Number(b.dataset.feeItem)))));
   }
   function openFeeItemModal(item, terms, done) { const modal = openModal(item ? "Edit fee item" : "Add fee item", `<form id="feeItemForm"><div class="dash-form-grid"><div class="dash-field"><label>Fee name</label><input name="name_en" required value="${esc(item && item.name_en)}"></div><div class="dash-field"><label>Arabic name</label><input name="name_ar" dir="rtl" value="${esc(item && item.name_ar)}"></div><div class="dash-field"><label>Term</label><select name="term_id"><option value="">All / no term</option>${options(terms, item && item.term_id, (t) => `${t.session_label} — ${t.name_en}`)}</select></div><div class="dash-field"><label>Amount (₦)</label><input name="amount_ngn" type="number" min="0" step="0.01" required value="${esc(item && item.amount_ngn || 0)}"></div></div><div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} Save fee</button>${item ? `<button id="deleteFeeItem" type="button" class="dash-btn dash-btn-danger">${I.trash}</button>` : ""}</div></form>`); const form = modal.querySelector("#feeItemForm"); form.addEventListener("submit", async (e) => { e.preventDefault(); try { const body = Object.fromEntries(new FormData(form)); if (item) await window.API.patch(`/fees/items/${item.id}`, body); else await window.API.post("/fees/items", body); toast("Fee item saved.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not save fee item.", "error"); } }); const del = modal.querySelector("#deleteFeeItem"); if (del) del.addEventListener("click", async () => { if (!window.confirm("Delete this fee item?")) return; try { await window.API.del(`/fees/items/${item.id}`); toast("Fee item deleted.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not delete fee item.", "error"); } }); }
@@ -1995,10 +2306,242 @@
   }
 
   /* ============================== SETTINGS ============================== */
+  /* --------------------------------------------------------------------
+     Roles & Permissions.
+
+     The five account roles are unchanged — this screen lets an administrator
+     fine-tune what an individual member of staff may do on top of their role
+     default. Every permission shown here is enforced on the server; hiding a
+     control in this UI is a convenience, never the security boundary.
+     -------------------------------------------------------------------- */
   async function pageRoles(content) {
-    const rows = [["Madrasa Administrator", "Full control of this institution: staff, students, academics, admissions, finance, public website and tenant settings."], ["Teacher", "Only assigned classes and subjects: class rosters, attendance and results entry."], ["Student", "Own profile, homework, announcements, timetable, published results and report cards."], ["Parent", "Linked children only: profiles, homework, announcements, timetables, published results and report cards."]];
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Roles & Permissions</h2><p>Permissions are enforced by the server; they cannot be changed from the browser.</p></div></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Role</th><th>Access</th></tr></thead><tbody>${rows.map(([role, access]) => `<tr><td><strong>${esc(role)}</strong></td><td>${esc(access)}</td></tr>`).join("")}</tbody></table></div></div><div class="dash-card" style="margin-top:18px"><div class="dash-card-pad"><h3>Manage accounts</h3><p class="hint">Teacher, student and parent logins are created in their respective management screens. You can activate or deactivate existing accounts below.</p><button class="dash-btn dash-btn-primary" data-nav-route="settings/staff">Manage staff accounts</button></div></div>`; bindRouteButtons(content);
+    content.innerHTML = loadingBlock("Settings", "Roles & Permissions");
+    let catalogue; let people;
+    try {
+      [catalogue, people] = await Promise.all([
+        window.API.get("/admin/permissions/catalogue"),
+        window.API.get("/admin/permissions/users"),
+      ]);
+    } catch (e) {
+      if (e.status === 403) {
+        content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Roles &amp; Permissions</h2></div></div>
+          <div class="dash-card"><div class="dash-card-pad"><div class="dash-empty-state">
+            <div class="dash-empty-state-icon">${I.shield}</div><h3>You do not have access to this screen</h3>
+            <p>Managing roles and permissions requires the <code>roles.manage</code> permission. Ask an administrator of this institution.</p>
+          </div></div></div>`;
+        return;
+      }
+      content.innerHTML = errorBlock("Settings", "Roles & Permissions", e);
+      return;
+    }
+
+    const groups = catalogue.catalogue || [];
+    const roles = catalogue.roles || [];
+    const defaults = catalogue.roleDefaults || {};
+    const users = people.users || [];
+
+    content.innerHTML = `
+      <div class="dash-page-head"><div>
+        <div class="dash-crumb">Settings</div><h2>Roles &amp; Permissions</h2>
+        <p>Every permission below is enforced by the server. Hiding a button in the browser never grants or removes access.</p>
+      </div></div>
+
+      <div class="dash-card" style="margin-bottom:18px">
+        <div class="dash-card-head"><h3>Role defaults</h3></div>
+        <div class="dash-table-wrap"><table class="dash-table">
+          <caption class="sr-only">Default permissions for each account role</caption>
+          <thead><tr><th scope="col">Role</th><th scope="col">Default access</th><th scope="col">Permissions</th></tr></thead>
+          <tbody>${roles.map((r) => `<tr>
+            <th scope="row">${esc(r.label)}</th>
+            <td>${esc(r.description)}</td>
+            <td>${(defaults[r.key] || []).length === (catalogue.catalogue || []).reduce((a, g) => a + g.permissions.length, 0)
+              ? "All permissions" : `${(defaults[r.key] || []).length} permission(s)`}</td>
+          </tr>`).join("")}</tbody>
+        </table></div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-head"><h3>Staff permissions</h3><span class="hint">${users.length} account(s)</span></div>
+        ${users.length ? `<div class="dash-table-wrap"><table class="dash-table">
+          <caption class="sr-only">Staff accounts and their effective permissions</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Effective permissions</th><th scope="col">Action</th></tr></thead>
+          <tbody>${users.map((u) => `<tr>
+            <th scope="row">${esc(u.fullName || u.username)}</th>
+            <td>${esc(u.role === "madrasa_admin" ? "Administrator" : "Teacher")}</td>
+            <td>${u.isActive ? `<span class="dash-pill ok">Active</span>` : `<span class="dash-pill">Inactive</span>`}</td>
+            <td>${u.effective.length} of ${groups.reduce((a, g) => a + g.permissions.length, 0)}
+              ${u.overrides.length ? `<small class="hint"> · ${u.overrides.length} override(s)</small>` : ""}</td>
+            <td><button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-edit-perms="${u.id}">${I.edit} Edit</button></td>
+          </tr>`).join("")}</tbody>
+        </table></div>` : `<div class="dash-card-pad"><div class="dash-empty-state">
+          <div class="dash-empty-state-icon">${I.users}</div><h3>No staff accounts yet</h3>
+          <p>Add a teacher or administrator first; their permissions can then be adjusted here.</p>
+          <button class="dash-btn dash-btn-primary" data-nav-route="teachers/add" data-needs="teachers.create">Add a teacher</button>
+        </div></div>`}
+      </div>`;
+    bindRouteButtons(content);
+
+    content.querySelectorAll("[data-edit-perms]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const user = users.find((u) => String(u.id) === btn.getAttribute("data-edit-perms"));
+        if (!user) return;
+        const roleDefault = new Set(defaults[user.role] || []);
+        const effective = new Set(user.effective);
+        const wrap = openModal(`Permissions — ${user.fullName || user.username}`, `
+          <form id="permForm">
+            <p class="hint">Ticked permissions are held by this account. A permission that differs from the role default is saved as an explicit grant or revoke.</p>
+            ${groups.map((g) => `<fieldset class="dash-fieldset">
+              <legend>${esc(g.label)}</legend>
+              ${g.permissions.map(([key, label]) => `
+                <label class="dash-toggle">
+                  <input type="checkbox" name="perm" value="${esc(key)}" ${effective.has(key) ? "checked" : ""}>
+                  <span>${esc(label)} <code class="hint">${esc(key)}</code></span>
+                </label>`).join("")}
+            </fieldset>`).join("")}
+            <div class="dash-modal-actions">
+              <button type="button" class="dash-btn dash-btn-ghost" data-cancel>Cancel</button>
+              <button type="submit" class="dash-btn dash-btn-primary">${I.check} Save permissions</button>
+            </div>
+          </form>`);
+        wrap.querySelector("[data-cancel]").addEventListener("click", closeModal);
+        wrap.querySelector("#permForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const checked = new Set(Array.from(wrap.querySelectorAll('input[name="perm"]:checked')).map((i) => i.value));
+          // Only the DIFFERENCES from the role default are persisted, so a
+          // later change to the role default still flows through.
+          const granted = Array.from(checked).filter((k) => !roleDefault.has(k));
+          const revoked = Array.from(roleDefault).filter((k) => !checked.has(k));
+          const submit = wrap.querySelector('button[type="submit"]');
+          submit.disabled = true;
+          try {
+            await window.API.put(`/admin/permissions/users/${user.id}`, { granted, revoked });
+            closeModal();
+            toast("Permissions updated.", "success");
+            go("settings/roles");
+          } catch (err) {
+            submit.disabled = false;
+            toast(err.message || "Could not update permissions.", "error");
+          }
+        });
+      });
+    });
   }
+
+  /* --------------------------------------------------------------------
+     Audit log — the institution's own record of who changed what.
+     Reads /api/admin/audit, which is tenant-scoped on the server.
+     -------------------------------------------------------------------- */
+  async function pageAuditLog(content) {
+    content.innerHTML = loadingBlock("Settings", "Audit Log");
+    let facets = { modules: [], actions: [], users: [] };
+    try { facets = await window.API.get("/admin/audit/facets"); }
+    catch (e) {
+      if (e.status === 403) {
+        content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Audit Log</h2></div></div>
+          <div class="dash-card"><div class="dash-card-pad"><div class="dash-empty-state">
+            <div class="dash-empty-state-icon">${I.shield}</div><h3>You do not have access to the audit log</h3>
+            <p>Viewing the audit log requires the <code>audit.view</code> permission.</p>
+          </div></div></div>`;
+        return;
+      }
+    }
+
+    content.innerHTML = `
+      <div class="dash-page-head"><div>
+        <div class="dash-crumb">Settings</div><h2>Audit Log</h2>
+        <p>Every recorded change made in this institution. Passwords, tokens and other credentials are never logged.</p>
+      </div></div>
+      <div class="dash-card" style="margin-bottom:18px"><div class="dash-card-pad">
+        <form id="auditFilters" class="dash-filter-row">
+          <div class="dash-field"><label for="auditSearch">Search</label>
+            <input id="auditSearch" name="search" type="search" placeholder="Action, record or user"></div>
+          <div class="dash-field"><label for="auditModule">Module</label>
+            <select id="auditModule" name="module"><option value="">All modules</option>
+              ${facets.modules.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}</select></div>
+          <div class="dash-field"><label for="auditUser">User</label>
+            <select id="auditUser" name="userId"><option value="">All users</option>
+              ${(facets.users || []).map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join("")}</select></div>
+          <div class="dash-field"><label for="auditFrom">From</label><input id="auditFrom" name="from" type="date"></div>
+          <div class="dash-field"><label for="auditTo">To</label><input id="auditTo" name="to" type="date"></div>
+          <button class="dash-btn dash-btn-primary" type="submit">${I.search || ""} Apply</button>
+        </form>
+      </div></div>
+      <div id="auditResults" aria-live="polite"></div>`;
+
+    let page = 1;
+    const form = content.querySelector("#auditFilters");
+    const out = content.querySelector("#auditResults");
+
+    async function load() {
+      out.innerHTML = `<div class="dash-card"><div class="dash-card-pad"><p class="hint">Loading audit entries…</p></div></div>`;
+      const fd = new FormData(form);
+      const params = new URLSearchParams();
+      ["search", "module", "userId", "from", "to"].forEach((k) => { const v = fd.get(k); if (v) params.set(k, v); });
+      params.set("page", String(page));
+      try {
+        const data = await window.API.get(`/admin/audit?${params.toString()}`);
+        const rows = data.entries || [];
+        if (!rows.length) {
+          out.innerHTML = `<div class="dash-card"><div class="dash-card-pad"><div class="dash-empty-state">
+            <div class="dash-empty-state-icon">${I.activity || I.file}</div><h3>No audit entries match</h3>
+            <p>Adjust the filters above, or widen the date range.</p></div></div></div>`;
+          return;
+        }
+        out.innerHTML = `<div class="dash-card">
+          <div class="dash-card-head"><h3>${data.total} entr${data.total === 1 ? "y" : "ies"}</h3>
+            <span class="hint">Page ${data.page} of ${data.pages}</span></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <caption class="sr-only">Audit log entries</caption>
+            <thead><tr><th scope="col">When</th><th scope="col">User</th><th scope="col">Module</th>
+              <th scope="col">Action</th><th scope="col">Record</th><th scope="col">Change</th></tr></thead>
+            <tbody>${rows.map((r) => `<tr>
+              <td>${esc(fmtDate(r.created_at))}<small class="hint"> ${esc(String(r.created_at || "").slice(11, 16))}</small></td>
+              <td>${esc(r.user_name || r.username || "System")}${r.user_role ? `<small class="hint"> · ${esc(r.user_role)}</small>` : ""}</td>
+              <td>${esc(r.module || "—")}</td>
+              <td><code>${esc(r.action)}</code></td>
+              <td>${esc(r.entity || "—")}${r.entity_id ? ` #${esc(r.entity_id)}` : ""}</td>
+              <td>${(r.before_value || r.after_value)
+                ? `<button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-audit-detail="${esc(r.id)}">View</button>`
+                : `<span class="hint">—</span>`}</td>
+            </tr>`).join("")}</tbody>
+          </table></div>
+          <div class="dash-card-pad dash-pager">
+            <button type="button" class="dash-btn dash-btn-ghost" ${data.page <= 1 ? "disabled" : ""} data-page="prev">Previous</button>
+            <span class="hint">Page ${data.page} of ${data.pages}</span>
+            <button type="button" class="dash-btn dash-btn-ghost" ${data.page >= data.pages ? "disabled" : ""} data-page="next">Next</button>
+          </div>
+        </div>`;
+        out.querySelectorAll("[data-audit-detail]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const row = rows.find((r) => String(r.id) === btn.getAttribute("data-audit-detail"));
+            if (!row) return;
+            const pretty = (v) => { try { return JSON.stringify(JSON.parse(v), null, 2); } catch (e) { return String(v || "—"); } };
+            openModal(`${row.action} — ${fmtDate(row.created_at)}`, `
+              <dl class="dash-detail-list">
+                <dt>User</dt><dd>${esc(row.user_name || row.username || "System")} (${esc(row.user_role || "—")})</dd>
+                <dt>Module</dt><dd>${esc(row.module || "—")}</dd>
+                <dt>Record</dt><dd>${esc(row.entity || "—")} ${esc(row.entity_id || "")}</dd>
+                <dt>IP address</dt><dd>${esc(row.ip || "—")}</dd>
+              </dl>
+              <h4>Previous value</h4><pre class="dash-pre">${esc(pretty(row.before_value))}</pre>
+              <h4>New value</h4><pre class="dash-pre">${esc(pretty(row.after_value))}</pre>`);
+          });
+        });
+        out.querySelectorAll("[data-page]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            page += btn.getAttribute("data-page") === "next" ? 1 : -1;
+            if (page < 1) page = 1;
+            load();
+          });
+        });
+      } catch (e) {
+        out.innerHTML = errorBlock("Settings", "Audit Log", e);
+      }
+    }
+    form.addEventListener("submit", (e) => { e.preventDefault(); page = 1; load(); });
+    await load();
+  }
+
   async function pageNotificationSettings(content) {
     const data = await window.API.get("/madrasa/settings"); const s = data.settings || {};
     content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Notification Settings</h2><p>Choose administrator notification preferences. The system always keeps in-dashboard notices available.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="notificationSettings"><label class="dash-toggle"><input type="checkbox" name="notify_admissions" ${s.notify_admissions === "1" ? "checked" : ""}><span>Show new admission alerts in the dashboard</span></label><label class="dash-toggle"><input type="checkbox" name="notify_results" ${s.notify_results === "1" ? "checked" : ""}><span>Show unpublished-result alerts in the dashboard</span></label><label class="dash-toggle"><input type="checkbox" name="notify_email" ${s.notify_email === "1" ? "checked" : ""}><span>Use the institution email as the notification contact</span></label><div class="dash-field" style="margin-top:16px"><label>Notification contact email</label><input type="email" name="notification_email" value="${esc(s.notification_email || "")}" placeholder="admin@example.org"></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save preferences</button></form><p class="hint" style="margin-top:14px">Email or SMS delivery is not connected until an operator configures a provider. These preferences are saved safely now and do not claim a message was sent.</p></div></div>`;
@@ -2106,11 +2649,37 @@
     document.body.appendChild(wrap);
     wrap.addEventListener("click", (e) => { if (e.target === wrap) closeModal(); });
     wrap.querySelector(".dash-modal-close").addEventListener("click", closeModal);
+
+    // Accessibility: remember what had focus, move focus into the dialog,
+    // keep Tab inside it while it is open, and close on Escape.
+    lastFocusedBeforeModal = document.activeElement;
+    const focusables = () => Array.from(wrap.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    const first = focusables()[0] || wrap.querySelector(".dash-modal-close");
+    if (first) first.focus();
+    wrap.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); closeModal(); return; }
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      if (!list.length) return;
+      const firstEl = list[0];
+      const lastEl = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
+      else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
+    });
     return wrap;
   }
+  let lastFocusedBeforeModal = null;
   function closeModal() {
     const w = document.querySelector(".dash-modal-backdrop");
     if (w) w.remove();
+    // Return focus to whatever opened the dialog, so keyboard users are not
+    // dropped back at the top of the document.
+    if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === "function") {
+      try { lastFocusedBeforeModal.focus(); } catch (e) { /* element gone */ }
+    }
+    lastFocusedBeforeModal = null;
   }
 
   async function renderSuperRoute(content, route) {

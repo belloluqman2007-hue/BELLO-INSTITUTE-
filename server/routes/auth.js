@@ -13,6 +13,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../db");
 const { cleanStr, logActivity, asyncHandler } = require("../util");
+const permissionService = require("../services/permissions");
 
 const router = express.Router();
 
@@ -128,13 +129,16 @@ router.post("/login", async (req, res) => {
     }
     req.session.userId = user.id;
     ensureCsrfToken(req);
-    logActivity(db, {
-      madrasaId: user.madrasa_id,
-      userId: user.id,
-      action: "login",
-      entity: "auth",
-      entityId: String(user.id),
-      ip: req.ip || "",
+    // Audit the sign-in. The password is of course never recorded — only who
+    // signed in, in which role and institution, and from where.
+    db.run(
+      `INSERT INTO activity_log (madrasa_id, user_id, user_role, action, module, entity, entity_id, ip)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [user.madrasa_id, user.id, user.role, "login", "auth", "auth", String(user.id), String(req.ip || "").slice(0, 64)]
+    ).catch(() => {
+      // Fall back to the original shape if the audit columns are not yet
+      // migrated; logging must never block a valid sign-in.
+      logActivity(db, { madrasaId: user.madrasa_id, userId: user.id, action: "login", entity: "auth", entityId: String(user.id), ip: req.ip || "" });
     });
     req.session.save((saveErr) => {
       if (saveErr) {
@@ -165,9 +169,16 @@ router.post("/login", async (req, res) => {
 router.post("/logout", (req, res) => {
   const uid = req.session && req.session.userId;
   const mid = req.user ? req.user.madrasaId : null;
+  const role = req.user ? req.user.role : "";
   req.session.destroy(() => {
     res.clearCookie("mm_session");
-    logActivity(db, { madrasaId: mid, userId: uid, action: "logout", entity: "auth", entityId: String(uid || "") });
+    db.run(
+      `INSERT INTO activity_log (madrasa_id, user_id, user_role, action, module, entity, entity_id, ip)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [mid, uid, role, "logout", "auth", "auth", String(uid || ""), String(req.ip || "").slice(0, 64)]
+    ).catch(() => {
+      logActivity(db, { madrasaId: mid, userId: uid, action: "logout", entity: "auth", entityId: String(uid || "") });
+    });
     res.json({ ok: true });
   });
 });
@@ -187,9 +198,13 @@ router.get("/me", asyncHandler(async (req, res) => {
       verified = Number(madrasa.verified) === 1;
     }
   }
+  let permissions = [];
+  try { permissions = Array.from(await permissionService.effectivePermissions(req.user)).sort(); }
+  catch (e) { permissions = permissionService.roleDefaults(req.user.role); }
   res.json({
     loggedIn: true,
     role: req.user.role,
+    permissions,
     madrasaId: req.user.madrasaId,
     category,
     institutionName,

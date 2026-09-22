@@ -61,6 +61,15 @@ const LOGIN_ONLY = process.argv.includes("--login-storm");
 const OUT_DIR = path.join(__dirname, "results");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
+// Which database is REALLY under test. Printed loudly so a MySQL run can never
+// be mistaken for (or silently fall back to) a SQLite one.
+const DB_DRIVER = String(process.env.DATABASE_DRIVER || "sqlite").trim().toLowerCase();
+console.log("============================================================");
+console.log("  DATABASE = " + (DB_DRIVER === "mysql"
+  ? "MYSQL 8  (" + (process.env.DB_HOST || "?") + ":" + (process.env.DB_PORT || 3306) + "/" + (process.env.DB_NAME || "?") + ")"
+  : "SQLITE   (" + (process.env.DATABASE_FILE || "data/loadtest.sqlite") + ")"));
+console.log("============================================================");
+
 const ACCOUNTS = JSON.parse(fs.readFileSync(path.join(__dirname, "accounts.json"), "utf8"));
 const PASSWORD = ACCOUNTS.testPassword;
 
@@ -299,10 +308,27 @@ function onResponse(status, body, context, headers) {
 /* ----------------------------- server mgmt ------------------------------ */
 let serverProc = null;
 async function startServer() {
-  const env = Object.assign({}, process.env, {
+  // The load test drives whichever database the caller selected. SQLite stays
+  // the default so existing commands behave exactly as before; exporting
+  // DATABASE_DRIVER=mysql (plus DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME)
+  // runs the very same workload against a real MySQL 8 server.
+  const driver = String(process.env.DATABASE_DRIVER || "sqlite").trim().toLowerCase();
+  const dbEnv = driver === "mysql"
+    ? {
+      DATABASE_DRIVER: "mysql",
+      DB_HOST: process.env.DB_HOST || "127.0.0.1",
+      DB_PORT: String(process.env.DB_PORT || 3306),
+      DB_USER: process.env.DB_USER || "",
+      DB_PASSWORD: process.env.DB_PASSWORD || "",
+      DB_NAME: process.env.DB_NAME || "",
+      DB_SSL: process.env.DB_SSL || "false",
+    }
+    : {
+      DATABASE_DRIVER: "sqlite",
+      DATABASE_FILE: process.env.DATABASE_FILE || path.join(__dirname, "..", "data", "loadtest.sqlite"),
+    };
+  const env = Object.assign({}, process.env, dbEnv, {
     PORT: String(PORT),
-    DATABASE_DRIVER: "sqlite",
-    DATABASE_FILE: process.env.DATABASE_FILE || path.join(__dirname, "..", "data", "loadtest.sqlite"),
     NODE_ENV: "development",
     SESSION_SECRET: process.env.SESSION_SECRET || "loadtest-secret-0123456789abcdef0123456789abcdef",
     SUPER_ADMIN_USERNAME: process.env.SUPER_ADMIN_USERNAME || "ltperf",
@@ -382,6 +408,22 @@ async function runAutocannon(connections, seconds, label) {
   const sampler = setInterval(async () => {
     try { samples.push(await serverSnapshot()); } catch (e) { /* keep going */ }
   }, 5000);
+  // When the target is MySQL, sample the REAL server the whole stage so the
+  // report can quote measured connection counts, lock waits and slow queries.
+  let mysqlSampler = null;
+  if (DB_DRIVER === "mysql") {
+    try {
+      mysqlSampler = require("./mysql-metrics").startSampler({
+        intervalMs: 1000,
+        mysqldPid: process.env.MYSQLD_PID ? Number(process.env.MYSQLD_PID) : null,
+      });
+    } catch (e) {
+      // Never swallow this: a null metrics block in the report is
+      // indistinguishable from "no contention", which would be misleading.
+      console.error("  [mysql-metrics] sampler failed to start:", e && e.message);
+      mysqlSampler = null;
+    }
+  }
   if (perfCookie) { try { await fetch(BASE + "/api/perf/reset", { method: "POST", headers: { cookie: perfCookie, "x-csrf-token": perfCsrf } }); } catch (e) { /* ok */ } }
 
   // Track WHEN each timeout fires relative to instance start: a cold-start
@@ -406,10 +448,18 @@ async function runAutocannon(connections, seconds, label) {
   instance.on("reqError", (e) => { if (String(e && e.message).includes("timed out")) timeoutTimes.push(Date.now() - t0); });
   const result = await instance;
   clearInterval(sampler);
+  const mysqlMetrics = mysqlSampler
+    ? await mysqlSampler.stop().catch((e) => {
+        console.error("  [mysql-metrics] sampler failed:", e && e.message);
+        return null;
+      })
+    : null;
   const last = samples[samples.length - 1] || {};
   return {
     label,
     connections,
+    database: DB_DRIVER === "mysql" ? "MYSQL 8" : "SQLITE",
+    mysql: mysqlMetrics,
     requestedSeconds: seconds,
     result: {
       duration: result.duration,
@@ -447,7 +497,8 @@ async function runAutocannon(connections, seconds, label) {
     pacing: RATE_PER_USER > 0 ? { ratePerUser: RATE_PER_USER, offeredLoadRps: Math.round(RATE_PER_USER * STAGE) } : "closed-loop (zero think time)",
     env: {
       node: process.version, cpus: require("os").cpus().length, totalMemMb: Math.round(require("os").totalmem() / 1048576),
-      dataset: "55 madaris / 10,900 students / ~200k rows (loadtest.sqlite)",
+      database: DB_DRIVER === "mysql" ? "MYSQL 8" : "SQLITE",
+      dataset: "55 madaris / 10,900 students / ~200k rows",
       note: "server + load generator share this host; see report for implications",
     },
     steps: [], hold: null, isolation: null,

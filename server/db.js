@@ -94,6 +94,22 @@ async function connectMysql() {
     ssl,
     namedPlaceholders: false,
     charset: "utf8mb4",
+    // DATE / DATETIME / TIMESTAMP come back as STRINGS, exactly as they do
+    // from node:sqlite. Without this mysql2 hydrates them into JS Date
+    // objects, and every `String(row.due_date).slice(0, 10)` in the codebase
+    // silently becomes "Tue Sep 22" instead of "2026-09-22" — corrupting due
+    // dates, attendance days, pay periods and leave ranges, and throwing
+    // "RangeError: Invalid time value" on `new Date(`${date}T00:00:00Z`)`.
+    // Keeping the wire format identical across both drivers is what makes the
+    // one dialect-agnostic application layer correct on MySQL.
+    dateStrings: true,
+    // DECIMAL columns come back as NUMBERS, as they do from node:sqlite.
+    // mysql2 defaults to strings to protect arbitrary-precision DECIMALs, but
+    // every money/percentage column in this schema is DECIMAL(<=12,2) — at
+    // most 10^10 naira with 2 decimals, far inside JS's 2^53 safe-integer
+    // range, so nothing is lost. Left as strings, "120000.00" silently breaks
+    // arithmetic comparisons and payroll/fee totals that SQLite got right.
+    decimalNumbers: true,
     waitForConnections: true,
     connectionLimit: config.MYSQL_POOL.connectionLimit,
     queueLimit: config.MYSQL_POOL.queueLimit,
@@ -165,11 +181,23 @@ async function connectMysql() {
   return db;
 }
 
+// "2026-09-22T09:03:33.117Z" — the shape `new Date().toISOString()` produces.
+// SQLite stores it verbatim in a TEXT column; MySQL rejects it outright with
+// "Incorrect datetime value" because DATETIME wants "YYYY-MM-DD HH:MM:SS".
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/;
+
 function normalizeMysqlParams(params) {
   const arr = Array.isArray(params) ? params : [params];
   return arr.map((p) => {
     if (p === null || p === undefined) return null;
+    if (p instanceof Date) return p.toISOString().slice(0, 19).replace("T", " ");
     if (typeof p === "object") return JSON.stringify(p);
+    // Accept an ISO-8601 timestamp anywhere a datetime is expected, so a
+    // caller written against SQLite cannot produce an ER_TRUNCATED_WRONG_VALUE
+    // on MySQL. The value is the same instant, just in MySQL's literal form.
+    if (typeof p === "string" && ISO_DATETIME.test(p)) {
+      return p.slice(0, 19).replace("T", " ");
+    }
     return p;
   });
 }

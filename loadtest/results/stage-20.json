@@ -1,106 +1,222 @@
 {
   "stage": 20,
-  "url": "http://127.0.0.1:3100",
-  "startedAt": "2026-09-21T11:56:16.359Z",
+  "url": [
+    "http://127.0.0.1:3100"
+  ],
+  "startedAt": "2026-09-22T09:49:01.943Z",
+  "pacing": "closed-loop (zero think time)",
   "env": {
     "node": "v22.22.3",
     "cpus": 2,
     "totalMemMb": 3940,
-    "dataset": "55 madaris / 10,900 students / ~200k rows (loadtest.sqlite)",
+    "database": "MYSQL 8",
+    "dataset": "55 madaris / 10,900 students / ~200k rows",
     "note": "server + load generator share this host; see report for implications"
   },
   "steps": [
     {
       "label": "ramp-20",
       "connections": 20,
+      "database": "MYSQL 8",
+      "mysql": {
+        "samples": 30,
+        "maxThreadsConnected": 26,
+        "avgThreadsConnected": 25.733333333333334,
+        "maxThreadsRunning": 3,
+        "threadsCreated": 8,
+        "connectionsOpened": 8,
+        "maxUsedConnections": 26,
+        "abortedConnects": 0,
+        "slowQueries": 0,
+        "questions": 65257,
+        "rowLockWaits": 0,
+        "rowLockTimeMsTotal": 0,
+        "rowLockTimeAvgMs": 6,
+        "maxRowLockCurrentWaits": 0,
+        "tableLocksWaited": 0,
+        "tmpDiskTables": 0,
+        "deadlocks": 0,
+        "mysqldMaxRssMb": 1251,
+        "mysqldCpuPercent": 47.5
+      },
       "requestedSeconds": 30,
       "result": {
-        "duration": 30.02,
-        "requestsPerSecond": 15.07,
+        "duration": 30.04,
+        "requestsPerSecond": 1121.97,
         "latency": {
-          "average": 1279.72,
-          "p50": 1512,
-          "p75": 1586,
-          "p90": 1622,
-          "p975": 3012,
-          "p99": 3060,
-          "max": 3166
+          "average": 17.26,
+          "p50": 5,
+          "p75": 31,
+          "p90": 45,
+          "p97_5": 68,
+          "p99": 96,
+          "p99_9": 154,
+          "max": 265
         },
         "errors": 0,
         "timeouts": 0,
-        "non2xx": 91,
+        "non2xx": 24975,
+        "timeoutTimingMs": [],
         "statusCodes": {
           "1xx": 0,
-          "2xx": 361,
+          "2xx": 8684,
           "3xx": 0,
-          "4xx": 91,
+          "4xx": 24975,
           "5xx": 0
         },
         "statusCodeStats": {
           "200": {
-            "count": 361
+            "count": 8684
           },
           "400": {
-            "count": 91
+            "count": 24694
+          },
+          "404": {
+            "count": 281
           }
         }
       },
       "serverSamples": [
         {
-          "at": "2026-09-21T11:56:21.854Z",
-          "procUtimeTicks": 1080,
-          "procStimeTicks": 7,
-          "procVsizeBytes": 1198182400,
-          "procRssPages": 26337,
-          "procStartTimeTicks": 221288
+          "at": "2026-09-22T09:49:09.173Z",
+          "driverCpuPercent": 0,
+          "enabled": true,
+          "pid": 204093,
+          "uptimeSec": 7,
+          "cpuPercent": 100.5,
+          "rssMb": 152,
+          "heapUsedMb": 37.9,
+          "eventLoopLagMs": {
+            "p50": 23,
+            "p95": 29.67,
+            "p99": 37.58,
+            "max": 48.63,
+            "mean": 23.67
+          },
+          "procUtimeTicks": 658,
+          "procStimeTicks": 73,
+          "procVsizeBytes": 1243189248,
+          "procRssPages": 39003,
+          "procStartTimeTicks": 798032
         },
         {
-          "at": "2026-09-21T11:56:26.854Z",
-          "procUtimeTicks": 1532,
-          "procStimeTicks": 10,
-          "procVsizeBytes": 1198182400,
-          "procRssPages": 28283,
-          "procStartTimeTicks": 221288
+          "at": "2026-09-22T09:49:14.174Z",
+          "driverCpuPercent": 16.1,
+          "enabled": true,
+          "pid": 204093,
+          "uptimeSec": 12,
+          "cpuPercent": 96,
+          "rssMb": 152.8,
+          "heapUsedMb": 35.9,
+          "eventLoopLagMs": {
+            "p50": 22.58,
+            "p95": 28.75,
+            "p99": 35.75,
+            "max": 48.63,
+            "mean": 23.06
+          },
+          "procUtimeTicks": 1093,
+          "procStimeTicks": 130,
+          "procVsizeBytes": 1242804224,
+          "procRssPages": 39152,
+          "procStartTimeTicks": 798032
         },
         {
-          "at": "2026-09-21T11:56:31.854Z",
-          "procUtimeTicks": 2011,
-          "procStimeTicks": 15,
-          "procVsizeBytes": 1165676544,
-          "procRssPages": 20273,
-          "procStartTimeTicks": 221288
+          "at": "2026-09-22T09:49:19.174Z",
+          "driverCpuPercent": 16.3,
+          "enabled": true,
+          "pid": 204093,
+          "uptimeSec": 17,
+          "cpuPercent": 97.4,
+          "rssMb": 154,
+          "heapUsedMb": 41.5,
+          "eventLoopLagMs": {
+            "p50": 22.22,
+            "p95": 27.41,
+            "p99": 30.44,
+            "max": 48.63,
+            "mean": 22.69
+          },
+          "procUtimeTicks": 1510,
+          "procStimeTicks": 188,
+          "procVsizeBytes": 1243471872,
+          "procRssPages": 39682,
+          "procStartTimeTicks": 798032
         },
         {
-          "at": "2026-09-21T11:56:36.854Z",
-          "procUtimeTicks": 2461,
-          "procStimeTicks": 16,
-          "procVsizeBytes": 1171968000,
-          "procRssPages": 21832,
-          "procStartTimeTicks": 221288
+          "at": "2026-09-22T09:49:24.173Z",
+          "driverCpuPercent": 15.6,
+          "enabled": true,
+          "pid": 204093,
+          "uptimeSec": 22,
+          "cpuPercent": 97.1,
+          "rssMb": 160,
+          "heapUsedMb": 56.5,
+          "eventLoopLagMs": {
+            "p50": 22.05,
+            "p95": 27.08,
+            "p99": 30.93,
+            "max": 48.63,
+            "mean": 22.57
+          },
+          "procUtimeTicks": 1926,
+          "procStimeTicks": 248,
+          "procVsizeBytes": 1248374784,
+          "procRssPages": 40959,
+          "procStartTimeTicks": 798032
         },
         {
-          "at": "2026-09-21T11:56:41.853Z",
-          "procUtimeTicks": 2901,
-          "procStimeTicks": 18,
-          "procVsizeBytes": 1181929472,
-          "procRssPages": 22558,
-          "procStartTimeTicks": 221288
+          "at": "2026-09-22T09:49:29.173Z",
+          "driverCpuPercent": 15.5,
+          "enabled": true,
+          "pid": 204093,
+          "uptimeSec": 27,
+          "cpuPercent": 93.9,
+          "rssMb": 160.4,
+          "heapUsedMb": 39.1,
+          "eventLoopLagMs": {
+            "p50": 21.99,
+            "p95": 26.59,
+            "p99": 30.44,
+            "max": 48.63,
+            "mean": 22.45
+          },
+          "procUtimeTicks": 2332,
+          "procStimeTicks": 312,
+          "procVsizeBytes": 1248374784,
+          "procRssPages": 41055,
+          "procStartTimeTicks": 798032
         },
         {
-          "at": "2026-09-21T11:56:46.854Z",
-          "procUtimeTicks": 3070,
-          "procStimeTicks": 18,
-          "procVsizeBytes": 1181929472,
-          "procRssPages": 23147,
-          "procStartTimeTicks": 221288
+          "at": "2026-09-22T09:49:34.173Z",
+          "driverCpuPercent": 15.3,
+          "enabled": true,
+          "pid": 204093,
+          "uptimeSec": 32,
+          "cpuPercent": 93.6,
+          "rssMb": 159.6,
+          "heapUsedMb": 38.5,
+          "eventLoopLagMs": {
+            "p50": 22.04,
+            "p95": 26.69,
+            "p99": 30.93,
+            "max": 48.63,
+            "mean": 22.49
+          },
+          "procUtimeTicks": 2744,
+          "procStimeTicks": 377,
+          "procVsizeBytes": 1248374784,
+          "procRssPages": 40955,
+          "procStartTimeTicks": 798032
         }
       ],
       "peak": {
-        "eventLoopLagP95Ms": 0,
-        "eventLoopLagMaxMs": 0,
-        "heapUsedMb": 0,
-        "rssMb": 0,
-        "cpuPercent": 0,
+        "eventLoopLagP95Ms": 29.67,
+        "eventLoopLagMaxMs": 48.63,
+        "heapUsedMb": 56.5,
+        "rssMb": 160.4,
+        "cpuPercent": 100.5,
+        "driverCpuPercent": 16.3,
         "db": null
       }
     }
@@ -108,74 +224,125 @@
   "hold": {
     "label": "hold-20",
     "connections": 20,
+    "database": "MYSQL 8",
+    "mysql": {
+      "samples": 15,
+      "maxThreadsConnected": 26,
+      "avgThreadsConnected": 26,
+      "maxThreadsRunning": 3,
+      "threadsCreated": 0,
+      "connectionsOpened": 0,
+      "maxUsedConnections": 26,
+      "abortedConnects": 0,
+      "slowQueries": 0,
+      "questions": 31003,
+      "rowLockWaits": 0,
+      "rowLockTimeMsTotal": 0,
+      "rowLockTimeAvgMs": 6,
+      "maxRowLockCurrentWaits": 0,
+      "tableLocksWaited": 0,
+      "tmpDiskTables": 0,
+      "deadlocks": 0,
+      "mysqldMaxRssMb": 1252,
+      "mysqldCpuPercent": 49.2
+    },
     "requestedSeconds": 15,
     "result": {
       "duration": 15.01,
-      "requestsPerSecond": 11.54,
+      "requestsPerSecond": 1128.07,
       "latency": {
-        "average": 1513.78,
-        "p50": 1110,
-        "p75": 1354,
-        "p90": 1973,
-        "p975": 8565,
-        "p99": 12427,
-        "max": 13877
+        "average": 17.15,
+        "p50": 5,
+        "p75": 32,
+        "p90": 45,
+        "p97_5": 64,
+        "p99": 96,
+        "p99_9": 138,
+        "max": 178
       },
       "errors": 0,
       "timeouts": 0,
-      "non2xx": 0,
+      "non2xx": 12555,
+      "timeoutTimingMs": [],
       "statusCodes": {
         "1xx": 0,
-        "2xx": 173,
+        "2xx": 4366,
         "3xx": 0,
-        "4xx": 0,
+        "4xx": 12555,
         "5xx": 0
       },
       "statusCodeStats": {
         "200": {
-          "count": 173
+          "count": 4366
+        },
+        "400": {
+          "count": 12415
+        },
+        "404": {
+          "count": 140
         }
       }
     },
     "serverSamples": [
       {
-        "at": "2026-09-21T11:56:51.908Z",
-        "procUtimeTicks": 4627,
-        "procStimeTicks": 23,
-        "procVsizeBytes": 1200017408,
-        "procRssPages": 24901,
-        "procStartTimeTicks": 221288
+        "at": "2026-09-22T09:49:44.290Z",
+        "driverCpuPercent": 8.8,
+        "enabled": true,
+        "pid": 204093,
+        "uptimeSec": 42,
+        "cpuPercent": 94.3,
+        "rssMb": 161,
+        "heapUsedMb": 50.7,
+        "eventLoopLagMs": {
+          "p50": 21.94,
+          "p95": 25.31,
+          "p99": 29.13,
+          "max": 32.42,
+          "mean": 22.17
+        },
+        "procUtimeTicks": 3175,
+        "procStimeTicks": 441,
+        "procVsizeBytes": 1248653312,
+        "procRssPages": 41221,
+        "procStartTimeTicks": 798032
       },
       {
-        "at": "2026-09-21T11:56:56.908Z",
-        "procUtimeTicks": 4627,
-        "procStimeTicks": 23,
-        "procVsizeBytes": 1200017408,
-        "procRssPages": 24901,
-        "procStartTimeTicks": 221288
-      },
-      {
-        "at": "2026-09-21T11:57:01.908Z",
-        "procUtimeTicks": 4627,
-        "procStimeTicks": 23,
-        "procVsizeBytes": 1200017408,
-        "procRssPages": 24901,
-        "procStartTimeTicks": 221288
+        "at": "2026-09-22T09:49:49.290Z",
+        "driverCpuPercent": 15.5,
+        "enabled": true,
+        "pid": 204093,
+        "uptimeSec": 47,
+        "cpuPercent": 93.2,
+        "rssMb": 161.7,
+        "heapUsedMb": 54.9,
+        "eventLoopLagMs": {
+          "p50": 22.04,
+          "p95": 25.95,
+          "p99": 31.52,
+          "max": 38.14,
+          "mean": 22.34
+        },
+        "procUtimeTicks": 3582,
+        "procStimeTicks": 506,
+        "procVsizeBytes": 1248653312,
+        "procRssPages": 41406,
+        "procStartTimeTicks": 798032
       }
     ],
     "peak": {
-      "eventLoopLagP95Ms": 0,
-      "eventLoopLagMaxMs": 0,
-      "heapUsedMb": 0,
-      "rssMb": 0,
-      "cpuPercent": 0,
+      "eventLoopLagP95Ms": 25.95,
+      "eventLoopLagMaxMs": 38.14,
+      "heapUsedMb": 54.9,
+      "rssMb": 161.7,
+      "cpuPercent": 94.3,
+      "driverCpuPercent": 15.5,
       "db": null
     }
   },
-  "isolation": {
-    "startedAt": "2026-09-21T11:57:03.280Z",
-    "durationMs": 15259,
-    "checks": 742,
-    "violations": []
+  "isolation": null,
+  "prewarm": {
+    "ok": 20,
+    "failed": 0,
+    "seconds": 1.462
   }
 }

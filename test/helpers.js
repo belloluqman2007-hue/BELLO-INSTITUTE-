@@ -11,11 +11,51 @@ const path = require("path");
 
 let tmpDir = null;
 
+/* ---------------------------------------------------------------------------
+   MySQL test mode (opt-in, never the default)
+   ---------------------------------------------------------------------------
+   The suite runs on SQLite exactly as before unless TEST_DB_DRIVER=mysql is
+   exported. When it IS exported, every test file gets its OWN throwaway MySQL
+   schema (mmtest_<pid>_<n>) on the server described by the TEST_MYSQL_* /
+   DB_* environment variables — no credentials live in this file. The schema is
+   created before migrations run and dropped in ctx.close(), so the isolation
+   guarantee of the SQLite path (one empty database per file) is preserved.
+   -------------------------------------------------------------------------- */
+const USE_MYSQL = String(process.env.TEST_DB_DRIVER || "").trim().toLowerCase() === "mysql";
+let mysqlSchema = null;
+let schemaCounter = 0;
+
+function mysqlAdminConfig() {
+  return {
+    host: process.env.TEST_MYSQL_HOST || process.env.DB_HOST || "127.0.0.1",
+    port: Number(process.env.TEST_MYSQL_PORT || process.env.DB_PORT || 3306),
+    user: process.env.TEST_MYSQL_USER || process.env.DB_USER || "",
+    password: process.env.TEST_MYSQL_PASSWORD || process.env.DB_PASSWORD || "",
+    socketPath: process.env.TEST_MYSQL_SOCKET || undefined,
+    multipleStatements: false,
+  };
+}
+
 /** Sets env for a throwaway test database. Call before requiring server code. */
 function initEnv() {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mmtest-"));
   process.env.NODE_ENV = "test";
-  process.env.DATABASE_DRIVER = "sqlite";
+  if (USE_MYSQL) {
+    // Unique schema per test FILE (each file runs in its own process).
+    schemaCounter += 1;
+    mysqlSchema = `mmtest_${process.pid}_${schemaCounter}`;
+    process.env.DATABASE_DRIVER = "mysql";
+    process.env.DATABASE_URL = "";
+    const c = mysqlAdminConfig();
+    process.env.DB_HOST = c.host;
+    process.env.DB_PORT = String(c.port);
+    process.env.DB_USER = c.user;
+    process.env.DB_PASSWORD = c.password;
+    process.env.DB_NAME = mysqlSchema;
+    process.env.DB_SSL = "false";
+  } else {
+    process.env.DATABASE_DRIVER = "sqlite";
+  }
   process.env.DATABASE_FILE = path.join(tmpDir, "test.sqlite");
   process.env.SESSION_SECRET = "test-session-secret-0123456789-abcdefghijklmnopqrstuvwxyz0123";
   process.env.SUPER_ADMIN_USERNAME = "testadmin";
@@ -37,6 +77,31 @@ function initEnv() {
   return tmpDir;
 }
 
+/** Creates the empty per-file MySQL schema the app will migrate into. */
+async function createMysqlSchema() {
+  const mysql = require("mysql2/promise");
+  const conn = await mysql.createConnection(mysqlAdminConfig());
+  try {
+    await conn.query(`DROP DATABASE IF EXISTS \`${mysqlSchema}\``);
+    await conn.query(
+      `CREATE DATABASE \`${mysqlSchema}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+    );
+  } finally {
+    await conn.end();
+  }
+}
+
+/** Drops the per-file MySQL schema so no test data outlives the run. */
+async function dropMysqlSchema() {
+  if (!mysqlSchema) return;
+  const mysql = require("mysql2/promise");
+  try {
+    const conn = await mysql.createConnection(mysqlAdminConfig());
+    try { await conn.query(`DROP DATABASE IF EXISTS \`${mysqlSchema}\``); }
+    finally { await conn.end(); }
+  } catch (e) { /* server already gone: nothing to clean */ }
+}
+
 /**
  * Runs migrations, seeds plans + super admin + two madaris (A & B) with
  * users/classes/subjects/sessions, boots the app on an ephemeral port.
@@ -44,6 +109,7 @@ function initEnv() {
  */
 async function setup() {
   const bcrypt = require("bcryptjs");
+  if (USE_MYSQL) await createMysqlSchema();
   const db = require("../server/db");
   const { migrate } = require("../server/migrate");
   const { createApp } = require("../server/app");
@@ -181,6 +247,7 @@ async function setup() {
     async close() {
       srv.close();
       await db.close();
+      if (USE_MYSQL) await dropMysqlSchema();
       fs.rmSync(tmpDir, { recursive: true, force: true });
     },
   };
@@ -230,4 +297,4 @@ class Client {
   }
 }
 
-module.exports = { initEnv, setup, Client, PASSWORD: "Passw0rd!123", SA_PASSWORD: "TestAdmin123!" };
+module.exports = { initEnv, setup, Client, USE_MYSQL, PASSWORD: "Passw0rd!123", SA_PASSWORD: "TestAdmin123!" };

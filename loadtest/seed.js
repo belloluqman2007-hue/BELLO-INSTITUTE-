@@ -28,12 +28,24 @@ const fs = require("fs");
 // The test database is selected BEFORE the app modules load (config reads env
 // at require time). Refuse to touch anything that is not the load-test file.
 const DB_FILE = String(process.env.DATABASE_FILE || "");
-if (!/loadtest\.sqlite$/.test(DB_FILE)) {
+// Two supported targets, both DEDICATED test databases:
+//   • sqlite — DATABASE_FILE must end in loadtest.sqlite
+//   • mysql  — DATABASE_DRIVER=mysql and DB_NAME must look like a load-test
+//              schema, so the seeder can never be pointed at production data.
+const SEED_DRIVER = String(process.env.DATABASE_DRIVER || "sqlite").trim().toLowerCase();
+if (SEED_DRIVER === "mysql") {
+  const name = String(process.env.DB_NAME || "");
+  if (!/loadtest/i.test(name)) {
+    console.error("FATAL: with DATABASE_DRIVER=mysql the seeder requires DB_NAME to contain \"loadtest\"");
+    console.error("       so it can never touch a real database. (got: \"" + name + "\")");
+    process.exit(1);
+  }
+} else if (!/loadtest\.sqlite$/.test(DB_FILE)) {
   console.error("FATAL: set DATABASE_FILE=.../loadtest.sqlite so the seeder can never touch a real database.");
   console.error("       (got: \"" + DB_FILE + "\")");
   process.exit(1);
 }
-process.env.DATABASE_DRIVER = process.env.DATABASE_DRIVER || "sqlite";
+process.env.DATABASE_DRIVER = SEED_DRIVER;
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
 
 const bcrypt = require("bcryptjs");
@@ -59,15 +71,34 @@ function ts(offsetDays) { return new Date(Date.now() + offsetDays * 86400000).to
 const tableMeta = {};
 async function notNullDefaults(table) {
   if (!tableMeta[table]) {
-    const rows = await db.all(`PRAGMA table_info(${table})`);
     const map = {};
-    for (const c of rows || []) {
-      if (!c.notnull) continue;
-      let dflt = c.dflt_value;
-      if (dflt === null || dflt === undefined || dflt === "NULL") dflt = "";
-      else if (/^'.*'$/.test(String(dflt))) dflt = String(dflt).slice(1, -1);
-      else if (/^-?\d+(\.\d+)?$/.test(String(dflt))) dflt = Number(dflt);
-      map[c.name] = dflt;
+    if ((await db.dialect()) === "mysql") {
+      // information_schema is the MySQL equivalent of PRAGMA table_info.
+      const rows = await db.all(
+        `SELECT COLUMN_NAME, IS_NULLABLE, COLUMN_DEFAULT
+           FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+        [table]
+      );
+      for (const c of rows || []) {
+        if (String(c.IS_NULLABLE).toUpperCase() !== "NO") continue;
+        let dflt = c.COLUMN_DEFAULT;
+        if (dflt === null || dflt === undefined || String(dflt).toUpperCase() === "NULL") dflt = "";
+        else if (/^'.*'$/.test(String(dflt))) dflt = String(dflt).slice(1, -1);
+        else if (/^-?\d+(\.\d+)?$/.test(String(dflt))) dflt = Number(dflt);
+        else if (/CURRENT_TIMESTAMP/i.test(String(dflt))) continue; // server fills it
+        map[c.COLUMN_NAME] = dflt;
+      }
+    } else {
+      const rows = await db.all(`PRAGMA table_info(${table})`);
+      for (const c of rows || []) {
+        if (!c.notnull) continue;
+        let dflt = c.dflt_value;
+        if (dflt === null || dflt === undefined || dflt === "NULL") dflt = "";
+        else if (/^'.*'$/.test(String(dflt))) dflt = String(dflt).slice(1, -1);
+        else if (/^-?\d+(\.\d+)?$/.test(String(dflt))) dflt = Number(dflt);
+        map[c.name] = dflt;
+      }
     }
     tableMeta[table] = map;
   }
@@ -77,7 +108,12 @@ async function notNullDefaults(table) {
 /** Multi-row INSERT helper, chunked + wrapped by the caller's transaction.
  *  An explicit NULL against a NOT NULL column (even one with a default) is
  *  replaced by the column's declared default, so row builders can stay terse. */
-async function bulkInsert(table, cols, rows, chunk = 400) {
+async function bulkInsert(table, cols, rows, chunk = 400, api = db) {
+  // `api` MUST be the transaction handle when called inside db.transaction():
+  // on MySQL the transaction owns its own pooled connection, so rows written
+  // through the global `db` land on a DIFFERENT connection and are invisible
+  // to later reads inside the transaction (and roll back independently).
+  // SQLite hid this because every handle shares one file connection.
   if (!rows.length) return 0;
   const nn = await notNullDefaults(table);
   const ph = "(" + cols.map(() => "?").join(",") + ")";
@@ -88,13 +124,15 @@ async function bulkInsert(table, cols, rows, chunk = 400) {
     for (const r of part) {
       r.forEach((v, j) => { params.push(v === null && nn[cols[j]] !== undefined ? nn[cols[j]] : v); });
     }
-    await db.run(`INSERT INTO ${table} (${cols.join(",")}) VALUES ${values}`, params);
+    await api.run(`INSERT INTO ${table} (${cols.join(",")}) VALUES ${values}`, params);
   }
   return rows.length;
 }
 
 async function main() {
-  console.log("Seeding load-test dataset into " + DB_FILE);
+  console.log("Seeding load-test dataset into " + (SEED_DRIVER === "mysql"
+    ? "MYSQL " + (process.env.DB_HOST || "") + ":" + (process.env.DB_PORT || 3306) + "/" + (process.env.DB_NAME || "")
+    : DB_FILE));
   await migrate();
 
   // A marker row in platform_settings makes the dataset self-identifying.
@@ -109,10 +147,11 @@ async function main() {
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10); // ONE hash, reused
 
   // ---- plans -----------------------------------------------------------
-  await db.run("INSERT OR IGNORE INTO plans (code,name,name_ar,price_ngn,student_limit,teacher_limit,features,is_active,sort_order) VALUES (?,?,?,?,?,?,?,?,?)",
-    ["trial", "Trial", "تجربة", 0, 50, 10, "{}", 1, 0]);
-  await db.run("INSERT OR IGNORE INTO plans (code,name,name_ar,price_ngn,student_limit,teacher_limit,features,is_active,sort_order) VALUES (?,?,?,?,?,?,?,?,?)",
-    ["growth", "Growth", "نمو", 25000, 500, 50, "{}", 1, 1]);
+  // db.insertIgnore picks "INSERT OR IGNORE" (SQLite) or "INSERT IGNORE"
+  // (MySQL) — a raw "INSERT OR IGNORE" is a syntax error on MySQL.
+  const PLAN_COLS = "code,name,name_ar,price_ngn,student_limit,teacher_limit,features,is_active,sort_order";
+  await db.insertIgnore("plans", PLAN_COLS, ["trial", "Trial", "تجربة", 0, 50, 10, "{}", 1, 0]);
+  await db.insertIgnore("plans", PLAN_COLS, ["growth", "Growth", "نمو", 25000, 500, 50, "{}", 1, 1]);
 
   const tiers = [
     { n: 25, classes: 6, students: 120, teachers: 6 },   // small madrasa
@@ -214,7 +253,7 @@ async function main() {
             s % 17 === 0 ? "promoted" : (s % 61 === 0 ? "suspended" : "active"), ln + " " + pick(FIRST), "+23480" + ri(10000000, 99999999), pick(CITIES)[0], ts(-200 + (s % 120)), ts(-2),
             "LT" + mid + "-S" + String(s + 1).padStart(4, "0"), null, null, category === "western" ? "western" : "islamic"]);
         }
-        await bulkInsert("students", ["madrasa_id", "admission_no", "first_name", "last_name", "name_ar", "gender", "date_of_birth", "class_id", "session_id", "status", "parent_name", "parent_phone", "address", "created_at", "updated_at", "student_code", "middle_name", "preferred_name", "education_track"], studentRows);
+        await bulkInsert("students", ["madrasa_id", "admission_no", "first_name", "last_name", "name_ar", "gender", "date_of_birth", "class_id", "session_id", "status", "parent_name", "parent_phone", "address", "created_at", "updated_at", "student_code", "middle_name", "preferred_name", "education_track"], studentRows, 400, tx);
         counts.students = (counts.students || 0) + studentRows.length;
 
         const allStudents = await tx.all("SELECT id, class_id FROM students WHERE madrasa_id = ?", [mid]);
@@ -228,7 +267,7 @@ async function main() {
           if (allStudents[i + 1]) parentLinkRows.push([mid, puid, allStudents[i + 1].id]);
           if (parentN <= 25) accounts.push({ username: "lt-p" + mid + "-" + parentN, role: "parent", madrasaId: mid, slug });
         }
-        await bulkInsert("parent_links", ["madrasa_id", "user_id", "student_id"], parentLinkRows);
+        await bulkInsert("parent_links", ["madrasa_id", "user_id", "student_id"], parentLinkRows, 400, tx);
         for (let i = 0; i < Math.min(6, allStudents.length); i++) {
           await tx.run("INSERT INTO users (madrasa_id,username,password_hash,role,full_name,is_active,student_id) VALUES (?,?,?,?,?,1,?)",
             [mid, "lt-s" + mid + "-" + i, passwordHash, "student", "Student " + allStudents[i].id, allStudents[i].id]);
@@ -253,7 +292,7 @@ async function main() {
             }
           }
         }
-        await bulkInsert("attendance", ["madrasa_id", "student_id", "class_id", "term_id", "day", "status", "recorded_by", "session_id"], attendanceRows, 300);
+        await bulkInsert("attendance", ["madrasa_id", "student_id", "class_id", "term_id", "day", "status", "recorded_by", "session_id"], attendanceRows, 300, tx);
         counts.attendance = (counts.attendance || 0) + attendanceRows.length;
 
         // Results: 4 subjects per student in the current term.
@@ -268,7 +307,7 @@ async function main() {
               total >= 70 ? 4 : total >= 60 ? 3 : total >= 50 ? 2 : total >= 45 ? 1 : 0, teacherIds[s.id % teacherIds.length]]);
           }
         }
-        await bulkInsert("results", ["madrasa_id", "student_id", "class_id", "session_id", "term_id", "subject_id", "ca", "exam", "total", "created_at", "updated_at", "status", "grade", "grade_point", "entered_by"], resultRows, 300);
+        await bulkInsert("results", ["madrasa_id", "student_id", "class_id", "session_id", "term_id", "subject_id", "ca", "exam", "total", "created_at", "updated_at", "status", "grade", "grade_point", "entered_by"], resultRows, 300, tx);
         counts.results = (counts.results || 0) + resultRows.length;
 
         // Fees: 2 items, assignments for all, payments for ~60%.
@@ -278,7 +317,7 @@ async function main() {
           [mid, currentTermId, "Registration", 5000, sessionId, isoDay(-60), 0, "active", adminId]);
         const feeIds = [Number(fee1.lastInsertRowid), Number(fee2.lastInsertRowid)];
         const assignmentRows = allStudents.map((s, i) => [mid, feeIds[0], s.id, 25000, isoDay(-20), "due", adminId]);
-        await bulkInsert("fee_assignments", ["madrasa_id", "fee_item_id", "student_id", "amount_due", "due_date", "status", "assigned_by"], assignmentRows, 300);
+        await bulkInsert("fee_assignments", ["madrasa_id", "fee_item_id", "student_id", "amount_due", "due_date", "status", "assigned_by"], assignmentRows, 300, tx);
         counts.fee_assignments = (counts.fee_assignments || 0) + assignmentRows.length;
         const paymentRows = [];
         for (const s of allStudents) {
@@ -288,7 +327,7 @@ async function main() {
           }
           if (rnd() < 0.1) paymentRows.push([mid, s.id, feeIds[1], 5000, isoDay(-ri(1, 50)), "transfer", "REG" + mid + "-" + s.id, adminId, sessionId, currentTermId, "failed", null, feeIds[1], "unverified"]);
         }
-        await bulkInsert("fee_payments", ["madrasa_id", "student_id", "fee_item_id", "amount_ngn", "payment_date", "method", "reference", "recorded_by", "session_id", "term_id", "status", "receipt_number", "fee_assignment_id", "verification_status"], paymentRows, 300);
+        await bulkInsert("fee_payments", ["madrasa_id", "student_id", "fee_item_id", "amount_ngn", "payment_date", "method", "reference", "recorded_by", "session_id", "term_id", "status", "receipt_number", "fee_assignment_id", "verification_status"], paymentRows, 300, tx);
         counts.fee_payments = (counts.fee_payments || 0) + paymentRows.length;
 
         // Announcements, notifications, audit log.
@@ -297,7 +336,7 @@ async function main() {
           annRows.push([mid, "Notice " + (a + 1) + ": " + pick(["Resumption", "PTA meeting", "Examination timetable", "Fee deadline", "Excursion", "Graduation"]),
             "Details of the notice follow in this body text.", "all", 1, adminId, ts(-a * 3), 0, null, a % 3 === 0 ? "scheduled" : "published", "school_notice", null, null]);
         }
-        await bulkInsert("announcements", ["madrasa_id", "title", "body", "audience", "is_active", "created_by", "created_at", "publish_public", "publish_until", "status", "category", "event_date", "event_location"], annRows);
+        await bulkInsert("announcements", ["madrasa_id", "title", "body", "audience", "is_active", "created_by", "created_at", "publish_public", "publish_until", "status", "category", "event_date", "event_location"], annRows, 400, tx);
         counts.announcements = (counts.announcements || 0) + annRows.length;
 
         const notifRows = [];
@@ -305,7 +344,7 @@ async function main() {
           const target = parentLinkRows.length ? parentLinkRows[n % parentLinkRows.length][1] : adminId;
           notifRows.push([mid, target, pick(["school_notice", "fee_reminder", "student_absent", "payment_received"]), "Load test notice", "A notification body.", "notice", null, "in_app", null, ts(-n)]);
         }
-        await bulkInsert("notifications", ["madrasa_id", "recipient_user_id", "type", "title", "body", "entity_type", "entity_id", "channel", "read_at", "created_at"], notifRows);
+        await bulkInsert("notifications", ["madrasa_id", "recipient_user_id", "type", "title", "body", "entity_type", "entity_id", "channel", "read_at", "created_at"], notifRows, 400, tx);
         counts.notifications = (counts.notifications || 0) + notifRows.length;
 
         const logRows = [];
@@ -314,7 +353,7 @@ async function main() {
           const [action, module, entity] = actions[a % actions.length];
           logRows.push([mid, adminId, "madrasa_admin", action, module, entity, String(ri(1, 5000)), null, null, JSON.stringify({ note: "load test" }), "127.0.0.1", ts(-a)]);
         }
-        await bulkInsert("activity_log", ["madrasa_id", "user_id", "user_role", "action", "module", "entity", "entity_id", "before_value", "after_value", "meta", "ip", "created_at"], logRows, 200);
+        await bulkInsert("activity_log", ["madrasa_id", "user_id", "user_role", "action", "module", "entity", "entity_id", "before_value", "after_value", "meta", "ip", "created_at"], logRows, 200, tx);
         counts.activity_log = (counts.activity_log || 0) + logRows.length;
 
         // Library.
@@ -322,7 +361,7 @@ async function main() {
         for (let b = 0; b < 40; b++) {
           bookRows.push([mid, "Book " + pick(FIRST) + " of " + pick(LAST), pick(LAST) + " " + pick(FIRST), null, "Publisher " + b, 2010 + (b % 15), subjectIds[b % subjectIds.length], pick(["Islamic", "General", "Science"]), "Arabic/English", ri(3, 20), ri(0, 15), 0, ts(-100)]);
         }
-        await bulkInsert("library_books", ["madrasa_id", "title", "author", "isbn", "publisher", "year", "subject_id", "category", "language", "total_copies", "available_copies", "is_archived", "created_at"], bookRows);
+        await bulkInsert("library_books", ["madrasa_id", "title", "author", "isbn", "publisher", "year", "subject_id", "category", "language", "total_copies", "available_copies", "is_archived", "created_at"], bookRows, 400, tx);
         counts.library_books = (counts.library_books || 0) + bookRows.length;
         const books = await tx.all("SELECT id FROM library_books WHERE madrasa_id = ?", [mid]);
         const loanRows = [];
@@ -330,7 +369,7 @@ async function main() {
           const overdue = l % 7 === 0;
           loanRows.push([mid, books[l % books.length].id, teacherIds[l % teacherIds.length], "staff", adminId, isoDay(-ri(5, 30)), overdue ? isoDay(-ri(2, 8)) : isoDay(ri(1, 10)), null, overdue ? "active" : (l % 3 === 0 ? "returned" : "active"), null, null, ts(-30)]);
         }
-        await bulkInsert("library_loans", ["madrasa_id", "book_id", "borrower_user_id", "borrower_type", "issued_by", "issue_date", "due_date", "return_date", "status", "fine_ngn", "notes", "created_at"], loanRows);
+        await bulkInsert("library_loans", ["madrasa_id", "book_id", "borrower_user_id", "borrower_type", "issued_by", "issue_date", "due_date", "return_date", "status", "fine_ngn", "notes", "created_at"], loanRows, 400, tx);
         counts.library_loans = (counts.library_loans || 0) + loanRows.length;
 
         // Pending admissions.
@@ -338,17 +377,17 @@ async function main() {
         for (let a = 0; a < 15; a++) {
           admRows.push([mid, "LTR" + mid + String(a).padStart(3, "0"), a % 3 === 0 ? "under_review" : "pending", pick(FIRST), pick(LAST), null, pick(["male", "female"]), isoDay(-(2900 + a)), classIds[a % classIds.length], null, null, pick(LAST) + " " + pick(FIRST), "+23480" + ri(10000000, 99999999), null, pick(CITIES)[0], sessionId]);
         }
-        await bulkInsert("admission_requests", ["madrasa_id", "reference", "status", "first_name", "last_name", "name_ar", "gender", "date_of_birth", "class_id", "previous_school", "quran_level", "parent_name", "parent_phone", "parent_email", "address", "desired_session_id"], admRows);
+        await bulkInsert("admission_requests", ["madrasa_id", "reference", "status", "first_name", "last_name", "name_ar", "gender", "date_of_birth", "class_id", "previous_school", "quran_level", "parent_name", "parent_phone", "parent_email", "address", "desired_session_id"], admRows, 400, tx);
         counts.admission_requests = (counts.admission_requests || 0) + admRows.length;
 
         // Public website pages + gallery.
         const pageRows = [["about", "About us", "Our history and mission."], ["academics", "Academics", "Programmes we run."], ["admissions", "Admissions", "How to apply."], ["contact", "Contact", "Reach us."]]
           .map(([s2, t, sum], i) => [mid, s2, t, sum, "Page body for " + t + ".", 1, 1, 0, i, ts(-40), ts(-5)]);
-        await bulkInsert("website_pages", ["madrasa_id", "slug", "title", "summary", "body", "is_published", "in_navigation", "is_system", "sort_order", "created_at", "updated_at"], pageRows);
+        await bulkInsert("website_pages", ["madrasa_id", "slug", "title", "summary", "body", "is_published", "in_navigation", "is_system", "sort_order", "created_at", "updated_at"], pageRows, 400, tx);
         const alb = await tx.run("INSERT INTO gallery_albums (madrasa_id,title,description,is_published,sort_order) VALUES (?,?,?,?,?)", [mid, "School life", "Photos around the school", 1, 0]);
         const imgRows = [];
         for (let g = 0; g < 6; g++) imgRows.push([mid, "/uploads/lt/placeholder-" + g + ".jpg", "Gallery photo " + g, g, Number(alb.lastInsertRowid), "school_life", "image", null, 1, g === 0 ? 1 : 0, ts(-30)]);
-        await bulkInsert("gallery_images", ["madrasa_id", "image_path", "caption", "sort_order", "album_id", "category", "media_type", "video_url", "is_published", "is_featured", "created_at"], imgRows);
+        await bulkInsert("gallery_images", ["madrasa_id", "image_path", "caption", "sort_order", "album_id", "category", "media_type", "video_url", "is_published", "is_featured", "created_at"], imgRows, 400, tx);
       });
       process.stdout.write("\r  madrasa " + (madrasaIdx + 1) + "/" + totalMadaris + " seeded");
     }

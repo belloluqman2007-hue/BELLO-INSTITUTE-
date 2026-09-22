@@ -179,8 +179,23 @@ router.get("/parents", STAFF, requireStaffPermission("communication.view"), asyn
   const where = ["u.madrasa_id = ?", "u.role = 'parent'", "u.is_active = 1"]; const params = [tid];
   if (q) { where.push("(LOWER(COALESCE(u.full_name,'')) LIKE ? OR LOWER(COALESCE(u.username,'')) LIKE ? OR LOWER(COALESCE(u.email,'')) LIKE ? OR LOWER(COALESCE(u.phone,'')) LIKE ?)"); const x = `%${q}%`; params.push(x,x,x,x); }
   const parents = await db.all(`SELECT u.id,u.username,u.full_name,u.email,u.phone,u.is_active FROM users u WHERE ${where.join(" AND ")} ORDER BY u.full_name`, params);
+  // Batched children lookup (was one query per parent — an N+1 that made this
+  // page run one query per parent in the tenant). Same rows, one query per
+  // chunk of parent ids, grouped here in memory.
+  const childrenByParent = new Map();
+  for (let i = 0; i < parents.length; i += 500) {
+    const chunk = parents.slice(i, i + 500).map((p) => Number(p.id));
+    if (!chunk.length) continue;
+    const cm = chunk.map(() => "?").join(",");
+    const rows = await db.all(`SELECT pl.user_id,s.id,s.admission_no,s.first_name,s.last_name,s.class_id,c.name_en AS class_name FROM parent_links pl JOIN students s ON s.id=pl.student_id AND s.madrasa_id=pl.madrasa_id LEFT JOIN classes c ON c.id=s.class_id AND c.madrasa_id=s.madrasa_id WHERE pl.madrasa_id=? AND pl.user_id IN (${cm}) ORDER BY s.last_name,s.first_name`, [tid].concat(chunk));
+    for (const r of rows) {
+      const uid = Number(r.user_id);
+      if (!childrenByParent.has(uid)) childrenByParent.set(uid, []);
+      childrenByParent.get(uid).push({ id: r.id, admission_no: r.admission_no, first_name: r.first_name, last_name: r.last_name, class_id: r.class_id, class_name: r.class_name });
+    }
+  }
   for (const p of parents) {
-    p.children = await db.all(`SELECT s.id,s.admission_no,s.first_name,s.last_name,s.class_id,c.name_en AS class_name FROM parent_links pl JOIN students s ON s.id=pl.student_id AND s.madrasa_id=pl.madrasa_id LEFT JOIN classes c ON c.id=s.class_id AND c.madrasa_id=s.madrasa_id WHERE pl.madrasa_id=? AND pl.user_id=? ORDER BY s.last_name,s.first_name`, [tid,p.id]);
+    p.children = childrenByParent.get(Number(p.id)) || [];
   }
   ok(res, { parents });
 }));

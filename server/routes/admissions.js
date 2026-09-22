@@ -292,7 +292,7 @@ async function approveApplication(req, res) {
       if ((makeStudent || makeParent) && password.length < 8) {
         throw Object.assign(new Error("Portal password must be at least 8 characters."), { status: 400 });
       }
-      const hash = (makeStudent || makeParent) ? bcrypt.hashSync(password, 10) : "";
+      const hash = (makeStudent || makeParent) ? await bcrypt.hash(password, 10) : "";
       if (makeStudent) {
         const username = cleanStr(b.student_username, 100).toLowerCase() || admissionNo.toLowerCase();
         const taken = await tx.get("SELECT id FROM users WHERE username = ?", [username]);

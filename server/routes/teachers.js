@@ -533,7 +533,7 @@ async function convertApplication(req, res) {
   await db.transaction(async (tx) => {
     const user = await tx.run(
       "INSERT INTO users (madrasa_id, username, password_hash, role, full_name, email, phone) VALUES (?,?,?,?,?,?,?)",
-      [app.madrasa_id, username, bcrypt.hashSync(password, 10), "teacher", fullName, app.email || "", app.phone || ""]
+      [app.madrasa_id, username, await bcrypt.hash(password, 10), "teacher", fullName, app.email || "", app.phone || ""]
     );
     teacherId = user.lastInsertRowid;
     await tx.run(
@@ -616,7 +616,7 @@ router.post("/", requirePermission("teachers.create"), asyncHandler(async (req, 
   await db.transaction(async (tx) => {
     const u = await tx.run(
       "INSERT INTO users (madrasa_id, username, password_hash, role, full_name, full_name_ar, email, phone, is_active) VALUES (?,?,?,?,?,?,?,?,?)",
-      [tid, username, bcrypt.hashSync(password, 10), "teacher", fullName, cleanStr(b.full_name_ar, 160), cleanStr(b.email, 120), cleanStr(b.phone, 60), userActiveForStatus(status)]
+      [tid, username, await bcrypt.hash(password, 10), "teacher", fullName, cleanStr(b.full_name_ar, 160), cleanStr(b.email, 120), cleanStr(b.phone, 60), userActiveForStatus(status)]
     );
     teacherId = u.lastInsertRowid;
     await tx.run(
@@ -692,7 +692,7 @@ router.patch("/:id", requirePermission("teachers.edit"), asyncHandler(async (req
   if (b.full_name_ar !== undefined) { userSets.push("full_name_ar = ?"); userVals.push(cleanStr(b.full_name_ar, 160)); }
   if (b.email !== undefined) { if (!validEmail(b.email)) return err(res, 400, "Invalid email address."); userSets.push("email = ?"); userVals.push(cleanStr(b.email, 120)); }
   if (b.phone !== undefined) { if (b.phone && !validPhone(b.phone)) return err(res, 400, "Invalid phone number."); userSets.push("phone = ?"); userVals.push(cleanStr(b.phone, 60)); }
-  if (b.password) { if (String(b.password).length < 8) return err(res, 400, "Password must be at least 8 characters."); userSets.push("password_hash = ?"); userVals.push(bcrypt.hashSync(String(b.password), 10)); }
+  if (b.password) { if (String(b.password).length < 8) return err(res, 400, "Password must be at least 8 characters."); userSets.push("password_hash = ?"); userVals.push(await bcrypt.hash(String(b.password), 10)); }
   const status = b.status !== undefined ? normalizeTeacherStatus(b.status, u.status || (u.is_active ? "active" : "inactive")) : (b.is_active !== undefined ? (b.is_active ? "active" : "inactive") : null);
   if (status) { profileSets.push("status = ?"); profileVals.push(status); profileSets.push("archived_at = ?"); profileVals.push(status === "archived" ? new Date().toISOString() : null); userSets.push("is_active = ?"); userVals.push(userActiveForStatus(status)); }
 

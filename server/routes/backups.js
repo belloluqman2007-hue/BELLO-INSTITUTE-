@@ -39,7 +39,7 @@ const jsonUploader = fileUploader("imports", "file", {
 
 router.get("/", asyncHandler(async (req, res) => {
   ok(res, {
-    backups: backup.listSync(),
+    backups: await backup.list(),
     directory: config.BACKUP_DIR,
     intervalMinutes: Number(config.BACKUP_INTERVAL_MINUTES || 0),
     keep: Number(config.BACKUP_KEEP || 10),
@@ -63,7 +63,7 @@ router.get("/:name/download", asyncHandler(async (req, res) => {
 
 router.get("/:name/plan", asyncHandler(async (req, res) => {
   let snapshot;
-  try { snapshot = backup.readSnapshot(req.params.name); } catch (e) { return err(res, e.status || 400, e.message); }
+  try { snapshot = await backup.readSnapshot(req.params.name); } catch (e) { return err(res, e.status || 400, e.message); }
   const plan = await backup.restore(db, snapshot, { dryRun: true });
   ok(res, {
     plan,
@@ -83,7 +83,7 @@ router.post("/restore", asyncHandler(async (req, res) => {
   if (!name) return err(res, 400, "A backup file name is required.");
   if (req.body && req.body.confirm !== true) return err(res, 400, "Type the confirmation to restore — this replaces all current data.");
   try {
-    const snapshot = backup.readSnapshot(name);
+    const snapshot = await backup.readSnapshot(name);
     ok(res, await backup.restore(db, snapshot));
   } catch (e) {
     return routeError(res, e);
@@ -96,7 +96,7 @@ router.post("/import", jsonUploader, asyncHandler(async (req, res) => {
   if (req.body && req.body.confirm !== "true" && req.body.confirm !== true) { cleanup(); return err(res, 400, "Confirm the restore — this replaces all current data."); }
   let parsed;
   try {
-    parsed = backup.parseJson(fs.readFileSync(req.file.path, "utf8"));
+    parsed = backup.parseJson(await fs.promises.readFile(req.file.path, "utf8"));
   } catch (e) {
     cleanup();
     return err(res, e.status || 400, e.message);
@@ -123,7 +123,7 @@ router.delete("/:name", asyncHandler(async (req, res) => {
 /** Storage verdict + row counts. This is what answers "why did it disappear?". */
 router.get("/diagnostics", asyncHandler(async (req, res) => {
   const report = await persistence.report(db);
-  const backups = backup.listSync();
+  const backups = await backup.list();
   ok(res, {
     persistence: report,
     backups: {

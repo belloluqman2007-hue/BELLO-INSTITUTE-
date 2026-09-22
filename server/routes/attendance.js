@@ -86,6 +86,12 @@ router.post("/mark", asyncHandler(async (req, res) => {
   if (context.error) return err(res, 400, context.error);
   const statuses = b.statuses && typeof b.statuses === "object" ? b.statuses : {};
   const notes = b.notes && typeof b.notes === "object" ? b.notes : {};
+  // Bounded batch: one register save covers one class (tens of students).
+  // An arbitrary payload could otherwise demand thousands of queries in one
+  // request — reject oversized batches up front.
+  if (Object.keys(statuses).length > 500) {
+    return err(res, 400, "Too many attendance entries in one request (limit 500). Save the register in smaller batches.");
+  }
   let saved = 0;
   for (const [sid, raw] of Object.entries(statuses)) {
     const studentId = toNum(sid, 0); const value = attendanceValue(raw, STUDENT_STATUSES, cleanStr(notes[sid], 2000));
@@ -130,14 +136,18 @@ router.get("/history", asyncHandler(async (req, res) => {
   const where = ["a.madrasa_id = ?", "a.day >= ?", "a.day <= ?"]; const params = [tid, from, to];
   if (classId) { where.push("a.class_id = ?"); params.push(classId); }
   if (studentId) { where.push("a.student_id = ?"); params.push(studentId); }
+  // Bounded read: the UI asks for one class over one month, but a client that
+  // omits from/to must not be able to pull the tenant's whole register in one
+  // response. 2000 covers a large class over a full term with headroom.
+  const limit = Math.min(2000, Math.max(1, toNum(req.query.limit, 2000)));
   const rows = await db.all(`SELECT a.*, s.admission_no, s.first_name, s.last_name, c.name_en AS class_name, t.name_en AS term_name, ses.label AS session_label, u.full_name AS recorded_by_name
     FROM attendance a JOIN students s ON s.id = a.student_id AND s.madrasa_id = a.madrasa_id
     LEFT JOIN classes c ON c.id = a.class_id AND c.madrasa_id = a.madrasa_id
     LEFT JOIN terms t ON t.id = a.term_id AND t.madrasa_id = a.madrasa_id
     LEFT JOIN academic_sessions ses ON ses.id = a.session_id AND ses.madrasa_id = a.madrasa_id
     LEFT JOIN users u ON u.id = a.recorded_by AND u.madrasa_id = a.madrasa_id
-    WHERE ${where.join(" AND ")} ORDER BY a.day DESC, s.admission_no`, params);
-  ok(res, { from, to, records: rows });
+    WHERE ${where.join(" AND ")} ORDER BY a.day DESC, s.admission_no LIMIT ?`, params.concat([limit]));
+  ok(res, { from, to, truncated: rows.length >= limit, records: rows });
 }));
 
 router.get("/student/:studentId", asyncHandler(async (req, res) => {
@@ -164,7 +174,7 @@ async function studentReport(req, res) {
   totals.totalSchoolDays = Number(schoolDays && schoolDays.n || totals.totalRecordedDays);
   const percentage = totals.totalRecordedDays ? Math.round((totals.presentDays / totals.totalRecordedDays) * 1000) / 10 : 0;
   const attendedPercentage = totals.totalRecordedDays ? Math.round(((totals.presentDays + totals.lateDays) / totals.totalRecordedDays) * 1000) / 10 : 0;
-  ok(res, { from, to, student, ...totals, attendancePercentage: percentage, attendance_percentage: percentage, attendedPercentage, records: await db.all("SELECT day, status, attendance_note, term_id, session_id FROM attendance WHERE madrasa_id = ? AND student_id = ? AND day >= ? AND day <= ? ORDER BY day DESC", [tid, studentId, from, to]) });
+  ok(res, { from, to, student, ...totals, attendancePercentage: percentage, attendance_percentage: percentage, attendedPercentage, records: await db.all("SELECT day, status, attendance_note, term_id, session_id FROM attendance WHERE madrasa_id = ? AND student_id = ? AND day >= ? AND day <= ? ORDER BY day DESC LIMIT 1000", [tid, studentId, from, to]) });
 }
 router.get("/student/:studentId/report", ADMIN, asyncHandler(studentReport));
 

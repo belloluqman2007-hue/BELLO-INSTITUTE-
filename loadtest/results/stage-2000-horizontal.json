@@ -1,0 +1,491 @@
+{
+  "stage": 2000,
+  "url": [
+    "http://127.0.0.1:3111",
+    "http://127.0.0.1:3112"
+  ],
+  "startedAt": "2026-09-21T15:02:26.899Z",
+  "pacing": {
+    "ratePerUser": 0.35,
+    "offeredLoadRps": 700
+  },
+  "env": {
+    "node": "v22.22.3",
+    "cpus": 2,
+    "totalMemMb": 3940,
+    "dataset": "55 madaris / 10,900 students / ~200k rows (loadtest.sqlite)",
+    "note": "server + load generator share this host; see report for implications"
+  },
+  "steps": [],
+  "hold": {
+    "label": "hold-2000",
+    "connections": 2000,
+    "requestedSeconds": 120,
+    "result": {
+      "duration": 120.38,
+      "requestsPerSecond": 703.06,
+      "latency": {
+        "average": 163.27,
+        "p50": 100,
+        "p75": 200,
+        "p90": 351,
+        "p97_5": 723,
+        "p99": 1192,
+        "p99_9": 2280,
+        "max": 2602
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 27769,
+      "timeoutTimingMs": [],
+      "statusCodes": {
+        "1xx": 0,
+        "2xx": 56598,
+        "3xx": 0,
+        "4xx": 27769,
+        "5xx": 0
+      },
+      "statusCodeStats": {
+        "200": {
+          "count": 56598
+        },
+        "400": {
+          "count": 25919
+        },
+        "404": {
+          "count": 1850
+        }
+      }
+    },
+    "serverSamples": [
+      {
+        "at": "2026-09-21T15:04:50.557Z",
+        "driverCpuPercent": 0,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 156,
+        "cpuPercent": 46.4,
+        "rssMb": 131.6,
+        "heapUsedMb": 34.2,
+        "eventLoopLagMs": {
+          "p50": 20.51,
+          "p95": 154.4,
+          "p99": 251.13,
+          "max": 337.64,
+          "mean": 38.88
+        }
+      },
+      {
+        "at": "2026-09-21T15:04:55.557Z",
+        "driverCpuPercent": 11.5,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 161,
+        "cpuPercent": 40,
+        "rssMb": 140.8,
+        "heapUsedMb": 29,
+        "eventLoopLagMs": {
+          "p50": 20.17,
+          "p95": 154.4,
+          "p99": 247.99,
+          "max": 337.64,
+          "mean": 37.63
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:00.557Z",
+        "driverCpuPercent": 12.1,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 166,
+        "cpuPercent": 55.8,
+        "rssMb": 139.3,
+        "heapUsedMb": 22.3,
+        "eventLoopLagMs": {
+          "p50": 20.17,
+          "p95": 156.11,
+          "p99": 251.13,
+          "max": 337.64,
+          "mean": 37.34
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:05.558Z",
+        "driverCpuPercent": 12.4,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 171,
+        "cpuPercent": 62.5,
+        "rssMb": 143.2,
+        "heapUsedMb": 30.5,
+        "eventLoopLagMs": {
+          "p50": 20.17,
+          "p95": 153.62,
+          "p99": 251.13,
+          "max": 337.64,
+          "mean": 36.41
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:10.558Z",
+        "driverCpuPercent": 14.4,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 176,
+        "cpuPercent": 54.4,
+        "rssMb": 146.1,
+        "heapUsedMb": 20.9,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 152.83,
+          "p99": 251.13,
+          "max": 337.64,
+          "mean": 36.41
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:15.559Z",
+        "driverCpuPercent": 14.1,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 181,
+        "cpuPercent": 47.8,
+        "rssMb": 145.6,
+        "heapUsedMb": 31.6,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 153.62,
+          "p99": 251.66,
+          "max": 337.64,
+          "mean": 37.16
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:20.559Z",
+        "driverCpuPercent": 12.9,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 186,
+        "cpuPercent": 56.7,
+        "rssMb": 145.9,
+        "heapUsedMb": 19.5,
+        "eventLoopLagMs": {
+          "p50": 20.2,
+          "p95": 149.03,
+          "p99": 251.13,
+          "max": 343.93,
+          "mean": 36.53
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:25.560Z",
+        "driverCpuPercent": 13,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 191,
+        "cpuPercent": 45.9,
+        "rssMb": 144.2,
+        "heapUsedMb": 21.3,
+        "eventLoopLagMs": {
+          "p50": 20.2,
+          "p95": 137.89,
+          "p99": 250.74,
+          "max": 343.93,
+          "mean": 35.82
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:30.560Z",
+        "driverCpuPercent": 17,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 196,
+        "cpuPercent": 72,
+        "rssMb": 145.2,
+        "heapUsedMb": 28.8,
+        "eventLoopLagMs": {
+          "p50": 20.2,
+          "p95": 143.52,
+          "p99": 270.53,
+          "max": 385.61,
+          "mean": 36.84
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:35.561Z",
+        "driverCpuPercent": 12.1,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 201,
+        "cpuPercent": 44.3,
+        "rssMb": 144.4,
+        "heapUsedMb": 17.4,
+        "eventLoopLagMs": {
+          "p50": 20.2,
+          "p95": 128.65,
+          "p99": 254.41,
+          "max": 385.61,
+          "mean": 35.71
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:40.562Z",
+        "driverCpuPercent": 10.5,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 206,
+        "cpuPercent": 46.4,
+        "rssMb": 145.6,
+        "heapUsedMb": 30.9,
+        "eventLoopLagMs": {
+          "p50": 20.2,
+          "p95": 116.98,
+          "p99": 251.13,
+          "max": 385.61,
+          "mean": 34.86
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:45.563Z",
+        "driverCpuPercent": 10.5,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 211,
+        "cpuPercent": 41.4,
+        "rssMb": 146.4,
+        "heapUsedMb": 31.4,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 113.38,
+          "p99": 247.99,
+          "max": 385.61,
+          "mean": 34.11
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:50.564Z",
+        "driverCpuPercent": 11,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 216,
+        "cpuPercent": 41.5,
+        "rssMb": 146.4,
+        "heapUsedMb": 36.5,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 109.38,
+          "p99": 233.57,
+          "max": 385.61,
+          "mean": 33.26
+        }
+      },
+      {
+        "at": "2026-09-21T15:05:55.564Z",
+        "driverCpuPercent": 11,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 221,
+        "cpuPercent": 46,
+        "rssMb": 147.6,
+        "heapUsedMb": 25.7,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 106.69,
+          "p99": 232.91,
+          "max": 385.61,
+          "mean": 33.02
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:00.564Z",
+        "driverCpuPercent": 10.8,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 226,
+        "cpuPercent": 40.9,
+        "rssMb": 149.4,
+        "heapUsedMb": 23.2,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 103.22,
+          "p99": 222.43,
+          "max": 385.61,
+          "mean": 32.41
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:05.565Z",
+        "driverCpuPercent": 11.2,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 231,
+        "cpuPercent": 42.4,
+        "rssMb": 150.6,
+        "heapUsedMb": 21.2,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 101.06,
+          "p99": 219.41,
+          "max": 385.61,
+          "mean": 32.05
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:10.566Z",
+        "driverCpuPercent": 12,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 236,
+        "cpuPercent": 48.7,
+        "rssMb": 147.8,
+        "heapUsedMb": 41.6,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 100.27,
+          "p99": 213.65,
+          "max": 385.61,
+          "mean": 31.95
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:15.566Z",
+        "driverCpuPercent": 11.2,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 241,
+        "cpuPercent": 39.2,
+        "rssMb": 149.9,
+        "heapUsedMb": 38.9,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 96.08,
+          "p99": 208.93,
+          "max": 385.61,
+          "mean": 31.55
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:20.567Z",
+        "driverCpuPercent": 12.4,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 246,
+        "cpuPercent": 46.3,
+        "rssMb": 149.1,
+        "heapUsedMb": 20.4,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 93.52,
+          "p99": 207.75,
+          "max": 385.61,
+          "mean": 31.26
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:25.568Z",
+        "driverCpuPercent": 10.1,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 251,
+        "cpuPercent": 46.4,
+        "rssMb": 149.2,
+        "heapUsedMb": 27.4,
+        "eventLoopLagMs": {
+          "p50": 20.19,
+          "p95": 91.36,
+          "p99": 200.41,
+          "max": 385.61,
+          "mean": 30.95
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:30.569Z",
+        "driverCpuPercent": 9.8,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 256,
+        "cpuPercent": 40.2,
+        "rssMb": 149,
+        "heapUsedMb": 30.9,
+        "eventLoopLagMs": {
+          "p50": 20.17,
+          "p95": 89.39,
+          "p99": 198.18,
+          "max": 385.61,
+          "mean": 30.67
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:35.570Z",
+        "driverCpuPercent": 11.4,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 261,
+        "cpuPercent": 39.9,
+        "rssMb": 150.2,
+        "heapUsedMb": 45.2,
+        "eventLoopLagMs": {
+          "p50": 20.17,
+          "p95": 88.08,
+          "p99": 192.68,
+          "max": 385.61,
+          "mean": 30.37
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:40.571Z",
+        "driverCpuPercent": 10.3,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 266,
+        "cpuPercent": 36.5,
+        "rssMb": 152,
+        "heapUsedMb": 35.8,
+        "eventLoopLagMs": {
+          "p50": 20.17,
+          "p95": 84.54,
+          "p99": 191.63,
+          "max": 385.61,
+          "mean": 30.04
+        }
+      },
+      {
+        "at": "2026-09-21T15:06:45.572Z",
+        "driverCpuPercent": 10.9,
+        "enabled": true,
+        "pid": 6946,
+        "uptimeSec": 271,
+        "cpuPercent": 37.2,
+        "rssMb": 150.6,
+        "heapUsedMb": 19.4,
+        "eventLoopLagMs": {
+          "p50": 20.17,
+          "p95": 83.69,
+          "p99": 186.65,
+          "max": 385.61,
+          "mean": 29.87
+        }
+      }
+    ],
+    "peak": {
+      "eventLoopLagP95Ms": 156.11,
+      "eventLoopLagMaxMs": 385.61,
+      "heapUsedMb": 45.2,
+      "rssMb": 152,
+      "cpuPercent": 72,
+      "driverCpuPercent": 17,
+      "db": null
+    }
+  },
+  "isolation": {
+    "startedAt": "2026-09-21T15:04:46.341Z",
+    "durationMs": 120035,
+    "checks": 4018,
+    "violations": []
+  },
+  "prewarm": {
+    "ok": 2000,
+    "failed": 0,
+    "seconds": 138.509
+  }
+}

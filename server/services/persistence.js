@@ -190,14 +190,14 @@ async function autoRecover(db) {
   const backup = require("./backup");
   let candidate = null;
   try {
-    candidate = backup.listSync().find((b) => b.counts && COUNTED_TABLES.some((t) => Number(b.counts[t] || 0) > 0)) || null;
+    candidate = (await backup.list()).find((b) => b.counts && COUNTED_TABLES.some((t) => Number(b.counts[t] || 0) > 0)) || null;
   } catch (e) {
     return { skipped: "no readable snapshots" };
   }
   if (!candidate) return { skipped: "no snapshot with data to restore", counts };
 
   try {
-    const snapshot = backup.readSnapshot(candidate.name);
+    const snapshot = await backup.readSnapshot(candidate.name);
     const result = await backup.restore(db, snapshot);
     const info = {
       restored: true,

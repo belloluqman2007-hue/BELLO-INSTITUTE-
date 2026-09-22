@@ -197,6 +197,34 @@ The app is a standard Node/Express server and runs on any Node ≥ 22 host
 `.env.example` (new values only) and run `npm start`. There is no
 host-specific config baked in.
 
+## Performance and multi-instance operation
+
+**Sessions live in the database** (`app_sessions`), not in process memory.
+Any instance can serve any request, so a load balancer may round-robin
+between instances without sticky sessions — verified by load test: two
+instances sharing one SQLite database, 2 000 concurrent users with traffic
+alternating per request, zero authentication failures, and materially lower
+p50/p90 latency than a single instance at the same throughput. The only
+things that must match across instances are `SESSION_SECRET` and the
+database.
+
+Operation knobs (all optional):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `LISTEN_BACKLOG` | 1024 | TCP accept-queue depth. Node's own default is 511, which drops SYNs during a connection burst (a deploy, a whole school logging in at 08:00). Raise it before load spikes. |
+| `PERF_MONITOR` | off | `1` exposes the super-admin-only `/api/perf` endpoint: event-loop lag percentiles, heap, CPU, MySQL pool stats. Collects nothing unless enabled — use it for staging and load tests. |
+| `SESSION_PRUNE_MINUTES` | 60 | How often expired session rows are deleted. Sessions are the one table that grows on every login; `0` disables the timer. |
+
+Two per-process caveats when scaling out:
+
+- **Rate limits are per process** (login attempts, API and public limits).
+  With N instances behind one balancer an attacker gets N× the budget — set
+  the limits accordingly if that matters on your host.
+- **Scheduled backups run in every process** if `BACKUP_INTERVAL_MINUTES > 0`.
+  Snapshots have millisecond-precise names and never overwrite each other, but
+  you may prefer to set the interval on one instance only.
+
 ## What is NOT done here
 
 - No real payment gateway is connected.

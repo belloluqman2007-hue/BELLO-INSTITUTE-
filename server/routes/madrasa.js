@@ -678,8 +678,20 @@ rootRouter.get("/sessions", requireAuth, requireTenant, asyncHandler(async (req,
   const m = await resolveMadrasa(req, res);
   if (!m) return;
   const rows = await db.all("SELECT * FROM academic_sessions WHERE madrasa_id = ? ORDER BY id DESC", [m.id]);
+  // Batched terms lookup (was one query per session — an N+1 on a hot,
+  // every-page-load endpoint). Same rows, grouped here in memory.
+  const termsBySession = new Map();
+  if (rows.length) {
+    const sm = rows.map(() => "?").join(",");
+    const allTerms = await db.all(`SELECT * FROM terms WHERE madrasa_id = ? AND session_id IN (${sm}) ORDER BY position`, [m.id].concat(rows.map((r) => r.id)));
+    for (const t of allTerms) {
+      const sid = Number(t.session_id);
+      if (!termsBySession.has(sid)) termsBySession.set(sid, []);
+      termsBySession.get(sid).push(t);
+    }
+  }
   for (const r of rows) {
-    r.terms = await db.all("SELECT * FROM terms WHERE madrasa_id = ? AND session_id = ? ORDER BY position", [m.id, r.id]);
+    r.terms = termsBySession.get(Number(r.id)) || [];
   }
   ok(res, { sessions: rows });
 }));

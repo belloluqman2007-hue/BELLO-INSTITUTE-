@@ -120,31 +120,67 @@ async function parentChildren(tid, parentUserId) {
 /**
  * Teachers of one class: the existing teaching assignments plus the class's
  * own class/assistant teacher. No new relationship table is introduced.
+ * teachersForClasses() below is the batched form — prefer it whenever more
+ * than one class is needed, so a parent with several children costs ONE query
+ * per screen instead of one per child (and one per teacher for subjects).
  */
-async function teachersForClass(tid, ptmSessionId, classId) {
-  if (!classId) return [];
-  return db.all(
-    `SELECT u.id, u.full_name, u.username, ts.available
-       FROM users u
+async function teachersForClasses(tid, ptmSessionId, classIds) {
+  const ids = [...new Set((classIds || []).map((c) => Number(c)).filter(Boolean))];
+  const out = new Map(); // classId -> [teacher row]
+  if (!ids.length) return out;
+  const ph = ids.map(() => "?").join(",");
+  // UNION dedupes a teacher who matches the same class twice (assignment AND
+  // class-teacher); the join conditions mirror the single-class query below.
+  const rows = await db.all(
+    `SELECT x.class_id, u.id, u.full_name, u.username, ts.available
+       FROM (
+         SELECT ta.class_id, ta.user_id FROM teacher_assignments ta WHERE ta.madrasa_id = ? AND ta.class_id IN (${ph})
+         UNION
+         SELECT c.id, c.class_teacher_id FROM classes c WHERE c.madrasa_id = ? AND c.id IN (${ph}) AND c.class_teacher_id IS NOT NULL
+         UNION
+         SELECT c.id, c.assistant_teacher_id FROM classes c WHERE c.madrasa_id = ? AND c.id IN (${ph}) AND c.assistant_teacher_id IS NOT NULL
+       ) x
+       JOIN users u ON u.id = x.user_id AND u.madrasa_id = u.madrasa_id
        JOIN ptm_teacher_slots ts ON ts.teacher_user_id = u.id AND ts.madrasa_id = u.madrasa_id AND ts.ptm_session_id = ?
       WHERE u.madrasa_id = ? AND u.role = 'teacher' AND u.is_active = 1 AND ts.available = 1
-        AND (EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.madrasa_id = u.madrasa_id AND ta.user_id = u.id AND ta.class_id = ?)
-             OR EXISTS (SELECT 1 FROM classes c WHERE c.madrasa_id = u.madrasa_id AND c.id = ? AND (c.class_teacher_id = u.id OR c.assistant_teacher_id = u.id)))
-      ORDER BY u.full_name, u.id`,
-    [ptmSessionId, tid, classId, classId]
+      ORDER BY x.class_id, u.full_name, u.id`,
+    [tid, ...ids, tid, ...ids, tid, ...ids, ptmSessionId, tid]
   );
+  for (const r of rows) {
+    const cid = Number(r.class_id);
+    if (!out.has(cid)) out.set(cid, []);
+    out.get(cid).push({ id: r.id, full_name: r.full_name, username: r.username, available: r.available });
+  }
+  return out;
 }
 
-/** Subjects a teacher is assigned to in a class — shown next to their name. */
-async function teacherSubjects(tid, teacherUserId, classId) {
+/** Single-class convenience wrapper around teachersForClasses(). */
+async function teachersForClass(tid, ptmSessionId, classId) {
   if (!classId) return [];
+  return (await teachersForClasses(tid, ptmSessionId, [classId])).get(Number(classId)) || [];
+}
+
+/**
+ * Subjects per teacher per class in ONE query — key "userId:classId" -> [names].
+ * The per-teacher ORDER BY is preserved globally (rows come back sorted).
+ */
+async function subjectsForClasses(tid, classIds) {
+  const ids = [...new Set((classIds || []).map((c) => Number(c)).filter(Boolean))];
+  const out = new Map();
+  if (!ids.length) return out;
+  const ph = ids.map(() => "?").join(",");
   const rows = await db.all(
-    `SELECT DISTINCT su.name_en FROM teacher_assignments ta
+    `SELECT DISTINCT ta.user_id, ta.class_id, su.name_en FROM teacher_assignments ta
        JOIN subjects su ON su.id = ta.subject_id AND su.madrasa_id = ta.madrasa_id
-      WHERE ta.madrasa_id = ? AND ta.user_id = ? AND ta.class_id = ? ORDER BY su.name_en`,
-    [tid, teacherUserId, classId]
+      WHERE ta.madrasa_id = ? AND ta.class_id IN (${ph}) ORDER BY su.name_en`,
+    [tid, ...ids]
   );
-  return rows.map((r) => r.name_en);
+  for (const r of rows) {
+    const k = `${r.user_id}:${r.class_id}`;
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push(r.name_en);
+  }
+  return out;
 }
 
 /** Active (non-cancelled) bookings of one meeting session. */
@@ -161,6 +197,23 @@ async function bookingsFor(tid, ptmSessionId, { includeCancelled = false } = {})
       WHERE b.madrasa_id = ? AND b.ptm_session_id = ? ${includeCancelled ? "" : "AND b.status <> 'cancelled'"}
       ORDER BY b.slot_number, b.teacher_user_id`,
     [tid, ptmSessionId]
+  );
+}
+
+/** One booking with every join bookingsFor() uses — without reading the
+ *  whole session's bookings just to find a single row. */
+async function bookingFull(tid, id) {
+  return db.get(
+    `SELECT b.*, s.first_name, s.last_name, s.admission_no, c.name_en AS class_en,
+            p.full_name AS parent_name, p.username AS parent_username, p.phone AS parent_phone, p.email AS parent_email,
+            t.full_name AS teacher_name
+       FROM ptm_bookings b
+       LEFT JOIN students s ON s.id = b.student_id AND s.madrasa_id = b.madrasa_id
+       LEFT JOIN classes c ON c.id = s.class_id AND c.madrasa_id = b.madrasa_id
+       LEFT JOIN users p ON p.id = b.parent_user_id AND p.madrasa_id = b.madrasa_id
+       LEFT JOIN users t ON t.id = b.teacher_user_id AND t.madrasa_id = b.madrasa_id
+      WHERE b.madrasa_id = ? AND b.id = ?`,
+    [tid, id]
   );
 }
 
@@ -274,26 +327,33 @@ router.get("/mine", asyncHandler(async (req, res) => {
       ORDER BY p.date, p.id`,
     [req.user.id, tid, today()]
   );
-  const sessions = [];
-  for (const row of rows) {
-    const bookings = await db.all(
-      `SELECT b.id, b.slot_number, b.slot_time, b.status, b.notes, b.student_id,
+  // One batched query for ALL of this teacher's upcoming sessions — a
+  // per-session loop is an N+1 against every meeting day they take part in.
+  const bookingsBySession = new Map();
+  if (rows.length) {
+    const ph = rows.map(() => "?").join(",");
+    const all = await db.all(
+      `SELECT b.id, b.slot_number, b.slot_time, b.status, b.notes, b.student_id, b.ptm_session_id,
               s.first_name, s.last_name, s.admission_no, c.name_en AS class_en,
               u.full_name AS parent_name, u.phone AS parent_phone, u.email AS parent_email
          FROM ptm_bookings b
          LEFT JOIN students s ON s.id = b.student_id AND s.madrasa_id = b.madrasa_id
          LEFT JOIN classes c ON c.id = s.class_id AND c.madrasa_id = b.madrasa_id
          LEFT JOIN users u ON u.id = b.parent_user_id AND u.madrasa_id = b.madrasa_id
-        WHERE b.madrasa_id = ? AND b.ptm_session_id = ? AND b.teacher_user_id = ? AND b.status <> 'cancelled'
+        WHERE b.madrasa_id = ? AND b.teacher_user_id = ? AND b.ptm_session_id IN (${ph}) AND b.status <> 'cancelled'
         ORDER BY b.slot_number`,
-      [tid, row.id, req.user.id]
+      [tid, req.user.id, ...rows.map((r) => r.id)]
     );
-    sessions.push(Object.assign(sessionDto(row), {
-      available: Number(row.available) === 1,
-      slots: slotGrid(row),
-      bookings,
-    }));
+    for (const bk of all) {
+      if (!bookingsBySession.has(bk.ptm_session_id)) bookingsBySession.set(bk.ptm_session_id, []);
+      bookingsBySession.get(bk.ptm_session_id).push(bk);
+    }
   }
+  const sessions = rows.map((row) => Object.assign(sessionDto(row), {
+    available: Number(row.available) === 1,
+    slots: slotGrid(row),
+    bookings: bookingsBySession.get(row.id) || [],
+  }));
   ok(res, { sessions });
 }));
 
@@ -332,8 +392,18 @@ router.post("/", ADMIN, asyncHandler(async (req, res) => {
     // Every active teacher of this institution is enrolled as available by
     // default; each can opt out later from their own screen.
     const teachers = await tx.all("SELECT id FROM users WHERE madrasa_id = ? AND role = 'teacher' AND is_active = 1", [tid]);
-    for (const t of teachers) {
-      await tx.run("INSERT INTO ptm_teacher_slots (madrasa_id, ptm_session_id, teacher_user_id, available) VALUES (?,?,?,1)", [tid, id, t.id]);
+    // One multi-row INSERT per chunk instead of one statement per teacher:
+    // a 200-teacher institution should not cost 200 round trips (each of
+    // which is a full statement prepare) on session creation.
+    const CHUNK = 500;
+    for (let i = 0; i < teachers.length; i += CHUNK) {
+      const part = teachers.slice(i, i + CHUNK);
+      const params = [];
+      for (const t of part) params.push(tid, id, t.id);
+      await tx.run(
+        `INSERT INTO ptm_teacher_slots (madrasa_id, ptm_session_id, teacher_user_id, available) VALUES ${part.map(() => "(?,?,?,1)").join(",")}`,
+        params
+      );
     }
     return { id, teachers: teachers.length };
   });
@@ -431,13 +501,14 @@ router.patch("/:id", ADMIN, asyncHandler(async (req, res) => {
       WHERE id = ? AND madrasa_id = ?`,
     [next.title, next.date, next.session_start, next.session_end, next.slot_duration_mins, next.location, next.term_id, next.session_id, next.status, row.id, tid]
   );
-  // Slot times move with the window, so stored copies are refreshed too.
-  for (const slot of slots) {
-    await db.run(
-      "UPDATE ptm_bookings SET slot_time = ? WHERE madrasa_id = ? AND ptm_session_id = ? AND slot_number = ?",
-      [slot.start, tid, row.id, slot.slot_number]
-    );
-  }
+  // Slot times move with the window, so stored copies are refreshed too —
+  // in ONE statement: the per-slot loop fired up to MAX_SLOTS updates where
+  // almost every one matched zero rows.
+  await db.run(
+    `UPDATE ptm_bookings SET slot_time = CASE slot_number ${slots.map((s) => `WHEN ${Number(s.slot_number)} THEN ?`).join(" ")} ELSE slot_time END
+      WHERE madrasa_id = ? AND ptm_session_id = ? AND status <> 'cancelled'`,
+    slots.map((s) => s.start).concat([tid, row.id])
+  );
   await logActivity(db, { madrasaId: tid, userId: req.user.id, action: "ptm.session.update", entity: "ptm_session", entityId: String(row.id), meta: { status: next.status }, ip: req.ip });
   const updated = await db.get("SELECT * FROM ptm_sessions WHERE id = ? AND madrasa_id = ?", [row.id, tid]);
   ok(res, { ok: true, session: sessionDto(updated), slots: slotGrid(updated) });
@@ -567,15 +638,19 @@ router.get("/:id/teachers", asyncHandler(async (req, res) => {
     if (!children.length) return err(res, 404, "Student not found.");
   }
 
-  const out = [];
-  for (const child of children) {
-    const teachers = await teachersForClass(tid, row.id, child.class_id);
-    const withSubjects = [];
-    for (const t of teachers) {
-      withSubjects.push({ id: Number(t.id), full_name: t.full_name, username: t.username, subjects: await teacherSubjects(tid, t.id, child.class_id) });
-    }
-    out.push(Object.assign({}, child, { teachers: withSubjects }));
-  }
+  // Two queries total (teachers, subjects) no matter how many children the
+  // parent has — the per-child/per-teacher loops below were an N+1.
+  const teachersByClass = await teachersForClasses(tid, row.id, children.map((c) => c.class_id));
+  const subjectsByClass = await subjectsForClasses(tid, children.map((c) => c.class_id));
+  const out = children.map((child) => ({
+    ...child,
+    teachers: (teachersByClass.get(Number(child.class_id)) || []).map((t) => ({
+      id: Number(t.id),
+      full_name: t.full_name,
+      username: t.username,
+      subjects: subjectsByClass.get(`${t.id}:${child.class_id}`) || [],
+    })),
+  }));
 
   const myBookings = req.user.role === "parent"
     ? await db.all(
@@ -613,11 +688,9 @@ router.get("/:id/available-slots", asyncHandler(async (req, res) => {
   if (req.user.role === "parent") {
     const children = await parentChildren(tid, req.user.id);
     const classIds = [...new Set(children.map((c) => Number(c.class_id)).filter(Boolean))];
-    let allowed = false;
-    for (const classId of classIds) {
-      const list = await teachersForClass(tid, row.id, classId);
-      if (list.some((t) => Number(t.id) === teacherId)) { allowed = true; break; }
-    }
+    // One query across all of the children's classes (the loop was an N+1).
+    const teachersByClass = await teachersForClasses(tid, row.id, classIds);
+    const allowed = [...teachersByClass.values()].some((list) => list.some((t) => Number(t.id) === teacherId));
     if (!allowed) return err(res, 403, "That teacher does not teach any of your children.");
   } else if (req.user.role === "student") {
     return err(res, 403, "Only parents book parent-teacher meetings.");
@@ -723,7 +796,7 @@ router.post("/bookings", asyncHandler(async (req, res) => {
     throw e;
   }
 
-  const booking = (await bookingsFor(tid, ptmSessionId, { includeCancelled: true })).find((x) => Number(x.id) === bookingId);
+  const booking = await bookingFull(tid, bookingId);
   await notifyBooking(tid, session, booking, { actorId: req.user.id });
   await logActivity(db, { madrasaId: tid, userId: req.user.id, action: "ptm.booking.create", entity: "ptm_booking", entityId: String(bookingId), ip: req.ip });
   ok(res, {
@@ -757,7 +830,7 @@ router.delete("/bookings/:id", asyncHandler(async (req, res) => {
 
   await db.run("UPDATE ptm_bookings SET status = 'cancelled' WHERE id = ? AND madrasa_id = ?", [id, tid]);
   const session = await db.get("SELECT * FROM ptm_sessions WHERE id = ? AND madrasa_id = ?", [booking.ptm_session_id, tid]);
-  const full = (await bookingsFor(tid, booking.ptm_session_id, { includeCancelled: true })).find((x) => Number(x.id) === id);
+  const full = await bookingFull(tid, id);
   if (session && full) await notifyBooking(tid, session, full, { cancelled: true, actorId: req.user.id });
   await logActivity(db, { madrasaId: tid, userId: req.user.id, action: "ptm.booking.cancel", entity: "ptm_booking", entityId: String(id), ip: req.ip });
   ok(res, { ok: true, cancelled: true, id });

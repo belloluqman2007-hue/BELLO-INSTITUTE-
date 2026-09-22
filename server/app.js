@@ -18,7 +18,7 @@ const session = require("express-session");
 
 const config = require("./config");
 const DBSessionStore = require("./session-store");
-const { loadUser } = require("./middleware/auth");
+const { loadUser, requireSuperAdmin } = require("./middleware/auth");
 const { apiLimiter, loginLimiter } = require("./middleware/ratelimit");
 const { router: authRouter, csrfGuard, ensureCsrfToken } = require("./routes/auth");
 const platformRouter = require("./routes/platform");
@@ -50,6 +50,7 @@ const documentsRouter = require("./routes/documents");
 const healthRouter = require("./routes/health");
 const adminRouter = require("./routes/admin");
 const institution = require("./services/institution");
+const perfMonitor = require("./services/perf-monitor");
 const { asyncHandler, ok, err, toNum } = require("./util");
 const db = require("./db");
 
@@ -310,9 +311,23 @@ function createApp() {
 
   /* ------------------------------ health ------------------------------ */
   api.get("/health", (req, res) => res.json({ ok: true, service: "multi-madrasa-platform" }));
+  // Load-test / staging diagnostics (PERF_MONITOR=1 only): event-loop lag,
+  // heap, CPU and pool utilisation for THIS process. Super admin only, so a
+  // production-like deployment exposes nothing even when left enabled.
+  if (config.PERF_MONITOR) {
+    perfMonitor.start();
+    api.get("/perf", requireSuperAdmin, asyncHandler(async (req, res) => {
+      res.json(await perfMonitor.snapshot(db));
+    }));
+    api.post("/perf/reset", requireSuperAdmin, asyncHandler(async (req, res) => {
+      perfMonitor.reset();
+      res.json({ ok: true });
+    }));
+  }
   // Student Health & Medical records (tenant-scoped). Mounted AFTER the
   // service healthcheck above so GET /api/health keeps answering the uptime
   // probe anonymously; everything under /api/health/* is the medical module,
+  // which enforces  medical module,
   // which enforces its own session/tenant/role guards.
   api.use("/health", healthRouter);
 

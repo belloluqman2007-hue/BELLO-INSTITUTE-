@@ -58,12 +58,20 @@ class DBSessionStore extends session.Store {
 
   touch(sid, sess, cb) {
     const expires = expiryOf(sess);
-    db.run("UPDATE app_sessions SET expires = ? WHERE sid = ?", [expires, sid])
-      .then((r) => {
-        // rolling sessions touch a row that a cleanup/restore may have removed.
-        // Re-create it instead of silently letting the session evaporate.
-        if (r && Number(r.changes) === 0) return this.set(sid, sess, cb);
-        cb(null);
+    // Rolling sessions call touch() on EVERY authenticated request. Rewriting
+    // the row each time means one database write per request — hundreds of
+    // writes/second under load, each an fsync on the dev SQLite driver. The
+    // extension only needs 60-second granularity: skip the write while the
+    // stored expiry is already within a minute of the new one. (A read is
+    // orders of magnitude cheaper than a write here.)
+    const TOUCH_GRACE_MS = 60000;
+    db.get("SELECT expires FROM app_sessions WHERE sid = ?", [sid])
+      .then((row) => {
+        // Row removed by a cleanup/restore: re-create it instead of silently
+        // letting the session evaporate.
+        if (!row) return this.set(sid, sess, cb);
+        if (Number(row.expires) >= expires - TOUCH_GRACE_MS) return cb(null);
+        return db.run("UPDATE app_sessions SET expires = ? WHERE sid = ?", [expires, sid]).then(() => cb(null));
       })
       .catch((err) => cb(err));
   }

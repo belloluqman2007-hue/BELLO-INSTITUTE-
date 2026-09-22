@@ -1,0 +1,181 @@
+{
+  "stage": 20,
+  "url": "http://127.0.0.1:3100",
+  "startedAt": "2026-09-21T11:56:16.359Z",
+  "env": {
+    "node": "v22.22.3",
+    "cpus": 2,
+    "totalMemMb": 3940,
+    "dataset": "55 madaris / 10,900 students / ~200k rows (loadtest.sqlite)",
+    "note": "server + load generator share this host; see report for implications"
+  },
+  "steps": [
+    {
+      "label": "ramp-20",
+      "connections": 20,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.02,
+        "requestsPerSecond": 15.07,
+        "latency": {
+          "average": 1279.72,
+          "p50": 1512,
+          "p75": 1586,
+          "p90": 1622,
+          "p975": 3012,
+          "p99": 3060,
+          "max": 3166
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 91,
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 361,
+          "3xx": 0,
+          "4xx": 91,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 361
+          },
+          "400": {
+            "count": 91
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T11:56:21.854Z",
+          "procUtimeTicks": 1080,
+          "procStimeTicks": 7,
+          "procVsizeBytes": 1198182400,
+          "procRssPages": 26337,
+          "procStartTimeTicks": 221288
+        },
+        {
+          "at": "2026-09-21T11:56:26.854Z",
+          "procUtimeTicks": 1532,
+          "procStimeTicks": 10,
+          "procVsizeBytes": 1198182400,
+          "procRssPages": 28283,
+          "procStartTimeTicks": 221288
+        },
+        {
+          "at": "2026-09-21T11:56:31.854Z",
+          "procUtimeTicks": 2011,
+          "procStimeTicks": 15,
+          "procVsizeBytes": 1165676544,
+          "procRssPages": 20273,
+          "procStartTimeTicks": 221288
+        },
+        {
+          "at": "2026-09-21T11:56:36.854Z",
+          "procUtimeTicks": 2461,
+          "procStimeTicks": 16,
+          "procVsizeBytes": 1171968000,
+          "procRssPages": 21832,
+          "procStartTimeTicks": 221288
+        },
+        {
+          "at": "2026-09-21T11:56:41.853Z",
+          "procUtimeTicks": 2901,
+          "procStimeTicks": 18,
+          "procVsizeBytes": 1181929472,
+          "procRssPages": 22558,
+          "procStartTimeTicks": 221288
+        },
+        {
+          "at": "2026-09-21T11:56:46.854Z",
+          "procUtimeTicks": 3070,
+          "procStimeTicks": 18,
+          "procVsizeBytes": 1181929472,
+          "procRssPages": 23147,
+          "procStartTimeTicks": 221288
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "db": null
+      }
+    }
+  ],
+  "hold": {
+    "label": "hold-20",
+    "connections": 20,
+    "requestedSeconds": 15,
+    "result": {
+      "duration": 15.01,
+      "requestsPerSecond": 11.54,
+      "latency": {
+        "average": 1513.78,
+        "p50": 1110,
+        "p75": 1354,
+        "p90": 1973,
+        "p975": 8565,
+        "p99": 12427,
+        "max": 13877
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 0,
+      "statusCodes": {
+        "1xx": 0,
+        "2xx": 173,
+        "3xx": 0,
+        "4xx": 0,
+        "5xx": 0
+      },
+      "statusCodeStats": {
+        "200": {
+          "count": 173
+        }
+      }
+    },
+    "serverSamples": [
+      {
+        "at": "2026-09-21T11:56:51.908Z",
+        "procUtimeTicks": 4627,
+        "procStimeTicks": 23,
+        "procVsizeBytes": 1200017408,
+        "procRssPages": 24901,
+        "procStartTimeTicks": 221288
+      },
+      {
+        "at": "2026-09-21T11:56:56.908Z",
+        "procUtimeTicks": 4627,
+        "procStimeTicks": 23,
+        "procVsizeBytes": 1200017408,
+        "procRssPages": 24901,
+        "procStartTimeTicks": 221288
+      },
+      {
+        "at": "2026-09-21T11:57:01.908Z",
+        "procUtimeTicks": 4627,
+        "procStimeTicks": 23,
+        "procVsizeBytes": 1200017408,
+        "procRssPages": 24901,
+        "procStartTimeTicks": 221288
+      }
+    ],
+    "peak": {
+      "eventLoopLagP95Ms": 0,
+      "eventLoopLagMaxMs": 0,
+      "heapUsedMb": 0,
+      "rssMb": 0,
+      "cpuPercent": 0,
+      "db": null
+    }
+  },
+  "isolation": {
+    "startedAt": "2026-09-21T11:57:03.280Z",
+    "durationMs": 15259,
+    "checks": 742,
+    "violations": []
+  }
+}

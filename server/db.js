@@ -30,6 +30,17 @@ function connectSqlite() {
   const raw = new DatabaseSync(file);
   raw.exec("PRAGMA journal_mode = WAL;");
   raw.exec("PRAGMA foreign_keys = ON;");
+  // WAL + NORMAL: commits no longer fsync the WAL on EVERY write (checkpoints
+  // still do). Under concurrent write load the per-commit fsync otherwise
+  // blocks Node's event loop for up to seconds on a busy disk — measured as
+  // multi-second event-loop lag under load testing. NORMAL keeps full
+  // crash-safety for the PROCESS (an app crash loses nothing; only an OS/power
+  // failure can lose the most recent commits). Production runs MySQL, where
+  // the async driver already keeps disk I/O off the event loop.
+  raw.exec("PRAGMA synchronous = NORMAL;");
+  // Wait (up to 5s) instead of erroring when another process holds the write
+  // lock — makes multi-process dev/ops access safe.
+  raw.exec("PRAGMA busy_timeout = 5000;");
 
   return {
     dialect: "sqlite",
@@ -56,6 +67,7 @@ function connectSqlite() {
       }
     },
     async close() { raw.close(); },
+    stats() { return { dialect: "sqlite" }; },
     _raw: raw,
   };
 }
@@ -74,16 +86,27 @@ function normalizeSqliteParams(params) {
 async function connectMysql() {
   const mysql = require("mysql2/promise");
   const ssl = config.DB_CONFIG.ssl ? { rejectUnauthorized: false } : undefined;
+  // Pool sizing comes from config (MYSQL_POOL_SIZE & friends) so production
+  // can tune connections against MySQL's max_connections without a code
+  // change. One Node process must never hold one MySQL connection per user:
+  //   thousands of HTTP users → this process → small bounded pool → MySQL.
+  const poolOpts = Object.assign({
+    ssl,
+    namedPlaceholders: false,
+    charset: "utf8mb4",
+    waitForConnections: true,
+    connectionLimit: config.MYSQL_POOL.connectionLimit,
+    queueLimit: config.MYSQL_POOL.queueLimit,
+    connectTimeout: config.MYSQL_POOL.connectTimeout,
+    maxIdle: config.MYSQL_POOL.maxIdle,
+    idleTimeout: config.MYSQL_POOL.idleTimeout,
+  });
   let pool;
   if (config.DATABASE_URL) {
-    pool = mysql.createPool(Object.assign({ uri: config.DATABASE_URL }, { ssl, connectionLimit: 10 }));
+    pool = mysql.createPool(Object.assign({ uri: config.DATABASE_URL }, poolOpts));
   } else {
     const { host, port, user, password, name } = config.DB_CONFIG;
-    pool = mysql.createPool({
-      host, port, user, password, database: name,
-      ssl, connectionLimit: 10,
-      namedPlaceholders: false,
-    });
+    pool = mysql.createPool(Object.assign({ host, port, user, password, database: name }, poolOpts));
   }
 
   const db = {
@@ -123,6 +146,19 @@ async function connectMysql() {
       }
     },
     async close() { await pool.end(); },
+    /** Live pool utilisation (read-only) for diagnostics. */
+    stats() {
+      try {
+        return {
+          dialect: "mysql",
+          configuredLimit: config.MYSQL_POOL.connectionLimit,
+          totalConnections: pool._allConnections ? pool._allConnections.length : null,
+          activeConnections: pool._activeConnections ? pool._activeConnections.length : null,
+          idleConnections: pool._freeConnections ? pool._freeConnections.length : null,
+          queuedRequests: pool._connectionQueue ? pool._connectionQueue.length : null,
+        };
+      } catch (e) { return { dialect: "mysql", error: "unavailable" }; }
+    },
   };
   // Fail fast with a clear message if the (new) database is unreachable.
   await db.get("SELECT 1 AS ok");

@@ -1,0 +1,2742 @@
+{
+  "stage": 5000,
+  "url": [
+    "http://127.0.0.1:3100"
+  ],
+  "startedAt": "2026-09-21T14:46:34.933Z",
+  "pacing": "closed-loop (zero think time)",
+  "env": {
+    "node": "v22.22.3",
+    "cpus": 2,
+    "totalMemMb": 3940,
+    "dataset": "55 madaris / 10,900 students / ~200k rows (loadtest.sqlite)",
+    "note": "server + load generator share this host; see report for implications"
+  },
+  "steps": [
+    {
+      "label": "ramp-500",
+      "connections": 500,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.11,
+        "requestsPerSecond": 1077.8,
+        "latency": {
+          "average": 380.61,
+          "p50": 321,
+          "p75": 380,
+          "p90": 427,
+          "p97_5": 530,
+          "p99": 682,
+          "p99_9": 22809,
+          "max": 29954
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 13188,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 19146,
+          "3xx": 0,
+          "4xx": 13188,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 19146
+          },
+          "400": {
+            "count": 12684
+          },
+          "404": {
+            "count": 504
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:52:29.577Z",
+          "driverCpuPercent": 0,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 380,
+          "cpuPercent": 104.6,
+          "rssMb": 154.2,
+          "heapUsedMb": 42.2,
+          "eventLoopLagMs": {
+            "p50": 155.58,
+            "p95": 311.69,
+            "p99": 376.18,
+            "max": 592.45,
+            "mean": 162.74
+          },
+          "procUtimeTicks": 37924,
+          "procStimeTicks": 346,
+          "procVsizeBytes": 1241063424,
+          "procRssPages": 39788,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:52:34.577Z",
+          "driverCpuPercent": 15.5,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 380,
+          "cpuPercent": 104.6,
+          "rssMb": 154.2,
+          "heapUsedMb": 42.2,
+          "eventLoopLagMs": {
+            "p50": 155.58,
+            "p95": 311.69,
+            "p99": 376.18,
+            "max": 592.45,
+            "mean": 162.74
+          },
+          "procUtimeTicks": 37924,
+          "procStimeTicks": 346,
+          "procVsizeBytes": 1241063424,
+          "procRssPages": 39788,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:52:39.577Z",
+          "driverCpuPercent": 15.9,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 380,
+          "cpuPercent": 104.6,
+          "rssMb": 154.2,
+          "heapUsedMb": 42.2,
+          "eventLoopLagMs": {
+            "p50": 155.58,
+            "p95": 311.69,
+            "p99": 376.18,
+            "max": 592.45,
+            "mean": 162.74
+          },
+          "procUtimeTicks": 37924,
+          "procStimeTicks": 346,
+          "procVsizeBytes": 1241063424,
+          "procRssPages": 39788,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:52:44.578Z",
+          "driverCpuPercent": 15,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 380,
+          "cpuPercent": 104.6,
+          "rssMb": 154.2,
+          "heapUsedMb": 42.2,
+          "eventLoopLagMs": {
+            "p50": 155.58,
+            "p95": 311.69,
+            "p99": 376.18,
+            "max": 592.45,
+            "mean": 162.74
+          },
+          "procUtimeTicks": 37924,
+          "procStimeTicks": 346,
+          "procVsizeBytes": 1241063424,
+          "procRssPages": 39788,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:52:49.577Z",
+          "driverCpuPercent": 14.6,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 380,
+          "cpuPercent": 104.6,
+          "rssMb": 154.2,
+          "heapUsedMb": 42.2,
+          "eventLoopLagMs": {
+            "p50": 155.58,
+            "p95": 311.69,
+            "p99": 376.18,
+            "max": 592.45,
+            "mean": 162.74
+          },
+          "procUtimeTicks": 37924,
+          "procStimeTicks": 346,
+          "procVsizeBytes": 1241063424,
+          "procRssPages": 39788,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:52:54.577Z",
+          "driverCpuPercent": 15,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 380,
+          "cpuPercent": 104.6,
+          "rssMb": 154.2,
+          "heapUsedMb": 42.2,
+          "eventLoopLagMs": {
+            "p50": 155.58,
+            "p95": 311.69,
+            "p99": 376.18,
+            "max": 592.45,
+            "mean": 162.74
+          },
+          "procUtimeTicks": 37924,
+          "procStimeTicks": 346,
+          "procVsizeBytes": 1241063424,
+          "procRssPages": 39788,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "driverCpuPercent": 0,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-1000",
+      "connections": 1000,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.13,
+        "requestsPerSecond": 1073.7,
+        "latency": {
+          "average": 915.32,
+          "p50": 949,
+          "p75": 1092,
+          "p90": 1223,
+          "p97_5": 1729,
+          "p99": 2114,
+          "p99_9": 2362,
+          "max": 2408
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 13606,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 18605,
+          "3xx": 0,
+          "4xx": 13606,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 18605
+          },
+          "400": {
+            "count": 12899
+          },
+          "404": {
+            "count": 707
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:53:04.743Z",
+          "driverCpuPercent": 10.3,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 392,
+          "cpuPercent": 101.9,
+          "rssMb": 163.3,
+          "heapUsedMb": 47.8,
+          "eventLoopLagMs": {
+            "p50": 386.92,
+            "p95": 874.51,
+            "p99": 1653.6,
+            "max": 1653.6,
+            "mean": 395.82
+          },
+          "procUtimeTicks": 38572,
+          "procStimeTicks": 394,
+          "procVsizeBytes": 1249247232,
+          "procRssPages": 41813,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:09.743Z",
+          "driverCpuPercent": 16.2,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 396,
+          "cpuPercent": 101.5,
+          "rssMb": 164.6,
+          "heapUsedMb": 27.7,
+          "eventLoopLagMs": {
+            "p50": 443.29,
+            "p95": 874.51,
+            "p99": 1653.6,
+            "max": 1653.6,
+            "mean": 444.02
+          },
+          "procUtimeTicks": 39025,
+          "procStimeTicks": 419,
+          "procVsizeBytes": 1249984512,
+          "procRssPages": 42194,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:14.743Z",
+          "driverCpuPercent": 15,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 401,
+          "cpuPercent": 104.3,
+          "rssMb": 165.3,
+          "heapUsedMb": 43.1,
+          "eventLoopLagMs": {
+            "p50": 468.19,
+            "p95": 815.27,
+            "p99": 1653.6,
+            "max": 1653.6,
+            "mean": 464.14
+          },
+          "procUtimeTicks": 39510,
+          "procStimeTicks": 462,
+          "procVsizeBytes": 1251557376,
+          "procRssPages": 42530,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:19.745Z",
+          "driverCpuPercent": 16.3,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 407,
+          "cpuPercent": 105,
+          "rssMb": 166.9,
+          "heapUsedMb": 27.8,
+          "eventLoopLagMs": {
+            "p50": 468.19,
+            "p95": 815.27,
+            "p99": 1653.6,
+            "max": 1653.6,
+            "mean": 465.56
+          },
+          "procUtimeTicks": 40063,
+          "procStimeTicks": 499,
+          "procVsizeBytes": 1252253696,
+          "procRssPages": 42719,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:24.744Z",
+          "driverCpuPercent": 15,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 411,
+          "cpuPercent": 104.6,
+          "rssMb": 167.7,
+          "heapUsedMb": 36.5,
+          "eventLoopLagMs": {
+            "p50": 480.51,
+            "p95": 727.71,
+            "p99": 874.51,
+            "max": 1653.6,
+            "mean": 470.82
+          },
+          "procUtimeTicks": 40461,
+          "procStimeTicks": 528,
+          "procVsizeBytes": 1253085184,
+          "procRssPages": 42785,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:29.744Z",
+          "driverCpuPercent": 15.4,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 416,
+          "cpuPercent": 106.9,
+          "rssMb": 168.1,
+          "heapUsedMb": 37.2,
+          "eventLoopLagMs": {
+            "p50": 484.97,
+            "p95": 815.27,
+            "p99": 874.51,
+            "max": 1653.6,
+            "mean": 487.14
+          },
+          "procUtimeTicks": 40961,
+          "procStimeTicks": 558,
+          "procVsizeBytes": 1253306368,
+          "procRssPages": 43109,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 874.51,
+        "eventLoopLagMaxMs": 1653.6,
+        "heapUsedMb": 47.8,
+        "rssMb": 167.7,
+        "cpuPercent": 105,
+        "driverCpuPercent": 16.3,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-1500",
+      "connections": 1500,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.33,
+        "requestsPerSecond": 1038.3,
+        "latency": {
+          "average": 1158.78,
+          "p50": 1210,
+          "p75": 1319,
+          "p90": 1508,
+          "p97_5": 1970,
+          "p99": 2369,
+          "p99_9": 9561,
+          "max": 29530
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 12443,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 18706,
+          "3xx": 0,
+          "4xx": 12443,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 18706
+          },
+          "400": {
+            "count": 11830
+          },
+          "404": {
+            "count": 613
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:53:39.927Z",
+          "driverCpuPercent": 12.4,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 452,
+          "cpuPercent": 103.9,
+          "rssMb": 183.9,
+          "heapUsedMb": 20.8,
+          "eventLoopLagMs": {
+            "p50": 477.63,
+            "p95": 830.47,
+            "p99": 1182.79,
+            "max": 1334.84,
+            "mean": 363.63
+          },
+          "procUtimeTicks": 44053,
+          "procStimeTicks": 803,
+          "procVsizeBytes": 1266950144,
+          "procRssPages": 47253,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:44.927Z",
+          "driverCpuPercent": 15.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 452,
+          "cpuPercent": 103.9,
+          "rssMb": 183.9,
+          "heapUsedMb": 20.8,
+          "eventLoopLagMs": {
+            "p50": 477.63,
+            "p95": 830.47,
+            "p99": 1182.79,
+            "max": 1334.84,
+            "mean": 363.63
+          },
+          "procUtimeTicks": 44053,
+          "procStimeTicks": 803,
+          "procVsizeBytes": 1266950144,
+          "procRssPages": 47253,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:49.927Z",
+          "driverCpuPercent": 16.3,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 452,
+          "cpuPercent": 103.9,
+          "rssMb": 183.9,
+          "heapUsedMb": 20.8,
+          "eventLoopLagMs": {
+            "p50": 477.63,
+            "p95": 830.47,
+            "p99": 1182.79,
+            "max": 1334.84,
+            "mean": 363.63
+          },
+          "procUtimeTicks": 44053,
+          "procStimeTicks": 803,
+          "procVsizeBytes": 1266950144,
+          "procRssPages": 47253,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:54.927Z",
+          "driverCpuPercent": 15.6,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 452,
+          "cpuPercent": 103.9,
+          "rssMb": 183.9,
+          "heapUsedMb": 20.8,
+          "eventLoopLagMs": {
+            "p50": 477.63,
+            "p95": 830.47,
+            "p99": 1182.79,
+            "max": 1334.84,
+            "mean": 363.63
+          },
+          "procUtimeTicks": 44053,
+          "procStimeTicks": 803,
+          "procVsizeBytes": 1266950144,
+          "procRssPages": 47253,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:53:59.929Z",
+          "driverCpuPercent": 16.8,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 452,
+          "cpuPercent": 103.9,
+          "rssMb": 183.9,
+          "heapUsedMb": 20.8,
+          "eventLoopLagMs": {
+            "p50": 477.63,
+            "p95": 830.47,
+            "p99": 1182.79,
+            "max": 1334.84,
+            "mean": 363.63
+          },
+          "procUtimeTicks": 44053,
+          "procStimeTicks": 803,
+          "procVsizeBytes": 1266950144,
+          "procRssPages": 47253,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:54:04.940Z",
+          "driverCpuPercent": 17.6,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 452,
+          "cpuPercent": 103.9,
+          "rssMb": 183.9,
+          "heapUsedMb": 20.8,
+          "eventLoopLagMs": {
+            "p50": 477.63,
+            "p95": 830.47,
+            "p99": 1182.79,
+            "max": 1334.84,
+            "mean": 363.63
+          },
+          "procUtimeTicks": 44053,
+          "procStimeTicks": 803,
+          "procVsizeBytes": 1266950144,
+          "procRssPages": 47253,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "driverCpuPercent": 0,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-2000",
+      "connections": 2000,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.26,
+        "requestsPerSecond": 876.17,
+        "latency": {
+          "average": 2199.78,
+          "p50": 2146,
+          "p75": 2879,
+          "p90": 3265,
+          "p97_5": 4392,
+          "p99": 4636,
+          "p99_9": 4835,
+          "max": 4876
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 9476,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 16809,
+          "3xx": 0,
+          "4xx": 9476,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 16809
+          },
+          "400": {
+            "count": 8986
+          },
+          "404": {
+            "count": 490
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:54:15.305Z",
+          "driverCpuPercent": 12.9,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 465,
+          "cpuPercent": 101.2,
+          "rssMb": 200.3,
+          "heapUsedMb": 67.3,
+          "eventLoopLagMs": {
+            "p50": 20.23,
+            "p95": 2864.71,
+            "p99": 4781.51,
+            "max": 4781.51,
+            "mean": 534.37
+          },
+          "procUtimeTicks": 45002,
+          "procStimeTicks": 859,
+          "procVsizeBytes": 1280266240,
+          "procRssPages": 50462,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:54:20.305Z",
+          "driverCpuPercent": 14.9,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 472,
+          "cpuPercent": 102.9,
+          "rssMb": 196.8,
+          "heapUsedMb": 90.2,
+          "eventLoopLagMs": {
+            "p50": 20.23,
+            "p95": 4781.51,
+            "p99": 6908.02,
+            "max": 6908.02,
+            "mean": 932.6
+          },
+          "procUtimeTicks": 45673,
+          "procStimeTicks": 912,
+          "procVsizeBytes": 1292849152,
+          "procRssPages": 53571,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:54:25.305Z",
+          "driverCpuPercent": 16.6,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 475,
+          "cpuPercent": 104.3,
+          "rssMb": 209.5,
+          "heapUsedMb": 83.9,
+          "eventLoopLagMs": {
+            "p50": 20.23,
+            "p95": 4781.51,
+            "p99": 6908.02,
+            "max": 6908.02,
+            "mean": 1056.06
+          },
+          "procUtimeTicks": 45955,
+          "procStimeTicks": 933,
+          "procVsizeBytes": 1292849152,
+          "procRssPages": 53726,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:54:30.305Z",
+          "driverCpuPercent": 15.8,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 478,
+          "cpuPercent": 103.8,
+          "rssMb": 210.1,
+          "heapUsedMb": 75.2,
+          "eventLoopLagMs": {
+            "p50": 20.23,
+            "p95": 4781.51,
+            "p99": 6908.02,
+            "max": 6908.02,
+            "mean": 1150.65
+          },
+          "procUtimeTicks": 46228,
+          "procStimeTicks": 949,
+          "procVsizeBytes": 1293398016,
+          "procRssPages": 53885,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:54:35.305Z",
+          "driverCpuPercent": 15,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 487,
+          "cpuPercent": 101.3,
+          "rssMb": 210.8,
+          "heapUsedMb": 71.2,
+          "eventLoopLagMs": {
+            "p50": 26.64,
+            "p95": 4781.51,
+            "p99": 6908.02,
+            "max": 6908.02,
+            "mean": 1411.55
+          },
+          "procUtimeTicks": 47055,
+          "procStimeTicks": 1002,
+          "procVsizeBytes": 1293246464,
+          "procRssPages": 53965,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:54:40.305Z",
+          "driverCpuPercent": 16.4,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 487,
+          "cpuPercent": 105.2,
+          "rssMb": 211.3,
+          "heapUsedMb": 61.6,
+          "eventLoopLagMs": {
+            "p50": 26.64,
+            "p95": 4781.51,
+            "p99": 6908.02,
+            "max": 6908.02,
+            "mean": 1446.48
+          },
+          "procUtimeTicks": 47100,
+          "procStimeTicks": 1006,
+          "procVsizeBytes": 1293815808,
+          "procRssPages": 54095,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 4781.51,
+        "eventLoopLagMaxMs": 6908.02,
+        "heapUsedMb": 90.2,
+        "rssMb": 210.1,
+        "cpuPercent": 104.3,
+        "driverCpuPercent": 16.6,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-2500",
+      "connections": 2500,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.14,
+        "requestsPerSecond": 854.34,
+        "latency": {
+          "average": 2297.99,
+          "p50": 2145,
+          "p75": 2500,
+          "p90": 3376,
+          "p97_5": 4761,
+          "p99": 5119,
+          "p99_9": 5502,
+          "max": 16197
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 9096,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 16534,
+          "3xx": 0,
+          "4xx": 9096,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 16534
+          },
+          "400": {
+            "count": 8581
+          },
+          "404": {
+            "count": 515
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:54:50.592Z",
+          "driverCpuPercent": 9.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 524,
+          "cpuPercent": 103.1,
+          "rssMb": 209.8,
+          "heapUsedMb": 49.2,
+          "eventLoopLagMs": {
+            "p50": 22.25,
+            "p95": 34.64,
+            "p99": 13857.98,
+            "max": 17918.07,
+            "mean": 580.34
+          },
+          "procUtimeTicks": 50252,
+          "procStimeTicks": 1245,
+          "procVsizeBytes": 1291743232,
+          "procRssPages": 53403,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:54:55.592Z",
+          "driverCpuPercent": 14.8,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 524,
+          "cpuPercent": 103.1,
+          "rssMb": 209.8,
+          "heapUsedMb": 49.2,
+          "eventLoopLagMs": {
+            "p50": 22.25,
+            "p95": 34.64,
+            "p99": 13857.98,
+            "max": 17918.07,
+            "mean": 580.34
+          },
+          "procUtimeTicks": 50252,
+          "procStimeTicks": 1245,
+          "procVsizeBytes": 1291743232,
+          "procRssPages": 53403,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:00.592Z",
+          "driverCpuPercent": 14,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 524,
+          "cpuPercent": 103.1,
+          "rssMb": 209.8,
+          "heapUsedMb": 49.2,
+          "eventLoopLagMs": {
+            "p50": 22.25,
+            "p95": 34.64,
+            "p99": 13857.98,
+            "max": 17918.07,
+            "mean": 580.34
+          },
+          "procUtimeTicks": 50252,
+          "procStimeTicks": 1245,
+          "procVsizeBytes": 1291743232,
+          "procRssPages": 53403,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:05.592Z",
+          "driverCpuPercent": 16.9,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 524,
+          "cpuPercent": 103.1,
+          "rssMb": 209.8,
+          "heapUsedMb": 49.2,
+          "eventLoopLagMs": {
+            "p50": 22.25,
+            "p95": 34.64,
+            "p99": 13857.98,
+            "max": 17918.07,
+            "mean": 580.34
+          },
+          "procUtimeTicks": 50252,
+          "procStimeTicks": 1245,
+          "procVsizeBytes": 1291743232,
+          "procRssPages": 53403,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:10.592Z",
+          "driverCpuPercent": 14.6,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 524,
+          "cpuPercent": 103.1,
+          "rssMb": 209.8,
+          "heapUsedMb": 49.2,
+          "eventLoopLagMs": {
+            "p50": 22.25,
+            "p95": 34.64,
+            "p99": 13857.98,
+            "max": 17918.07,
+            "mean": 580.34
+          },
+          "procUtimeTicks": 50252,
+          "procStimeTicks": 1245,
+          "procVsizeBytes": 1291743232,
+          "procRssPages": 53403,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:15.592Z",
+          "driverCpuPercent": 14,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 524,
+          "cpuPercent": 103.1,
+          "rssMb": 209.8,
+          "heapUsedMb": 49.2,
+          "eventLoopLagMs": {
+            "p50": 22.25,
+            "p95": 34.64,
+            "p99": 13857.98,
+            "max": 17918.07,
+            "mean": 580.34
+          },
+          "procUtimeTicks": 50252,
+          "procStimeTicks": 1245,
+          "procVsizeBytes": 1291743232,
+          "procRssPages": 53403,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "driverCpuPercent": 0,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-3000",
+      "connections": 3000,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.29,
+        "requestsPerSecond": 818.44,
+        "latency": {
+          "average": 3123.13,
+          "p50": 3092,
+          "p75": 3671,
+          "p90": 5117,
+          "p97_5": 6769,
+          "p99": 7088,
+          "p99_9": 7337,
+          "max": 23612
+        },
+        "errors": 311,
+        "timeouts": 0,
+        "non2xx": 8344,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 16209,
+          "3xx": 0,
+          "4xx": 8344,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 16209
+          },
+          "400": {
+            "count": 7862
+          },
+          "404": {
+            "count": 482
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:55:25.749Z",
+          "driverCpuPercent": 10.8,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 540,
+          "cpuPercent": 101.8,
+          "rssMb": 215.8,
+          "heapUsedMb": 104.9,
+          "eventLoopLagMs": {
+            "p50": 20.2,
+            "p95": 3821.01,
+            "p99": 7008.68,
+            "max": 7008.68,
+            "mean": 793.14
+          },
+          "procUtimeTicks": 51565,
+          "procStimeTicks": 1332,
+          "procVsizeBytes": 1310461952,
+          "procRssPages": 57754,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:35.750Z",
+          "driverCpuPercent": 15.8,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 545,
+          "cpuPercent": 101.5,
+          "rssMb": 225.6,
+          "heapUsedMb": 42,
+          "eventLoopLagMs": {
+            "p50": 20.2,
+            "p95": 3821.01,
+            "p99": 7008.68,
+            "max": 7008.68,
+            "mean": 988.22
+          },
+          "procUtimeTicks": 52027,
+          "procStimeTicks": 1370,
+          "procVsizeBytes": 1310461952,
+          "procRssPages": 57778,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:40.749Z",
+          "driverCpuPercent": 15.3,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 549,
+          "cpuPercent": 100,
+          "rssMb": 225.7,
+          "heapUsedMb": 38.7,
+          "eventLoopLagMs": {
+            "p50": 20.2,
+            "p95": 6408.9,
+            "p99": 7008.68,
+            "max": 7008.68,
+            "mean": 1326.88
+          },
+          "procUtimeTicks": 52446,
+          "procStimeTicks": 1398,
+          "procVsizeBytes": 1310461952,
+          "procRssPages": 57391,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:45.749Z",
+          "driverCpuPercent": 14.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 555,
+          "cpuPercent": 102.6,
+          "rssMb": 225.5,
+          "heapUsedMb": 38.8,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 6429.87,
+            "p99": 7008.68,
+            "max": 7008.68,
+            "mean": 1626.93
+          },
+          "procUtimeTicks": 52964,
+          "procStimeTicks": 1433,
+          "procVsizeBytes": 1310609408,
+          "procRssPages": 57788,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:50.749Z",
+          "driverCpuPercent": 16.2,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 559,
+          "cpuPercent": 104,
+          "rssMb": 225.7,
+          "heapUsedMb": 37.1,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 6429.87,
+            "p99": 7008.68,
+            "max": 7008.68,
+            "mean": 1764.15
+          },
+          "procUtimeTicks": 53373,
+          "procStimeTicks": 1451,
+          "procVsizeBytes": 1310912512,
+          "procRssPages": 57844,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:55:30.749Z",
+          "driverCpuPercent": 15.3,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 559,
+          "cpuPercent": 109.2,
+          "rssMb": 225.7,
+          "heapUsedMb": 41.4,
+          "eventLoopLagMs": {
+            "p50": 20.41,
+            "p95": 6408.9,
+            "p99": 7008.68,
+            "max": 7008.68,
+            "mean": 956.88
+          },
+          "procUtimeTicks": 53433,
+          "procStimeTicks": 1454,
+          "procVsizeBytes": 1310425088,
+          "procRssPages": 57779,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 6429.87,
+        "eventLoopLagMaxMs": 7008.68,
+        "heapUsedMb": 104.9,
+        "rssMb": 225.7,
+        "cpuPercent": 102.6,
+        "driverCpuPercent": 15.8,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-3500",
+      "connections": 3500,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.45,
+        "requestsPerSecond": 783,
+        "latency": {
+          "average": 4120.26,
+          "p50": 3654,
+          "p75": 4453,
+          "p90": 7218,
+          "p97_5": 8819,
+          "p99": 9421,
+          "p99_9": 9801,
+          "max": 9847
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 8487,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 15003,
+          "3xx": 0,
+          "4xx": 8487,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 15003
+          },
+          "400": {
+            "count": 7846
+          },
+          "404": {
+            "count": 641
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:56:01.061Z",
+          "driverCpuPercent": 11.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 586,
+          "cpuPercent": 97.8,
+          "rssMb": 226.8,
+          "heapUsedMb": 47.1,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 121.37,
+            "p99": 20568.87,
+            "max": 20568.87,
+            "mean": 1494.91
+          },
+          "procUtimeTicks": 55721,
+          "procStimeTicks": 1609,
+          "procVsizeBytes": 1310912512,
+          "procRssPages": 58051,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:06.060Z",
+          "driverCpuPercent": 16.4,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 586,
+          "cpuPercent": 97.8,
+          "rssMb": 226.8,
+          "heapUsedMb": 47.1,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 121.37,
+            "p99": 20568.87,
+            "max": 20568.87,
+            "mean": 1494.91
+          },
+          "procUtimeTicks": 55721,
+          "procStimeTicks": 1609,
+          "procVsizeBytes": 1310912512,
+          "procRssPages": 58051,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:11.060Z",
+          "driverCpuPercent": 15.4,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 586,
+          "cpuPercent": 97.8,
+          "rssMb": 226.8,
+          "heapUsedMb": 47.1,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 121.37,
+            "p99": 20568.87,
+            "max": 20568.87,
+            "mean": 1494.91
+          },
+          "procUtimeTicks": 55721,
+          "procStimeTicks": 1609,
+          "procVsizeBytes": 1310912512,
+          "procRssPages": 58051,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:21.061Z",
+          "driverCpuPercent": 16.2,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 590,
+          "cpuPercent": 97.8,
+          "rssMb": 226.8,
+          "heapUsedMb": 47.1,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 121.37,
+            "p99": 20568.87,
+            "max": 20568.87,
+            "mean": 1494.91
+          },
+          "procUtimeTicks": 56044,
+          "procStimeTicks": 1637,
+          "procVsizeBytes": 1311059968,
+          "procRssPages": 58081,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:26.061Z",
+          "driverCpuPercent": 14.5,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 596,
+          "cpuPercent": 97.8,
+          "rssMb": 226.8,
+          "heapUsedMb": 47.1,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 121.37,
+            "p99": 20568.87,
+            "max": 20568.87,
+            "mean": 1494.91
+          },
+          "procUtimeTicks": 56624,
+          "procStimeTicks": 1670,
+          "procVsizeBytes": 1310912512,
+          "procRssPages": 57822,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:16.060Z",
+          "driverCpuPercent": 13.1,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 596,
+          "cpuPercent": 99.8,
+          "rssMb": 225.9,
+          "heapUsedMb": 37.1,
+          "eventLoopLagMs": {
+            "p50": 20.22,
+            "p95": 13497.27,
+            "p99": 20568.87,
+            "max": 20568.87,
+            "mean": 2294.79
+          },
+          "procUtimeTicks": 56625,
+          "procStimeTicks": 1670,
+          "procVsizeBytes": 1310912512,
+          "procRssPages": 57822,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 121.37,
+        "eventLoopLagMaxMs": 20568.87,
+        "heapUsedMb": 47.1,
+        "rssMb": 226.8,
+        "cpuPercent": 97.8,
+        "driverCpuPercent": 16.4,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-4000",
+      "connections": 4000,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.3,
+        "requestsPerSecond": 771.7,
+        "latency": {
+          "average": 3589.14,
+          "p50": 3325,
+          "p75": 4168,
+          "p90": 6633,
+          "p97_5": 8788,
+          "p99": 9394,
+          "p99_9": 9678,
+          "max": 24282
+        },
+        "errors": 1188,
+        "timeouts": 0,
+        "non2xx": 8264,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 14887,
+          "3xx": 0,
+          "4xx": 8264,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 14887
+          },
+          "400": {
+            "count": 7754
+          },
+          "404": {
+            "count": 510
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:56:36.539Z",
+          "driverCpuPercent": 10.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 614,
+          "cpuPercent": 102.7,
+          "rssMb": 232.1,
+          "heapUsedMb": 107.1,
+          "eventLoopLagMs": {
+            "p50": 20.17,
+            "p95": 4158.65,
+            "p99": 9521.07,
+            "max": 9521.07,
+            "mean": 881.27
+          },
+          "procUtimeTicks": 58268,
+          "procStimeTicks": 1768,
+          "procVsizeBytes": 1316712448,
+          "procRssPages": 59555,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:51.552Z",
+          "driverCpuPercent": 14.8,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 621,
+          "cpuPercent": 101.3,
+          "rssMb": 231,
+          "heapUsedMb": 41.7,
+          "eventLoopLagMs": {
+            "p50": 20.2,
+            "p95": 6127.88,
+            "p99": 9521.07,
+            "max": 9521.07,
+            "mean": 1357.91
+          },
+          "procUtimeTicks": 58915,
+          "procStimeTicks": 1818,
+          "procVsizeBytes": 1316712448,
+          "procRssPages": 59128,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:56.552Z",
+          "driverCpuPercent": 16.4,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 625,
+          "cpuPercent": 102.9,
+          "rssMb": 230.4,
+          "heapUsedMb": 65.4,
+          "eventLoopLagMs": {
+            "p50": 20.2,
+            "p95": 6127.88,
+            "p99": 9521.07,
+            "max": 9521.07,
+            "mean": 1503.83
+          },
+          "procUtimeTicks": 59313,
+          "procStimeTicks": 1841,
+          "procVsizeBytes": 1317621760,
+          "procRssPages": 58980,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:01.552Z",
+          "driverCpuPercent": 14.4,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 630,
+          "cpuPercent": 102.9,
+          "rssMb": 230.4,
+          "heapUsedMb": 65.4,
+          "eventLoopLagMs": {
+            "p50": 20.2,
+            "p95": 6127.88,
+            "p99": 9521.07,
+            "max": 9521.07,
+            "mean": 1503.83
+          },
+          "procUtimeTicks": 59810,
+          "procStimeTicks": 1870,
+          "procVsizeBytes": 1317621760,
+          "procRssPages": 59081,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:41.552Z",
+          "driverCpuPercent": 15.6,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 631,
+          "cpuPercent": 102.8,
+          "rssMb": 230.8,
+          "heapUsedMb": 57.6,
+          "eventLoopLagMs": {
+            "p50": 20.51,
+            "p95": 4217.37,
+            "p99": 6127.88,
+            "max": 9521.07,
+            "mean": 595.22
+          },
+          "procUtimeTicks": 59889,
+          "procStimeTicks": 1878,
+          "procVsizeBytes": 1315901440,
+          "procRssPages": 58869,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:56:46.552Z",
+          "driverCpuPercent": 16.3,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 632,
+          "cpuPercent": 105.9,
+          "rssMb": 229.7,
+          "heapUsedMb": 34.9,
+          "eventLoopLagMs": {
+            "p50": 20.4,
+            "p95": 4131.39,
+            "p99": 6127.88,
+            "max": 9521.07,
+            "mean": 386.98
+          },
+          "procUtimeTicks": 59957,
+          "procStimeTicks": 1883,
+          "procVsizeBytes": 1315901440,
+          "procRssPages": 58869,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 6127.88,
+        "eventLoopLagMaxMs": 9521.07,
+        "heapUsedMb": 107.1,
+        "rssMb": 232.1,
+        "cpuPercent": 102.9,
+        "driverCpuPercent": 16.4,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-4500",
+      "connections": 4500,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.36,
+        "requestsPerSecond": 770.94,
+        "latency": {
+          "average": 4920.98,
+          "p50": 4045,
+          "p75": 6540,
+          "p90": 7926,
+          "p97_5": 10638,
+          "p99": 11060,
+          "p99_9": 11429,
+          "max": 11471
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 8748,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 14380,
+          "3xx": 0,
+          "4xx": 8748,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 14380
+          },
+          "400": {
+            "count": 8110
+          },
+          "404": {
+            "count": 638
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:57:11.904Z",
+          "driverCpuPercent": 11.9,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 667,
+          "cpuPercent": 100.4,
+          "rssMb": 229.9,
+          "heapUsedMb": 67.2,
+          "eventLoopLagMs": {
+            "p50": 20.19,
+            "p95": 27.51,
+            "p99": 75.1,
+            "max": 33806.09,
+            "mean": 594.77
+          },
+          "procUtimeTicks": 63250,
+          "procStimeTicks": 2092,
+          "procVsizeBytes": 1316659200,
+          "procRssPages": 59057,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:16.904Z",
+          "driverCpuPercent": 12.8,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 667,
+          "cpuPercent": 100.4,
+          "rssMb": 229.9,
+          "heapUsedMb": 67.2,
+          "eventLoopLagMs": {
+            "p50": 20.19,
+            "p95": 27.51,
+            "p99": 75.1,
+            "max": 33806.09,
+            "mean": 594.77
+          },
+          "procUtimeTicks": 63250,
+          "procStimeTicks": 2092,
+          "procVsizeBytes": 1316659200,
+          "procRssPages": 59057,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:21.907Z",
+          "driverCpuPercent": 15,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 667,
+          "cpuPercent": 100.4,
+          "rssMb": 229.9,
+          "heapUsedMb": 67.2,
+          "eventLoopLagMs": {
+            "p50": 20.19,
+            "p95": 27.51,
+            "p99": 75.1,
+            "max": 33806.09,
+            "mean": 594.77
+          },
+          "procUtimeTicks": 63250,
+          "procStimeTicks": 2092,
+          "procVsizeBytes": 1316659200,
+          "procRssPages": 59057,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:26.909Z",
+          "driverCpuPercent": 14.5,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 667,
+          "cpuPercent": 100.4,
+          "rssMb": 229.9,
+          "heapUsedMb": 67.2,
+          "eventLoopLagMs": {
+            "p50": 20.19,
+            "p95": 27.51,
+            "p99": 75.1,
+            "max": 33806.09,
+            "mean": 594.77
+          },
+          "procUtimeTicks": 63250,
+          "procStimeTicks": 2092,
+          "procVsizeBytes": 1316659200,
+          "procRssPages": 59057,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:31.909Z",
+          "driverCpuPercent": 13.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 667,
+          "cpuPercent": 100.4,
+          "rssMb": 229.9,
+          "heapUsedMb": 67.2,
+          "eventLoopLagMs": {
+            "p50": 20.19,
+            "p95": 27.51,
+            "p99": 75.1,
+            "max": 33806.09,
+            "mean": 594.77
+          },
+          "procUtimeTicks": 63250,
+          "procStimeTicks": 2092,
+          "procVsizeBytes": 1316659200,
+          "procRssPages": 59057,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:36.909Z",
+          "driverCpuPercent": 15.2,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 667,
+          "cpuPercent": 100.4,
+          "rssMb": 229.9,
+          "heapUsedMb": 67.2,
+          "eventLoopLagMs": {
+            "p50": 20.19,
+            "p95": 27.51,
+            "p99": 75.1,
+            "max": 33806.09,
+            "mean": 594.77
+          },
+          "procUtimeTicks": 63250,
+          "procStimeTicks": 2092,
+          "procVsizeBytes": 1316659200,
+          "procRssPages": 59057,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "driverCpuPercent": 0,
+        "db": null
+      }
+    },
+    {
+      "label": "ramp-5000",
+      "connections": 5000,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.52,
+        "requestsPerSecond": 840.14,
+        "latency": {
+          "average": 2815.71,
+          "p50": 2797,
+          "p75": 3327,
+          "p90": 4430,
+          "p97_5": 5742,
+          "p99": 5981,
+          "p99_9": 6265,
+          "max": 25659
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 9187,
+        "timeoutTimingMs": [],
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 16017,
+          "3xx": 0,
+          "4xx": 9187,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 16017
+          },
+          "400": {
+            "count": 8667
+          },
+          "404": {
+            "count": 520
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T14:57:47.305Z",
+          "driverCpuPercent": 11.6,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 709,
+          "cpuPercent": 104.9,
+          "rssMb": 232.9,
+          "heapUsedMb": 28.5,
+          "eventLoopLagMs": {
+            "p50": 22.15,
+            "p95": 32.8,
+            "p99": 4374.66,
+            "max": 11207.18,
+            "mean": 125.48
+          },
+          "procUtimeTicks": 67137,
+          "procStimeTicks": 2344,
+          "procVsizeBytes": 1319170048,
+          "procRssPages": 59754,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:52.305Z",
+          "driverCpuPercent": 15.3,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 709,
+          "cpuPercent": 104.9,
+          "rssMb": 232.9,
+          "heapUsedMb": 28.5,
+          "eventLoopLagMs": {
+            "p50": 22.15,
+            "p95": 32.8,
+            "p99": 4374.66,
+            "max": 11207.18,
+            "mean": 125.48
+          },
+          "procUtimeTicks": 67137,
+          "procStimeTicks": 2344,
+          "procVsizeBytes": 1319170048,
+          "procRssPages": 59754,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:57:57.305Z",
+          "driverCpuPercent": 14.5,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 709,
+          "cpuPercent": 104.9,
+          "rssMb": 232.9,
+          "heapUsedMb": 28.5,
+          "eventLoopLagMs": {
+            "p50": 22.15,
+            "p95": 32.8,
+            "p99": 4374.66,
+            "max": 11207.18,
+            "mean": 125.48
+          },
+          "procUtimeTicks": 67137,
+          "procStimeTicks": 2344,
+          "procVsizeBytes": 1319170048,
+          "procRssPages": 59754,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:58:02.305Z",
+          "driverCpuPercent": 14.9,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 709,
+          "cpuPercent": 104.9,
+          "rssMb": 232.9,
+          "heapUsedMb": 28.5,
+          "eventLoopLagMs": {
+            "p50": 22.15,
+            "p95": 32.8,
+            "p99": 4374.66,
+            "max": 11207.18,
+            "mean": 125.48
+          },
+          "procUtimeTicks": 67137,
+          "procStimeTicks": 2344,
+          "procVsizeBytes": 1319170048,
+          "procRssPages": 59754,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:58:07.305Z",
+          "driverCpuPercent": 14.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 709,
+          "cpuPercent": 104.9,
+          "rssMb": 232.9,
+          "heapUsedMb": 28.5,
+          "eventLoopLagMs": {
+            "p50": 22.15,
+            "p95": 32.8,
+            "p99": 4374.66,
+            "max": 11207.18,
+            "mean": 125.48
+          },
+          "procUtimeTicks": 67137,
+          "procStimeTicks": 2344,
+          "procVsizeBytes": 1319170048,
+          "procRssPages": 59754,
+          "procStartTimeTicks": 1225764
+        },
+        {
+          "at": "2026-09-21T14:58:12.306Z",
+          "driverCpuPercent": 17.7,
+          "enabled": true,
+          "pid": 6908,
+          "uptimeSec": 709,
+          "cpuPercent": 104.9,
+          "rssMb": 232.9,
+          "heapUsedMb": 28.5,
+          "eventLoopLagMs": {
+            "p50": 22.15,
+            "p95": 32.8,
+            "p99": 4374.66,
+            "max": 11207.18,
+            "mean": 125.48
+          },
+          "procUtimeTicks": 67137,
+          "procStimeTicks": 2344,
+          "procVsizeBytes": 1319170048,
+          "procRssPages": 59754,
+          "procStartTimeTicks": 1225764
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "driverCpuPercent": 0,
+        "db": null
+      }
+    }
+  ],
+  "hold": {
+    "label": "hold-5000",
+    "connections": 5000,
+    "requestedSeconds": 180,
+    "result": {
+      "duration": 180.58,
+      "requestsPerSecond": 870.66,
+      "latency": {
+        "average": 5655.98,
+        "p50": 5426,
+        "p75": 6331,
+        "p90": 7829,
+        "p97_5": 10693,
+        "p99": 12122,
+        "p99_9": 13708,
+        "max": 64033
+      },
+      "errors": 69,
+      "timeouts": 7,
+      "non2xx": 53928,
+      "timeoutTimingMs": [
+        174491,
+        174492,
+        174492,
+        174492,
+        174493,
+        174493,
+        174493
+      ],
+      "statusCodes": {
+        "1xx": 0,
+        "2xx": 102790,
+        "3xx": 0,
+        "4xx": 53928,
+        "5xx": 0
+      },
+      "statusCodeStats": {
+        "200": {
+          "count": 102790
+        },
+        "400": {
+          "count": 50755
+        },
+        "404": {
+          "count": 3173
+        }
+      }
+    },
+    "serverSamples": [
+      {
+        "at": "2026-09-21T14:58:22.865Z",
+        "driverCpuPercent": 2.2,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 709,
+        "cpuPercent": 104.9,
+        "rssMb": 232.9,
+        "heapUsedMb": 28.5,
+        "eventLoopLagMs": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0,
+          "mean": 0
+        },
+        "procUtimeTicks": 67169,
+        "procStimeTicks": 2348,
+        "procVsizeBytes": 1317707776,
+        "procRssPages": 59322,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:58:27.874Z",
+        "driverCpuPercent": 21.9,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:58:32.874Z",
+        "driverCpuPercent": 15,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:58:37.874Z",
+        "driverCpuPercent": 13.2,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:58:42.874Z",
+        "driverCpuPercent": 17.3,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:58:47.874Z",
+        "driverCpuPercent": 12.6,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:58:52.874Z",
+        "driverCpuPercent": 16.1,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:58:57.874Z",
+        "driverCpuPercent": 15.9,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:02.874Z",
+        "driverCpuPercent": 14.2,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73484,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:07.874Z",
+        "driverCpuPercent": 13.6,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73485,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:12.874Z",
+        "driverCpuPercent": 15.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 777,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 73485,
+        "procStimeTicks": 2820,
+        "procVsizeBytes": 1349001216,
+        "procRssPages": 67498,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:32.874Z",
+        "driverCpuPercent": 13.5,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 787,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 74394,
+        "procStimeTicks": 2882,
+        "procVsizeBytes": 1348763648,
+        "procRssPages": 67289,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:42.874Z",
+        "driverCpuPercent": 14.5,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 792,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 74877,
+        "procStimeTicks": 2920,
+        "procVsizeBytes": 1350299648,
+        "procRssPages": 67291,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:47.874Z",
+        "driverCpuPercent": 13.1,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 801,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 75723,
+        "procStimeTicks": 2984,
+        "procVsizeBytes": 1350299648,
+        "procRssPages": 67711,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:57.874Z",
+        "driverCpuPercent": 13.1,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 810,
+        "cpuPercent": 99.5,
+        "rssMb": 262.9,
+        "heapUsedMb": 39.3,
+        "eventLoopLagMs": {
+          "p50": 20.64,
+          "p95": 115.93,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 3444.6
+        },
+        "procUtimeTicks": 76538,
+        "procStimeTicks": 3046,
+        "procVsizeBytes": 1350762496,
+        "procRssPages": 67657,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:07.874Z",
+        "driverCpuPercent": 14,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 824,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 77884,
+        "procStimeTicks": 3145,
+        "procVsizeBytes": 1350897664,
+        "procRssPages": 67646,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:17.874Z",
+        "driverCpuPercent": 14.7,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 829,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 78297,
+        "procStimeTicks": 3170,
+        "procVsizeBytes": 1351196672,
+        "procRssPages": 67728,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:22.874Z",
+        "driverCpuPercent": 12.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 829,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 78297,
+        "procStimeTicks": 3170,
+        "procVsizeBytes": 1351196672,
+        "procRssPages": 67728,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:27.874Z",
+        "driverCpuPercent": 15.8,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 829,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 78297,
+        "procStimeTicks": 3170,
+        "procVsizeBytes": 1351196672,
+        "procRssPages": 67728,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:37.874Z",
+        "driverCpuPercent": 14.6,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 829,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 78297,
+        "procStimeTicks": 3170,
+        "procVsizeBytes": 1351196672,
+        "procRssPages": 67728,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T14:59:52.874Z",
+        "driverCpuPercent": 14.6,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 829,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 78298,
+        "procStimeTicks": 3170,
+        "procVsizeBytes": 1351196672,
+        "procRssPages": 67728,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:02.874Z",
+        "driverCpuPercent": 13.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 829,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 78298,
+        "procStimeTicks": 3170,
+        "procVsizeBytes": 1351196672,
+        "procRssPages": 67728,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:12.874Z",
+        "driverCpuPercent": 12.7,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 829,
+        "cpuPercent": 100.4,
+        "rssMb": 264.2,
+        "heapUsedMb": 48.6,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 6038.61
+        },
+        "procUtimeTicks": 78298,
+        "procStimeTicks": 3170,
+        "procVsizeBytes": 1351196672,
+        "procRssPages": 67728,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:17.874Z",
+        "driverCpuPercent": 15.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 879,
+        "cpuPercent": 96.7,
+        "rssMb": 277.3,
+        "heapUsedMb": 101.5,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8121.59
+        },
+        "procUtimeTicks": 83034,
+        "procStimeTicks": 3510,
+        "procVsizeBytes": 1365934080,
+        "procRssPages": 71049,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:22.882Z",
+        "driverCpuPercent": 21.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8435.53
+        },
+        "procUtimeTicks": 84449,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369145344,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:27.882Z",
+        "driverCpuPercent": 15.3,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8435.53
+        },
+        "procUtimeTicks": 84449,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:32.882Z",
+        "driverCpuPercent": 14.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84449,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:37.883Z",
+        "driverCpuPercent": 13.1,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84449,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:42.883Z",
+        "driverCpuPercent": 15.5,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84449,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:47.883Z",
+        "driverCpuPercent": 12.8,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84449,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:52.886Z",
+        "driverCpuPercent": 15.5,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84450,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:00:57.887Z",
+        "driverCpuPercent": 15.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84450,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:01:02.887Z",
+        "driverCpuPercent": 13.9,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84450,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:01:07.887Z",
+        "driverCpuPercent": 14.4,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.23,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 8069.62
+        },
+        "procUtimeTicks": 84450,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369354240,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:01:12.887Z",
+        "driverCpuPercent": 15.6,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 7734.22
+        },
+        "procUtimeTicks": 84452,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369145344,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:01:17.887Z",
+        "driverCpuPercent": 13.7,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 7734.22
+        },
+        "procUtimeTicks": 84452,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369145344,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      },
+      {
+        "at": "2026-09-21T15:01:22.887Z",
+        "driverCpuPercent": 17.7,
+        "enabled": true,
+        "pid": 6908,
+        "uptimeSec": 894,
+        "cpuPercent": 101.8,
+        "rssMb": 281.3,
+        "heapUsedMb": 89.9,
+        "eventLoopLagMs": {
+          "p50": 21.07,
+          "p95": 52747.57,
+          "p99": 61438.16,
+          "max": 61438.16,
+          "mean": 7425.65
+        },
+        "procUtimeTicks": 84453,
+        "procStimeTicks": 3615,
+        "procVsizeBytes": 1369145344,
+        "procRssPages": 72017,
+        "procStartTimeTicks": 1225764
+      }
+    ],
+    "peak": {
+      "eventLoopLagP95Ms": 52747.57,
+      "eventLoopLagMaxMs": 61438.16,
+      "heapUsedMb": 101.5,
+      "rssMb": 277.3,
+      "cpuPercent": 104.9,
+      "driverCpuPercent": 21.9,
+      "db": null
+    }
+  },
+  "isolation": {
+    "startedAt": "2026-09-21T14:58:23.866Z",
+    "durationMs": 185752,
+    "checks": 28,
+    "violations": []
+  },
+  "prewarm": {
+    "ok": 5000,
+    "failed": 0,
+    "seconds": 349.17
+  }
+}

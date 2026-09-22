@@ -53,7 +53,7 @@ async function main() {
   if (flag("--help") >= 0 || flag("-h") >= 0) return usage(0);
 
   if (flag("--list") >= 0) {
-    const list = backup.listSync();
+    const list = await backup.list();
     if (!list.length) return console.log(`No snapshots in ${config.BACKUP_DIR} yet.`);
     for (const b of list) {
       const counts = b.counts ? Object.entries(b.counts).map(([k, v]) => `${k}:${v}`).join(" ") : "";
@@ -69,7 +69,7 @@ async function main() {
   if (restoreName || importPath) {
     const source = importPath
       ? backup.parseJson(fs.readFileSync(path.resolve(importPath), "utf8"))
-      : backup.readSnapshot(restoreName);
+      : await backup.readSnapshot(restoreName);
     const plan = await backup.restore(db, source, { dryRun: true });
     console.log(`Tables that will be replaced: ${plan.wouldReplace.join(", ")}`);
     console.log(`Rows: ${JSON.stringify(plan.counts)}`);

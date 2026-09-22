@@ -787,7 +787,7 @@ const registerHandler = asyncHandler(async (req, res) => {
   // A hash of the chosen password is kept so approval can create the real
   // login with the SAME credentials the applicant chose — never re-hashed
   // from plaintext later, and the plaintext itself is never stored.
-  const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
   const adminUsername = cleanStr(adminData.username, 100).toLowerCase()
     || (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "admin") + "-admin";
 

@@ -1,0 +1,179 @@
+{
+  "stage": 200,
+  "url": [
+    "http://127.0.0.1:3100"
+  ],
+  "startedAt": "2026-09-21T12:54:53.137Z",
+  "env": {
+    "node": "v22.22.3",
+    "cpus": 2,
+    "totalMemMb": 3940,
+    "dataset": "55 madaris / 10,900 students / ~200k rows (loadtest.sqlite)",
+    "note": "server + load generator share this host; see report for implications"
+  },
+  "steps": [
+    {
+      "label": "ramp-200",
+      "connections": 200,
+      "requestedSeconds": 10,
+      "result": {
+        "duration": 10.06,
+        "requestsPerSecond": 20.3,
+        "latency": {
+          "average": 1841.71,
+          "p50": 1908,
+          "p75": 3449,
+          "p90": 3493,
+          "p97_5": 3593,
+          "p99": 3689,
+          "p99_9": 7185,
+          "max": 7185
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 39,
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 164,
+          "3xx": 0,
+          "4xx": 39,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 164
+          },
+          "400": {
+            "count": 39
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T12:54:58.602Z",
+          "driverCpuPercent": 0,
+          "enabled": true,
+          "pid": 6070,
+          "uptimeSec": 22,
+          "cpuPercent": 98.9,
+          "rssMb": 80.9,
+          "heapUsedMb": 18,
+          "eventLoopLagMs": {
+            "p50": 82.31,
+            "p95": 95.22,
+            "p99": 3426.75,
+            "max": 3506.44,
+            "mean": 155.14
+          },
+          "procUtimeTicks": 2172,
+          "procStimeTicks": 15,
+          "procVsizeBytes": 1170726912,
+          "procRssPages": 20696,
+          "procStartTimeTicks": 555584
+        },
+        {
+          "at": "2026-09-21T12:55:03.601Z",
+          "driverCpuPercent": 1.8,
+          "enabled": true,
+          "pid": 6070,
+          "uptimeSec": 22,
+          "cpuPercent": 98.9,
+          "rssMb": 80.9,
+          "heapUsedMb": 18,
+          "eventLoopLagMs": {
+            "p50": 82.31,
+            "p95": 95.22,
+            "p99": 3426.75,
+            "max": 3506.44,
+            "mean": 155.14
+          },
+          "procUtimeTicks": 2172,
+          "procStimeTicks": 15,
+          "procVsizeBytes": 1170726912,
+          "procRssPages": 20761,
+          "procStartTimeTicks": 555584
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "driverCpuPercent": 0,
+        "db": null
+      }
+    }
+  ],
+  "hold": {
+    "label": "hold-200",
+    "connections": 200,
+    "requestedSeconds": 30,
+    "result": {
+      "duration": 30.04,
+      "requestsPerSecond": 24.4,
+      "latency": {
+        "average": 3253.17,
+        "p50": 3405,
+        "p75": 5987,
+        "p90": 6257,
+        "p97_5": 6263,
+        "p99": 6766,
+        "p99_9": 25237,
+        "max": 25237
+      },
+      "errors": 2,
+      "timeouts": 0,
+      "non2xx": 138,
+      "statusCodes": {
+        "1xx": 0,
+        "2xx": 594,
+        "3xx": 0,
+        "4xx": 138,
+        "5xx": 0
+      },
+      "statusCodeStats": {
+        "200": {
+          "count": 594
+        },
+        "400": {
+          "count": 138
+        }
+      }
+    },
+    "serverSamples": [
+      {
+        "at": "2026-09-21T12:55:13.724Z",
+        "driverCpuPercent": 0.6,
+        "enabled": true,
+        "pid": 6070,
+        "uptimeSec": 22,
+        "cpuPercent": 98.9,
+        "rssMb": 80.9,
+        "heapUsedMb": 18,
+        "eventLoopLagMs": {
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "max": 0,
+          "mean": 0
+        },
+        "procUtimeTicks": 2173,
+        "procStimeTicks": 15,
+        "procVsizeBytes": 1170726912,
+        "procRssPages": 20827,
+        "procStartTimeTicks": 555584
+      }
+    ],
+    "peak": {
+      "eventLoopLagP95Ms": 0,
+      "eventLoopLagMaxMs": 0,
+      "heapUsedMb": 18,
+      "rssMb": 80.9,
+      "cpuPercent": 98.9,
+      "driverCpuPercent": 0.6,
+      "db": null
+    }
+  },
+  "isolation": null
+}

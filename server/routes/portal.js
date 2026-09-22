@@ -52,8 +52,16 @@ router.get("/me", asyncHandler(async (req, res) => {
     madrasa,
     children: [],
   };
+  // One query for all of the children's classes — a per-child lookup made
+  // this "who am I" endpoint an N+1 for every parent with several children.
+  const classIds = [...new Set(students.map((s) => Number(s.class_id)).filter(Boolean))];
+  const classesById = new Map();
+  if (classIds.length) {
+    const rows = await db.all(`SELECT id, name_en, name_ar FROM classes WHERE id IN (${classIds.map(() => "?").join(",")})`, classIds);
+    for (const c of rows) classesById.set(Number(c.id), c);
+  }
   for (const s of students) {
-    const cls = s.class_id ? await db.get("SELECT name_en, name_ar FROM classes WHERE id = ?", [s.class_id]) : null;
+    const cls = s.class_id ? classesById.get(Number(s.class_id)) : null;
     out.children.push(Object.assign({}, s, {
       classEn: cls ? cls.name_en : "",
       classAr: cls ? cls.name_ar : "",

@@ -1,0 +1,264 @@
+{
+  "stage": 100,
+  "url": "http://127.0.0.1:3100",
+  "startedAt": "2026-09-21T12:20:27.109Z",
+  "env": {
+    "node": "v22.22.3",
+    "cpus": 2,
+    "totalMemMb": 3940,
+    "dataset": "55 madaris / 10,900 students / ~200k rows (loadtest.sqlite)",
+    "note": "server + load generator share this host; see report for implications"
+  },
+  "steps": [
+    {
+      "label": "ramp-100",
+      "connections": 100,
+      "requestedSeconds": 30,
+      "result": {
+        "duration": 30.04,
+        "requestsPerSecond": 566.14,
+        "latency": {
+          "average": 175.73,
+          "p50": 134,
+          "p75": 154,
+          "p90": 238,
+          "p97_5": 315,
+          "p99": 352,
+          "p99_9": 9572,
+          "max": 11843
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "non2xx": 5919,
+        "statusCodes": {
+          "1xx": 0,
+          "2xx": 11065,
+          "3xx": 0,
+          "4xx": 5919,
+          "5xx": 0
+        },
+        "statusCodeStats": {
+          "200": {
+            "count": 11065
+          },
+          "400": {
+            "count": 5460
+          },
+          "404": {
+            "count": 459
+          }
+        }
+      },
+      "serverSamples": [
+        {
+          "at": "2026-09-21T12:20:32.601Z",
+          "procUtimeTicks": 1158,
+          "procStimeTicks": 49,
+          "procVsizeBytes": 1216200704,
+          "procRssPages": 33533,
+          "procStartTimeTicks": 366363
+        },
+        {
+          "at": "2026-09-21T12:20:37.601Z",
+          "procUtimeTicks": 1161,
+          "procStimeTicks": 50,
+          "procVsizeBytes": 1216200704,
+          "procRssPages": 33533,
+          "procStartTimeTicks": 366363
+        },
+        {
+          "at": "2026-09-21T12:20:42.601Z",
+          "procUtimeTicks": 1410,
+          "procStimeTicks": 86,
+          "procVsizeBytes": 1217773568,
+          "procRssPages": 33897,
+          "procStartTimeTicks": 366363
+        },
+        {
+          "at": "2026-09-21T12:20:47.601Z",
+          "procUtimeTicks": 1794,
+          "procStimeTicks": 144,
+          "procVsizeBytes": 1224548352,
+          "procRssPages": 35590,
+          "procStartTimeTicks": 366363
+        },
+        {
+          "at": "2026-09-21T12:20:52.601Z",
+          "procUtimeTicks": 2180,
+          "procStimeTicks": 199,
+          "procVsizeBytes": 1224306688,
+          "procRssPages": 35257,
+          "procStartTimeTicks": 366363
+        },
+        {
+          "at": "2026-09-21T12:20:57.601Z",
+          "procUtimeTicks": 2554,
+          "procStimeTicks": 256,
+          "procVsizeBytes": 1224040448,
+          "procRssPages": 35605,
+          "procStartTimeTicks": 366363
+        }
+      ],
+      "peak": {
+        "eventLoopLagP95Ms": 0,
+        "eventLoopLagMaxMs": 0,
+        "heapUsedMb": 0,
+        "rssMb": 0,
+        "cpuPercent": 0,
+        "db": null
+      }
+    }
+  ],
+  "hold": {
+    "label": "hold-100",
+    "connections": 100,
+    "requestedSeconds": 60,
+    "result": {
+      "duration": 60.03,
+      "requestsPerSecond": 641.57,
+      "latency": {
+        "average": 155.22,
+        "p50": 134,
+        "p75": 159,
+        "p90": 215,
+        "p97_5": 278,
+        "p99": 306,
+        "p99_9": 6202,
+        "max": 11211
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "non2xx": 14233,
+      "statusCodes": {
+        "1xx": 0,
+        "2xx": 24261,
+        "3xx": 0,
+        "4xx": 14233,
+        "5xx": 0
+      },
+      "statusCodeStats": {
+        "200": {
+          "count": 24261
+        },
+        "400": {
+          "count": 13343
+        },
+        "404": {
+          "count": 890
+        }
+      }
+    },
+    "serverSamples": [
+      {
+        "at": "2026-09-21T12:21:02.682Z",
+        "procUtimeTicks": 3598,
+        "procStimeTicks": 298,
+        "procVsizeBytes": 1224040448,
+        "procRssPages": 35730,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:07.683Z",
+        "procUtimeTicks": 3606,
+        "procStimeTicks": 298,
+        "procVsizeBytes": 1223045120,
+        "procRssPages": 35360,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:12.683Z",
+        "procUtimeTicks": 3885,
+        "procStimeTicks": 331,
+        "procVsizeBytes": 1224159232,
+        "procRssPages": 35759,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:17.682Z",
+        "procUtimeTicks": 4260,
+        "procStimeTicks": 391,
+        "procVsizeBytes": 1224159232,
+        "procRssPages": 35322,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:22.683Z",
+        "procUtimeTicks": 4648,
+        "procStimeTicks": 437,
+        "procVsizeBytes": 1224617984,
+        "procRssPages": 35632,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:27.687Z",
+        "procUtimeTicks": 5037,
+        "procStimeTicks": 482,
+        "procVsizeBytes": 1223495680,
+        "procRssPages": 35716,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:32.688Z",
+        "procUtimeTicks": 5364,
+        "procStimeTicks": 532,
+        "procVsizeBytes": 1224507392,
+        "procRssPages": 35758,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:37.689Z",
+        "procUtimeTicks": 5742,
+        "procStimeTicks": 577,
+        "procVsizeBytes": 1226080256,
+        "procRssPages": 36038,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:42.689Z",
+        "procUtimeTicks": 6113,
+        "procStimeTicks": 634,
+        "procVsizeBytes": 1225699328,
+        "procRssPages": 36116,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:47.690Z",
+        "procUtimeTicks": 6494,
+        "procStimeTicks": 686,
+        "procVsizeBytes": 1225875456,
+        "procRssPages": 36075,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:52.690Z",
+        "procUtimeTicks": 6870,
+        "procStimeTicks": 742,
+        "procVsizeBytes": 1226108928,
+        "procRssPages": 36020,
+        "procStartTimeTicks": 366363
+      },
+      {
+        "at": "2026-09-21T12:21:57.690Z",
+        "procUtimeTicks": 7246,
+        "procStimeTicks": 792,
+        "procVsizeBytes": 1226321920,
+        "procRssPages": 35996,
+        "procStartTimeTicks": 366363
+      }
+    ],
+    "peak": {
+      "eventLoopLagP95Ms": 0,
+      "eventLoopLagMaxMs": 0,
+      "heapUsedMb": 0,
+      "rssMb": 0,
+      "cpuPercent": 0,
+      "db": null
+    }
+  },
+  "isolation": {
+    "startedAt": "2026-09-21T12:21:10.097Z",
+    "durationMs": 60023,
+    "checks": 882,
+    "violations": []
+  }
+}

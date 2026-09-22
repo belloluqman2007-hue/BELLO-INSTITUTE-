@@ -30,20 +30,32 @@ const DEFAULT_BANDS = [
 async function getGradingConfig(madrasaId) {
   let row = await db.get("SELECT * FROM grading_config WHERE madrasa_id = ?", [madrasaId]);
   if (!row) {
-    const r = await db.run(
-      "INSERT INTO grading_config (madrasa_id, ca_max, exam_max, pass_mark, promotion_min_average, promotion_require_pass, grade_bands) VALUES (?,40,60,50,50,1,?)",
-      [madrasaId, JSON.stringify(DEFAULT_BANDS)]
+    // Lazily create the default config. This is a check-then-act race: two
+    // concurrent requests for a madrasa with no config both see !row and both
+    // insert, and the loser hits the UNIQUE key on madrasa_id (ER_DUP_ENTRY on
+    // MySQL, SQLITE_CONSTRAINT on SQLite) — observed as a 500 under load.
+    // insertIgnore makes the write idempotent, and we re-read the row so the
+    // winner's values are used rather than assumed defaults.
+    await db.insertIgnore(
+      "grading_config",
+      "madrasa_id, ca_max, exam_max, pass_mark, promotion_min_average, promotion_require_pass, grade_bands",
+      [madrasaId, 40, 60, 50, 50, 1, JSON.stringify(DEFAULT_BANDS)]
     );
-    row = {
-      id: r.lastInsertRowid,
-      madrasa_id: madrasaId,
-      ca_max: 40,
-      exam_max: 60,
-      pass_mark: 50,
-      promotion_min_average: 50,
-      promotion_require_pass: 1,
-      grade_bands: JSON.stringify(DEFAULT_BANDS),
-    };
+    row = await db.get("SELECT * FROM grading_config WHERE madrasa_id = ?", [madrasaId]);
+    if (!row) {
+      // Should be unreachable; fall back to in-memory defaults rather than
+      // throwing, so report rendering degrades gracefully.
+      row = {
+        id: null,
+        madrasa_id: madrasaId,
+        ca_max: 40,
+        exam_max: 60,
+        pass_mark: 50,
+        promotion_min_average: 50,
+        promotion_require_pass: 1,
+        grade_bands: JSON.stringify(DEFAULT_BANDS),
+      };
+    }
   }
   let bands;
   try { bands = JSON.parse(row.grade_bands || "[]"); } catch (e) { bands = DEFAULT_BANDS; }

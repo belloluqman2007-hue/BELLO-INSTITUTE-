@@ -2316,6 +2316,61 @@ const MIGRATIONS = [
       await idx("CREATE INDEX idx_users_tenant_role ON users (madrasa_id, role, is_active)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    // Found by running the real schema against a real MySQL 8 server and
+    // auditing information_schema.STATISTICS:
+    //
+    //   1) Five tables carried a secondary index whose column list was
+    //      IDENTICAL to an existing UNIQUE key (MySQL auto-names the unique
+    //      index after its first column, so the duplication is invisible in
+    //      the CREATE TABLE text). A duplicate index is pure cost: it is
+    //      maintained on every INSERT/UPDATE and never chosen by the planner
+    //      when an equivalent unique index exists. SQLite tolerated them
+    //      silently; MySQL reports them.
+    //   2) fee_assignment_history is tenant-owned (it has madrasa_id) but had
+    //      no index leading with madrasa_id, so per-tenant history lookups
+    //      would table-scan as the audit trail grows.
+    //
+    // Dropping a redundant index cannot lose data and cannot relax a
+    // constraint: the UNIQUE key that enforces correctness is the one kept.
+    id: "034_mysql_index_audit",
+    up: async (api, dialect) => {
+      const dropIdx = async (table, name) => {
+        try {
+          await api.run(dialect === "mysql"
+            ? `DROP INDEX \`${name}\` ON \`${table}\``
+            : `DROP INDEX IF EXISTS ${name}`);
+        } catch (e) {
+          // Absent on installs that never created it (or SQLite, where the
+          // unique constraint is expressed differently) — nothing to undo.
+          if (!/(doesn't exist|not found|no such index|check that column\/key exists)/i.test(e.message || "")) throw e;
+        }
+      };
+      // Redundant twins of an existing UNIQUE key (same table, same columns).
+      await dropIdx("budgets", "idx_budgets_lookup");
+      await dropIdx("pay_slips", "idx_pay_slips");
+      await dropIdx("salary_structures", "idx_salary_structures");
+      await dropIdx("student_health", "idx_student_health_tenant");
+      await dropIdx("madrasa_registrations", "idx_madrasa_reg_id");
+      // admission_requests: two identical (madrasa_id,status,id) indexes were
+      // created by two different migrations; keep the older, drop the newer.
+      await dropIdx("admission_requests", "idx_admission_requests_status");
+      // madaris carried an explicit UNIQUE (id) alongside its PRIMARY KEY (id).
+      // The primary key already enforces uniqueness and satisfies the foreign
+      // keys that reference madaris(id), so the extra index is pure overhead.
+      // Only MySQL materialises it as a separate index named `id`.
+      if (dialect === "mysql") await dropIdx("madaris", "id");
+
+      // Missing tenant index on a growing audit-style table.
+      const addIdx = async (sql) => {
+        try { await api.run(sql); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      };
+      await addIdx("CREATE INDEX idx_fee_assignment_history_tenant ON fee_assignment_history (madrasa_id, fee_assignment_id, id)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

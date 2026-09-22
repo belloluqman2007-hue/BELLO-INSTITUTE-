@@ -439,7 +439,7 @@ router.patch("/:id", ADMIN, requireStaffPermission("classes.edit"), asyncHandler
   if (b.description !== undefined) { sets.push("description = ?"); vals.push(cleanStr(b.description, 5000)); }
   if (b.status !== undefined || b.is_active !== undefined) {
     const status = b.status !== undefined ? normalizeStatus(b.status, c.status || "active") : (b.is_active ? "active" : "inactive");
-    sets.push("status = ?", "is_active = ?", "archived_at = ?"); vals.push(status, status === "active" ? 1 : 0, status === "archived" ? new Date().toISOString() : null);
+    sets.push("status = ?", "is_active = ?", "archived_at = ?"); vals.push(status, status === "active" ? 1 : 0, status === "archived" ? new Date().toISOString().slice(0, 19).replace("T", " ") : null);
   }
   if (!sets.length && b.subject_ids === undefined) return err(res, 400, "Nothing to update.");
   await db.transaction(async (tx) => {
@@ -454,7 +454,7 @@ router.patch("/:id", ADMIN, requireStaffPermission("classes.edit"), asyncHandler
 
 router.delete("/:id", ADMIN, requireStaffPermission("classes.delete"), asyncHandler(async (req, res) => {
   const c = await classRow(req, res, req.params.id); if (!c) return;
-  await db.run("UPDATE classes SET status = 'archived', is_active = 0, archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?", [new Date().toISOString(), c.id, c.madrasa_id]);
+  await db.run("UPDATE classes SET status = 'archived', is_active = 0, archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND madrasa_id = ?", [new Date().toISOString().slice(0, 19).replace("T", " "), c.id, c.madrasa_id]);
   logActivity(db, { madrasaId: c.madrasa_id, userId: req.user.id, action: "class.archive", entity: "class", entityId: String(c.id), ip: req.ip });
   ok(res, { ok: true });
 }));

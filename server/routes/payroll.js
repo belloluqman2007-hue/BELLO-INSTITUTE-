@@ -271,8 +271,11 @@ async function restoreAdvanceDeductions(api, tid, deductionsRaw) {
     const amount = round2(entry && entry.amount);
     if (!advanceId || amount <= 0) continue;
     await api.run(
-      "UPDATE salary_advances SET balance = MIN(amount, balance + ?), updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",
-      [amount, advanceId, tid]
+      // Ceiling at the advance's original `amount` column. MIN() is a
+      // two-argument scalar in SQLite but an AGGREGATE in MySQL, so the
+      // portable form is CASE WHEN (identical in both dialects).
+      "UPDATE salary_advances SET balance = CASE WHEN balance + ? > amount THEN amount ELSE balance + ? END, updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",
+      [amount, amount, advanceId, tid]
     );
   }
 }
@@ -335,8 +338,8 @@ async function computePayslip(api, tid, period, teacher, monthStartIso) {
   // Apply this slip's instalments to the advance balances.
   for (const line of advanceLines) {
     await api.run(
-      "UPDATE salary_advances SET balance = MAX(0, balance - ?), updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",
-      [line.amount, line.advance_id, tid]
+      "UPDATE salary_advances SET balance = CASE WHEN balance - ? < 0 THEN 0 ELSE balance - ? END, updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",
+      [line.amount, line.amount, line.advance_id, tid]
     );
   }
   return true;
@@ -642,7 +645,7 @@ router.post("/advances/:id/repay", ADMIN, requireStaffPermission("payroll.proces
   if (amount <= 0) return err(res, 400, "Repayment amount must be greater than zero.");
   if (n(advance.balance) <= 0) return err(res, 400, "This advance is already fully repaid.");
   const applied = round2(Math.min(amount, n(advance.balance)));
-  await db.run("UPDATE salary_advances SET balance = MAX(0, balance - ?), updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?", [applied, advance.id, tid]);
+  await db.run("UPDATE salary_advances SET balance = CASE WHEN balance - ? < 0 THEN 0 ELSE balance - ? END, updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?", [applied, applied, advance.id, tid]);
   await logActivity(db, { madrasaId: tid, userId: req.user.id, action: "payroll.advance.repay", entity: "salary_advance", entityId: String(advance.id), meta: { applied }, ip: req.ip });
   ok(res, { ok: true, applied, balance: round2(n(advance.balance) - applied) });
 }));

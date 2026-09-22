@@ -694,7 +694,7 @@ router.patch("/:id", requirePermission("teachers.edit"), asyncHandler(async (req
   if (b.phone !== undefined) { if (b.phone && !validPhone(b.phone)) return err(res, 400, "Invalid phone number."); userSets.push("phone = ?"); userVals.push(cleanStr(b.phone, 60)); }
   if (b.password) { if (String(b.password).length < 8) return err(res, 400, "Password must be at least 8 characters."); userSets.push("password_hash = ?"); userVals.push(await bcrypt.hash(String(b.password), 10)); }
   const status = b.status !== undefined ? normalizeTeacherStatus(b.status, u.status || (u.is_active ? "active" : "inactive")) : (b.is_active !== undefined ? (b.is_active ? "active" : "inactive") : null);
-  if (status) { profileSets.push("status = ?"); profileVals.push(status); profileSets.push("archived_at = ?"); profileVals.push(status === "archived" ? new Date().toISOString() : null); userSets.push("is_active = ?"); userVals.push(userActiveForStatus(status)); }
+  if (status) { profileSets.push("status = ?"); profileVals.push(status); profileSets.push("archived_at = ?"); profileVals.push(status === "archived" ? new Date().toISOString().slice(0, 19).replace("T", " ") : null); userSets.push("is_active = ?"); userVals.push(userActiveForStatus(status)); }
 
   const profileFields = {
     gender: [b.gender, 20], nationality: [b.nationality, 80], state_name: [b.state_name || b.state, 80], lga: [b.lga, 80],
@@ -740,7 +740,7 @@ router.patch("/:id/status", requirePermission("teachers.edit"), asyncHandler(asy
   const status = normalizeTeacherStatus(req.body && req.body.status, "active");
   await db.transaction(async (tx) => {
     await tx.run("UPDATE users SET is_active = ? WHERE id = ? AND madrasa_id = ?", [userActiveForStatus(status), t.id, tid]);
-    await tx.run("UPDATE teacher_profiles SET status = ?, archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND madrasa_id = ?", [status, status === "archived" ? new Date().toISOString() : null, t.id, tid]);
+    await tx.run("UPDATE teacher_profiles SET status = ?, archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND madrasa_id = ?", [status, status === "archived" ? new Date().toISOString().slice(0, 19).replace("T", " ") : null, t.id, tid]);
     await tx.run("INSERT INTO teacher_status_history (madrasa_id, user_id, from_status, to_status, reason, changed_by) VALUES (?,?,?,?,?,?)", [tid, t.id, normalizeTeacherStatus(t.status || (t.is_active ? "active" : "inactive")), status, cleanStr(req.body && req.body.reason, 500), req.user.id]);
   });
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: "teacher.status", entity: "user", entityId: String(t.id), meta: { status }, ip: req.ip });
@@ -758,7 +758,7 @@ router.post("/bulk-status", requirePermission("teachers.edit"), asyncHandler(asy
       const row = await tx.get("SELECT u.id, u.is_active, p.status FROM users u LEFT JOIN teacher_profiles p ON p.user_id = u.id AND p.madrasa_id = u.madrasa_id WHERE u.id = ? AND u.madrasa_id = ? AND u.role = 'teacher'", [id, tid]);
       if (!row) continue;
       await tx.run("UPDATE users SET is_active = ? WHERE id = ? AND madrasa_id = ?", [userActiveForStatus(status), id, tid]);
-      await tx.run("UPDATE teacher_profiles SET status = ?, archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND madrasa_id = ?", [status, status === "archived" ? new Date().toISOString() : null, id, tid]);
+      await tx.run("UPDATE teacher_profiles SET status = ?, archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND madrasa_id = ?", [status, status === "archived" ? new Date().toISOString().slice(0, 19).replace("T", " ") : null, id, tid]);
       await tx.run("INSERT INTO teacher_status_history (madrasa_id, user_id, from_status, to_status, reason, changed_by) VALUES (?,?,?,?,?,?)", [tid, id, normalizeTeacherStatus(row.status || (row.is_active ? "active" : "inactive")), status, cleanStr(req.body.reason, 500), req.user.id]);
       updated++;
     }
@@ -808,7 +808,7 @@ router.delete("/:id", requirePermission("teachers.delete"), asyncHandler(async (
   const t = await loadTeacher(tid, req.params.id, res); if (!t) return;
   await db.transaction(async (tx) => {
     await tx.run("UPDATE users SET is_active = 0 WHERE id = ? AND madrasa_id = ?", [t.id, tid]);
-    await tx.run("UPDATE teacher_profiles SET status = 'archived', archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND madrasa_id = ?", [new Date().toISOString(), t.id, tid]);
+    await tx.run("UPDATE teacher_profiles SET status = 'archived', archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND madrasa_id = ?", [new Date().toISOString().slice(0, 19).replace("T", " "), t.id, tid]);
     await tx.run("INSERT INTO teacher_status_history (madrasa_id, user_id, from_status, to_status, reason, changed_by) VALUES (?,?,?,?,?,?)", [tid, t.id, normalizeTeacherStatus(t.status || (t.is_active ? "active" : "inactive")), "archived", "Archived by administrator", req.user.id]);
   });
   logActivity(db, { madrasaId: tid, userId: req.user.id, action: "teacher.archive", entity: "user", entityId: String(t.id), ip: req.ip });

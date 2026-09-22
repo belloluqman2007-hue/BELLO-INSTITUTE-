@@ -10,7 +10,12 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { initEnv, setup, Client, PASSWORD, SA_PASSWORD } = require("./helpers");
+const { initEnv, setup, Client, USE_MYSQL, PASSWORD, SA_PASSWORD } = require("./helpers");
+// This file asserts HOW the platform persists data. Both drivers are checked
+// for the same behaviour; only the driver-specific facts (a SQLite file on
+// disk vs. an external MySQL server) differ, so those assertions branch
+// instead of being skipped.
+const DRIVER = USE_MYSQL ? "mysql" : "sqlite";
 const tmpRoot = initEnv();
 
 const config = require("../server/config");
@@ -99,9 +104,9 @@ test("the state marker proves the volume survived a restart", async () => {
 test("the report is a verdict, not an exception, in development", async () => {
   const r = await persistence.report(ctx.db);
   assert.equal(r.level, "ok", "a developer's own disk is durable even when mounted at /");
-  assert.equal(r.driver, "sqlite");
-  assert.equal(r.externalDatabase, false);
-  assert.match(r.databaseFile, /test\.sqlite$/);
+  assert.equal(r.driver, DRIVER);
+  assert.equal(r.externalDatabase, USE_MYSQL);
+  if (!USE_MYSQL) assert.match(r.databaseFile, /test\.sqlite$/);
   assert.equal(r.persistentVolumeDir, "/var/data");
   assert.equal(r.acknowledged, false);
   assert.deepEqual(r.warnings, [], "no false alarms where nothing is wrong");
@@ -116,6 +121,11 @@ test("the same report screams in production when the disk is a container's", asy
     const fs = require("fs"), path = require("path");
     const root = ${JSON.stringify(tmpRoot)};
     process.env.NODE_ENV = "production";
+    // This probe is about the SQLITE-on-an-ephemeral-disk alarm, so the child
+    // is pinned to the sqlite driver even when the suite as a whole is running
+    // against MySQL (where there is no local database file to lose).
+    process.env.DATABASE_DRIVER = "sqlite";
+    delete process.env.DATABASE_URL;
     process.env.DATABASE_FILE = path.join(root, "prod.sqlite");
     const persistence = require(${JSON.stringify(path.join(process.cwd(), "server", "services", "persistence.js"))});
     const config = require(${JSON.stringify(path.join(process.cwd(), "server", "config.js"))});
@@ -148,6 +158,10 @@ test("DATA_PERSISTENT_ACK silences the alarm without disabling backups", () => {
   const run = (ack) => {
     const env = Object.assign({}, process.env, {
       NODE_ENV: "production",
+      // Same reason as above: the acknowledgement flag exists to silence the
+      // sqlite-on-ephemeral-disk alarm, so this child always runs on sqlite.
+      DATABASE_DRIVER: "sqlite",
+      DATABASE_URL: "",
       DATA_PERSISTENT_ACK: ack ? "1" : "",
       DATA_DIR: path.join(tmpRoot, "ack"),
       DATABASE_FILE: path.join(tmpRoot, "ack", "x.sqlite"),
@@ -173,7 +187,7 @@ test("a snapshot captures every table, counts it, and drops live sessions", asyn
   assert.equal(doc.format, backup.FORMAT);
   assert.equal(doc.reason, "manual");
   assert.ok(Date.parse(doc.createdAt) > 0);
-  assert.equal(doc.app.driver, "sqlite");
+  assert.equal(doc.app.driver, DRIVER);
   assert.equal(doc.app.env, "test");
   assert.deepEqual(Object.keys(doc.counts).sort(), Object.keys(doc.tables).sort());
   assert.equal(doc.counts.madaris, 2);
@@ -353,6 +367,11 @@ test("a madrasa created by the super admin is inside the very next snapshot", as
   assert.equal(snap.counts.madaris, before + 1, "the snapshot is taken from the live tables, not a cache");
 
   // Simulate the wipe: drop the madrasa, then recover from the file on disk.
+  // MySQL actually ENFORCES users.madrasa_id -> madaris.id (SQLite does not
+  // create that foreign key), so the tenant's rows are removed child-first —
+  // which is what a real wipe looks like anyway.
+  const doomed = await ctx.db.get("SELECT id FROM madaris WHERE slug = 'must-not-vanish'");
+  await ctx.db.run("DELETE FROM users WHERE madrasa_id = ?", [doomed.id]);
   await ctx.db.run("DELETE FROM madaris WHERE slug = 'must-not-vanish'");
   assert.equal((await sa.api("GET", "/api/platform/madaris?perPage=100")).data.madaris.some((m) => m.slug === "must-not-vanish"), false);
   const r = await sa.api("POST", "/api/platform/backups/restore", { name: snap.name, confirm: true });
@@ -367,7 +386,7 @@ test("diagnostics answer the question the operator actually asked", async () => 
   for (const p of ["/api/platform/backups/diagnostics", "/api/platform/diagnostics"]) {
     const r = await sa.api("GET", p);
     assert.equal(r.status, 200, p);
-    assert.equal(r.data.persistence.driver, "sqlite");
+    assert.equal(r.data.persistence.driver, DRIVER);
     assert.ok(["ok", "warn", "critical"].includes(r.data.persistence.level), p);
     assert.ok(Array.isArray(r.data.persistence.warnings), p);
     assert.ok(r.data.persistence.counts.madaris >= 2, p);

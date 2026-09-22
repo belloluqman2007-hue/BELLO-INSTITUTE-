@@ -231,7 +231,8 @@ router.get("/attendance.csv", STAFF, requireStaffPermission("students.export"), 
      JOIN students s ON s.id = a.student_id
      LEFT JOIN classes c ON c.id = a.class_id
      WHERE ${where.join(" AND ")}
-     GROUP BY a.student_id ORDER BY c.name_en, s.admission_no`,
+     GROUP BY a.student_id, s.admission_no, s.first_name, s.last_name, c.name_en
+     ORDER BY c.name_en, s.admission_no`,
     params
   );
   csv.sendCsv(res, filename(req, "attendance"), csv.toCsv(rows, [
@@ -381,7 +382,11 @@ router.get("/teachers.csv", ADMINS, requireStaffPermission("teachers.view"), asy
        LEFT JOIN subjects s ON s.id = ta.subject_id AND s.madrasa_id = ta.madrasa_id
        LEFT JOIN classes c ON c.id = ta.class_id AND c.madrasa_id = ta.madrasa_id
       WHERE ${where.join(" AND ")}
-      GROUP BY u.id ORDER BY u.full_name`, params);
+      GROUP BY u.id, u.full_name, u.email, u.phone, u.username, u.is_active,
+               p.staff_id, p.gender, p.position, p.department, p.education_track,
+               p.employment_type, p.employment_date, p.status, p.qualifications,
+               p.certifications, p.specialization
+      ORDER BY u.full_name`, params);
   csv.sendCsv(res, filename(req, "teachers"), csv.toCsv(rows, [
     { label: "Staff ID", key: "staff_id" }, { label: "Full Name", key: "full_name" },
     { label: "Gender", key: "gender" }, { label: "Phone", key: "phone" }, { label: "Email", key: "email" },

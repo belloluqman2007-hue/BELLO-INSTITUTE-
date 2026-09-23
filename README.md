@@ -49,7 +49,7 @@ Usernames are **case-insensitive** (`Admin` and `admin` are the same account).
 ```bash
 npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results,
                          #            timetables, published results and public-site flags
-npm test                 # automated suite (isolated temp database, 535 tests —
+npm test                 # automated suite (isolated temp database, 581 tests —
                          # includes browser-level checks that drive the public site,
                          # the admin console and the three portals in jsdom)
 bash test/smoke.sh       # end-to-end checks against a running dev server (70 checks)
@@ -94,16 +94,32 @@ and analytics windows are therefore always populated, whenever you seed.
 
 ## Roles & permissions (enforced on the backend)
 
-**Admin sign-in** lives at **`/login`** (the `Login` link on every public
-page). It **always asks for a username and password** — a still-valid session
-never opens the console on its own; it only adds a *"you are already signed
-in as …"* notice with an explicit **Continue** action. **`/admin`** is the
-admin section's own address (it falls back to the sign-in page when the
-visitor is not authenticated), and Islamic School, Western Academy and
-platform administrators all use the same form — BELLO routes each one to the
-right dashboard. If a session ends server-side while a dashboard is open, the
-next request bounces the tab back to the sign-in page instead of painting a
-console whose every call fails.
+**One unified sign-in** lives at **`/login`** (the `Login` link on every
+public page) — for **every account type**. The form asks for an email or
+username and a password (plus optional *Remember me*); it never asks which
+kind of account is signing in. The **server** authenticates the credentials,
+determines the real role and the institution, and the page hands the session
+to the right workspace automatically: Super Admin and Institution Admin →
+their dashboards, Teacher → `/teacher`, Student → `/student`, Parent →
+`/parent`. A role can never be chosen or forged from the browser — it comes
+from the database via the server-side session, exactly like the tenant.
+The form **always asks for credentials** — a still-valid session never opens
+a console on its own; it only adds a *"you are already signed in as …"*
+notice with an explicit **Continue** action. **`/admin`** is the admin
+section's own address (it falls back to the sign-in page when the visitor is
+not authenticated), and Islamic School, Western Academy and platform
+administrators all use the same form. If a session ends server-side while a
+dashboard is open, the next request bounces the tab back to the sign-in page
+instead of painting a console whose every call fails.
+
+**Self-service password recovery**: *Forgot password?* on the sign-in accepts
+an email or username and always answers the same way (it never reveals
+whether an account exists). A single-use, time-limited reset link
+(`PASSWORD_RESET_EXPIRY_MINUTES`, default 60 minutes) is emailed when an
+email provider is configured **and** always appears to the institution's
+administrators (`Account & Security → Password reset requests`) so a school
+without email can hand the link over. Completing a reset invalidates every
+existing session of the account, and old tokens die immediately.
 
 | Role | Access |
 | ---- | ------ |
@@ -158,24 +174,33 @@ render.yaml        NEW Render service definition (production)
 - **Teacher workspace (`/teacher`)** — today's classes from the timetable,
   pending attendance and grading queues, result workflow counters, assigned
   classes with rosters, lesson plans, assignments with submissions and
-  grading, examinations with marks entry, the results gradebook
-  (draft → submit for review), leave self-service, library self-service,
-  messages, notifications and the shared calendar — all scoped server-side to
-  the teacher's own assignments.
+  grading, examinations with marks entry, **online examinations with their
+  question manager, attempt queue, subjective-answer grading and results
+  release**, the results gradebook (draft → submit for review), leave
+  self-service, library self-service, messages, notifications and the shared
+  calendar — all scoped server-side to the teacher's own assignments.
 - **Student portal (`/student`)** — dashboard (timetable today, attendance,
   pending assignments, upcoming exams, fee balance), weekly timetable,
   lessons, assignments with submission AND resubmission (until graded),
-  feedback and scores, exam timetable, results with printable report cards,
+  feedback and scores, exam timetable, **online examinations: the list of
+  takeable/finished papers, a timed runner with question navigator, autosave,
+  submit-with-confirmation, and the marked-paper review once results are
+  released**, results with printable report cards,
   attendance history, fee statement with receipts, library loans, Qur'an
   progress (Islamic institutions only), messages with teachers/admins,
   notification centre, announcements and account self-service.
 - **Parent portal (`/parent`)** — family dashboard with every linked child,
   a child switcher on every child-scoped page (attendance, results, report
-  cards, assignments, timetable, exams, fees, Qur'an progress), the complete
-  Parent-Teacher Meeting booking flow (`/parent/meetings`, double-booking
-  prevented server-side), messages with the children's teachers, and
-  notifications. Child relationships are validated by the server on every
-  request — a child id from the browser is never trusted.
+  cards, assignments, timetable, exams — including each child's online
+  examination attempts and scores — fees, Qur'an progress), **online fee
+  payment** (`Fees → Pay online`: outstanding per fee item, provider
+  checkout, live status and receipts — a payment is only recorded as
+  successful when the provider's webhook/callback verifies it, never because
+  the page says so), the complete Parent-Teacher Meeting booking flow
+  (`/parent/meetings`, double-booking prevented server-side), messages with
+  the children's teachers, and notifications. Child relationships are
+  validated by the server on every request — a child id from the browser is
+  never trusted.
 - **Academic calendar & school events** — holidays, exam weeks, PTM dates,
   admission deadlines and activities with audience targeting (everyone, staff,
   students & parents, parents only, or specific classes), shown on every
@@ -272,9 +297,10 @@ render.yaml        NEW Render service definition (production)
 
 ## Future SaaS roadmap (designed for, NOT built)
 
-Subscriptions and public payment, provider-backed SMS/WhatsApp/email delivery,
-certificates, ID cards, library, expenses and a native mobile app.
-(Timetables, online admissions, assignments, public result checking, payroll,
-staff leave and parent-teacher meeting booking are now built; public *payment*
-of fees is not.) The schema and routes are shaped so
-these can be added without re-architecture — no payment gateway is connected.
+Subscriptions, provider-backed SMS/WhatsApp/email delivery, certificates,
+ID cards and a native mobile app. (Timetables, online admissions,
+assignments, public result checking, payroll, staff leave, parent-teacher
+meeting booking, **online examinations** and **parent online fee payment**
+are now built.) The schema and routes are shaped so the rest can be added
+without re-architecture — the payment gateway (Paystack or Flutterwave) is
+configured through the environment and is optional per deployment.

@@ -143,3 +143,42 @@
   .portal-attendance-row .portal-status-group { width: 100%; }
   .portal-attendance-row .portal-status-group button { flex: 1; }
 }
+
+/* Online examination runner (student portal) -------------------------------- */
+.exam-runner { display: flex; flex-direction: column; gap: 14px; }
+.exam-runner-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--d-surface); border: 1px solid var(--d-line); border-radius: 14px; padding: 14px 16px; }
+.exam-runner-bar strong { display: block; font-size: 1rem; color: var(--d-text); }
+.exam-runner-bar small { display: block; color: var(--d-muted); font-size: .76rem; margin-top: 2px; }
+.exam-timer { font-variant-numeric: tabular-nums; font-size: 1.45rem; font-weight: 800; color: var(--d-text); background: var(--d-surface-2); border-radius: 12px; padding: 8px 16px; letter-spacing: .04em; }
+.exam-timer.is-low { background: #fdecea; color: #b5423a; animation: exam-timer-pulse 1s steps(2) infinite; }
+@keyframes exam-timer-pulse { 50% { opacity: .55; } }
+.exam-instructions { background: var(--d-surface); border: 1px solid var(--d-line); border-radius: 14px; padding: 14px 16px; font-size: .88rem; color: var(--d-text); }
+.exam-instructions strong { display: block; margin-bottom: 4px; }
+.exam-navigator { display: flex; gap: 6px; flex-wrap: wrap; background: var(--d-surface); border: 1px solid var(--d-line); border-radius: 14px; padding: 10px 12px; }
+.exam-nav-chip { min-width: 38px; padding: 7px 9px; border-radius: 10px; border: 1px solid var(--d-line); background: var(--d-surface-2); color: var(--d-muted); font-weight: 700; font-size: .8rem; cursor: pointer; }
+.exam-nav-chip.is-answered { background: rgba(56,20,106,.12); color: #38146a; border-color: rgba(56,20,106,.3); }
+.exam-nav-chip:focus-visible { outline: 2px solid #38146a; outline-offset: 1px; }
+.exam-question { background: var(--d-surface); border: 1px solid var(--d-line); border-radius: 14px; padding: 16px; }
+.exam-question-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.exam-question-text { margin: 0 0 12px; font-size: .95rem; color: var(--d-text); line-height: 1.5; }
+.exam-option { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid var(--d-line); border-radius: 11px; margin-bottom: 8px; cursor: pointer; font-size: .9rem; color: var(--d-text); }
+.exam-option:hover { background: var(--d-surface-2); }
+.exam-option input { width: 18px; height: 18px; accent-color: #38146a; }
+.exam-answer-input, .exam-answer-textarea { width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid var(--d-line); font: inherit; font-size: .92rem; color: var(--d-text); background: var(--d-surface); }
+.exam-answer-textarea { resize: vertical; min-height: 110px; }
+.exam-answer-input:focus-visible, .exam-answer-textarea:focus-visible, .exam-option:focus-within { outline: 2px solid #38146a; outline-offset: 1px; }
+.exam-runner-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.exam-submit-card { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.exam-submit-icon { width: 58px; height: 58px; border-radius: 50%; background: #e8f6ee; color: #1d6b3f; display: grid; place-items: center; }
+.exam-submit-icon svg { width: 30px; height: 30px; }
+.exam-score-line { font-size: 1.05rem; color: var(--d-text); }
+.exam-review-question { border: 1px solid var(--d-line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+.exam-review-line { margin: 6px 0; font-size: .9rem; color: var(--d-text); }
+.exam-review-line span { color: var(--d-muted); font-weight: 700; margin-right: 6px; }
+.exam-review-explanation { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--d-surface-2); color: var(--d-muted); font-size: .84rem; }
+@media (max-width: 640px) {
+  .exam-runner-bar { align-items: flex-start; }
+  .exam-timer { font-size: 1.2rem; padding: 6px 12px; }
+  .exam-runner-actions { justify-content: stretch; }
+  .exam-runner-actions .dash-btn { flex: 1; }
+}

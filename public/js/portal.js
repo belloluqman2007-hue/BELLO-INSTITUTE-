@@ -304,17 +304,35 @@
             <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(roleCfg.label)}</div></div>
           </div>
           <h1>Sign in to your ${esc(state.role)} portal</h1>
-          <p class="sub">Use the ${esc(state.role)} account your institution gave you.</p>
+          <p class="sub">Use the ${esc(state.role)} account your institution gave you — or any BELLO account, and you will be handed to the right workspace.</p>
           ${notice}
           ${message ? `<div class="dash-login-error" role="alert" aria-live="assertive">${esc(message)}</div>` : ""}
           <form id="portalLoginForm" novalidate>
-            <div class="dash-login-field"><label for="plUser">Username</label><input id="plUser" name="username" autocomplete="username" value="${esc(username || "")}" required></div>
-            <div class="dash-login-field"><label for="plPass">Password</label><input id="plPass" name="password" type="password" autocomplete="current-password" required></div>
+            <div class="dash-login-field"><label for="plUser">Email or username</label><input id="plUser" name="username" autocomplete="username" value="${esc(username || "")}" required></div>
+            <div class="dash-login-field"><label for="plPass">Password</label>
+              <div class="dash-login-password">
+                <input id="plPass" name="password" type="password" autocomplete="current-password" required>
+                <button type="button" class="dash-password-toggle" id="plPassToggle" aria-label="Show password" aria-pressed="false">Show</button>
+              </div>
+            </div>
+            <div class="dash-login-row">
+              <label class="dash-login-remember"><input type="checkbox" id="plRemember" name="remember"> Remember me</label>
+              <a class="dash-login-forgot" href="/forgot-password">Forgot password?</a>
+            </div>
             <button class="dash-login-submit" type="submit">Sign In</button>
           </form>
           <div class="dash-login-foot">Not a ${esc(state.role)}? <a href="/login" style="font-weight:700;color:#38146a;">Sign in on the main page</a>.</div>
         </div>
       </div>`;
+    const passToggle = root.querySelector("#plPassToggle");
+    if (passToggle) passToggle.addEventListener("click", () => {
+      const input = root.querySelector("#plPass");
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      passToggle.textContent = show ? "Hide" : "Show";
+      passToggle.setAttribute("aria-pressed", show ? "true" : "false");
+      passToggle.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
 
     const goHome = root.querySelector("#portalGoHome");
     if (goHome) goHome.addEventListener("click", () => { window.location.replace(homePath || "/"); });
@@ -333,12 +351,13 @@
       if (submitBtn.disabled) return;
       const username = (form.elements.username.value || "").trim();
       const password = form.elements.password.value || "";
+      const remember = Boolean(root.querySelector("#plRemember") && root.querySelector("#plRemember").checked);
       if (!username || !password) return renderLogin(root, "Enter both your username and your password.", null, null, username);
       submitBtn.disabled = true;
       submitBtn.textContent = "Signing in…";
       let result;
       try {
-        result = await window.API.login(username, password);
+        result = await window.API.login(username, password, remember);
       } catch (err) {
         renderLogin(root, err && err.message ? err.message : "Could not sign in. Please try again.", null, null, username);
         return;

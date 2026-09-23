@@ -2480,6 +2480,130 @@ const MIGRATIONS = [
       await idx("CREATE INDEX idx_question_bank_tenant ON question_bank (madrasa_id, subject_id, class_id, status)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "036_password_reset_tokens",
+    up: async (api, dialect) => {
+      // Self-service password reset. The SHA-256 hash of the token is the
+      // lookup key; token_encrypted holds an AES-256-GCM copy (key derived
+      // from SESSION_SECRET) so an ADMINISTRATOR can hand the link to the
+      // user on installs with no email provider — a database leak alone is
+      // not enough to take over an account. Tokens are single-use (used_at)
+      // and time-limited (expires_at).
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+          id ${D.autoInc(dialect)},
+          user_id INT NOT NULL,
+          token_hash CHAR(64) NOT NULL,
+          token_encrypted TEXT,
+          expires_at ${dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT"},
+          used_at ${dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT"},
+          requested_ip VARCHAR(64) NOT NULL DEFAULT '',
+          created_at ${D.ts()},
+          UNIQUE (token_hash)
+        )${D.engine(dialect)}
+      `);
+      const idx = async (sql) => {
+        try { await api.run(sql); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      };
+      await idx("CREATE INDEX idx_password_reset_user ON password_reset_tokens (user_id, used_at)");
+      await idx("CREATE INDEX idx_password_reset_expiry ON password_reset_tokens (expires_at)");
+    },
+  },
+
+  /* ------------------------------------------------------------------ */
+  {
+    id: "037_online_examinations",
+    up: async (api, dialect) => {
+      const nullableTs = dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT";
+      const idx = async (sql) => {
+        try { await api.run(sql); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      };
+      async function columnExists(table, name) {
+        if (dialect === "sqlite") {
+          const rows = await api.all(`PRAGMA table_info(${table})`);
+          return rows.some((row) => String(row.name).toLowerCase() === String(name).toLowerCase());
+        }
+        return (await api.all(`SHOW COLUMNS FROM ${table} LIKE ?`, [name])).length > 0;
+      }
+      async function addColumn(table, name, type) {
+        if (!await columnExists(table, name)) await api.run(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+      }
+
+      // The existing exams table stays the single examination record — an
+      // online sitting is just an exam with mode='online' plus questions,
+      // attempts and answers. No parallel exam model is introduced.
+      await addColumn("exams", "mode", "VARCHAR(20) NOT NULL DEFAULT 'offline'");
+      await addColumn("exams", "results_released_at", nullableTs);
+
+      // Questions attached to one exam (or imported from question_bank, which
+      // keeps its own reusable copy — question_bank_id records the origin).
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS exam_questions (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          exam_id INT NOT NULL,
+          question_bank_id INT,
+          position INT NOT NULL DEFAULT 1,
+          question_text TEXT NOT NULL,
+          question_type VARCHAR(30) NOT NULL DEFAULT 'multiple_choice',
+          options TEXT,
+          correct_answer TEXT,
+          marks DECIMAL(6,2) NOT NULL DEFAULT 1,
+          explanation TEXT,
+          created_by INT,
+          created_at ${D.ts()},
+          updated_at ${D.ts()},
+          ${D.fkClause(dialect, "exam_id", "exams")}UNIQUE (exam_id, id)
+        )${D.engine(dialect)}
+      `);
+      await idx("CREATE INDEX idx_exam_questions_tenant ON exam_questions (madrasa_id, exam_id, position)");
+
+      // One attempt per student per exam (UNIQUE), locked on submission.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS exam_attempts (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          exam_id INT NOT NULL,
+          student_id INT NOT NULL,
+          user_id INT NOT NULL,
+          status VARCHAR(20) NOT NULL DEFAULT 'in_progress',
+          started_at ${D.ts()},
+          expires_at ${nullableTs},
+          submitted_at ${nullableTs},
+          auto_score DECIMAL(7,2) NOT NULL DEFAULT 0,
+          score DECIMAL(7,2),
+          created_at ${D.ts()},
+          updated_at ${D.ts()},
+          ${D.fkClause(dialect, "exam_id", "exams")}UNIQUE (exam_id, student_id)
+        )${D.engine(dialect)}
+      `);
+      await idx("CREATE INDEX idx_exam_attempts_tenant ON exam_attempts (madrasa_id, exam_id, status)");
+      await idx("CREATE INDEX idx_exam_attempts_student ON exam_attempts (madrasa_id, student_id)");
+
+      // Saved answers, one row per question per attempt (UNIQUE), graded in
+      // place for objective questions and by the teacher for subjective ones.
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS exam_answers (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          attempt_id INT NOT NULL,
+          exam_question_id INT NOT NULL,
+          answer_text TEXT,
+          is_correct INT,
+          marks_awarded DECIMAL(6,2),
+          graded_by INT,
+          graded_at ${nullableTs},
+          updated_at ${D.ts()},
+          ${D.fkClause(dialect, "attempt_id", "exam_attempts")}UNIQUE (attempt_id, exam_question_id)
+        )${D.engine(dialect)}
+      `);
+      await idx("CREATE INDEX idx_exam_answers_tenant ON exam_answers (madrasa_id, attempt_id)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

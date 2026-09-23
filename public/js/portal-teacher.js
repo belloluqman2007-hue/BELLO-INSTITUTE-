@@ -503,11 +503,16 @@
     card.innerHTML = `<div class="dash-table-wrap"><table class="dash-table">
       <thead><tr><th>Examination</th><th>Class / subject</th><th>Date & time</th><th>Room</th><th>Marks</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.length ? rows.map((e) => `<tr>
-        <td><strong>${c.esc(e.title)}</strong></td>
+        <td><strong>${c.esc(e.title)}</strong>${e.mode === "online" ? `<small>Online examination</small>` : ""}</td>
         <td>${c.esc(e.class_name || "—")} / ${c.esc(e.subject_name || "—")}</td>
         <td>${c.fmtDate(e.exam_date)}${e.start_time ? ` · ${c.esc(String(e.start_time).slice(0, 5))}` : ""}</td>
         <td>${c.esc(e.classroom || "—")}</td><td>${c.esc(e.total_marks)}</td><td>${c.pill(e.status)}</td>
-        <td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-exam-marks="${c.esc(e.id)}">Marks</button></td></tr>`).join("") : c.emptyRow(7, "No examinations scheduled.")}</tbody></table></div>`;
+        <td><div class="module-actions">
+          <button class="dash-btn dash-btn-ghost dash-btn-sm" data-exam-marks="${c.esc(e.id)}">Marks</button>
+          ${e.mode === "online" ? `<button class="dash-btn dash-btn-ghost dash-btn-sm" data-exam-questions="${c.esc(e.id)}">Questions</button><button class="dash-btn dash-btn-ghost dash-btn-sm" data-exam-attempts="${c.esc(e.id)}">Attempts</button>` : ""}
+        </div></td></tr>`).join("") : c.emptyRow(7, "No examinations scheduled.")}</tbody></table></div>`;
+    card.querySelectorAll("[data-exam-attempts]").forEach((btn) => btn.addEventListener("click", () => openOnlineExamAttempts(c, rows.find((x) => String(x.id) === btn.dataset.examAttempts))));
+    card.querySelectorAll("[data-exam-questions]").forEach((btn) => btn.addEventListener("click", () => openExamQuestions(c, rows.find((x) => String(x.id) === btn.dataset.examQuestions))));
     card.querySelectorAll("[data-exam-marks]").forEach((btn) => btn.addEventListener("click", async () => {
       const exam = rows.find((x) => String(x.id) === btn.dataset.examMarks);
       const modal = c.openModal(`Marks — ${exam.title}`, `<div class="dash-card-pad">${c.loading()}</div>`, { wide: true });
@@ -536,6 +541,142 @@
         });
       } catch (e) { modal.querySelector(".dash-modal-body").innerHTML = c.errorState(e.message); }
     }));
+  }
+
+  /** Question manager for an online examination (for teachers holding the
+      exams.create permission; the server enforces the real rule). */
+  function openExamQuestions(c, exam) {
+    const modal = c.openModal(`Questions — ${exam.title}`, `<div class="dash-card-pad">${c.loading()}</div>`, { wide: true });
+    const body = () => modal.querySelector(".dash-modal-body");
+    const load = async () => {
+      try {
+        const [data, bank] = await Promise.all([
+          c.api.get(`/academic/exams/${exam.id}/questions`),
+          c.api.get("/academic/questions?perPage=100").catch(() => ({ questions: [] })),
+        ]);
+        const questions = data.questions || [];
+        const bankRows = (bank.questions || []).slice(0, 50);
+        body().innerHTML = `
+          <p class="dash-info-line">${questions.length} question(s) · paper total ${c.esc(data.questionTotal)} mark(s)</p>
+          ${questions.length ? `<div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Marks</th><th></th></tr></thead><tbody>
+            ${questions.map((q, i) => `<tr><td>${i + 1}</td><td><strong>${c.esc(String(q.question_text).slice(0, 110))}</strong></td><td>${c.esc(q.question_type.replace(/_/g, " "))}</td><td>${c.esc(q.marks)}</td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-del-question="${q.id}">Remove</button></td></tr>`).join("")}
+            </tbody></table></div>` : `<p class="hint">No questions yet — add one below or import from your question bank.</p>`}
+          <form id="tqForm"><div class="dash-form-grid" style="margin-top:14px">
+            <div class="dash-field" style="grid-column:1/-1"><label>New question *</label><textarea name="question_text" rows="2" required></textarea></div>
+            <div class="dash-field"><label>Type</label><select name="question_type"><option value="multiple_choice">Multiple choice</option><option value="true_false">True / false</option><option value="short_answer">Short answer</option><option value="essay">Essay</option><option value="fill_in_the_blank">Fill in the blank</option></select></div>
+            <div class="dash-field"><label>Marks</label><input name="marks" type="number" min="0.5" step="0.5" value="1" required></div>
+            <div class="dash-field" style="grid-column:1/-1"><label>Options (one per line, multiple choice)</label><textarea name="options" rows="3"></textarea></div>
+            <div class="dash-field"><label>Correct answer (auto-marking)</label><input name="correct_answer"></div>
+          </div><div class="dash-actions" style="margin-top:10px"><button class="dash-btn dash-btn-primary" type="submit">${c.I.plus} Add question</button></div></form>
+          ${bankRows.length ? `<p class="hint" style="margin-top:16px">Question bank</p>
+            <div class="dash-table-wrap"><table class="dash-table"><thead><tr><th></th><th>Question</th><th>Marks</th></tr></thead><tbody>
+            ${bankRows.map((q) => `<tr><td><input type="checkbox" data-bank-import="${q.id}"></td><td>${c.esc(String(q.question_text).slice(0, 90))}</td><td>${c.esc(q.marks)}</td></tr>`).join("")}
+            </tbody></table></div>
+            <div class="dash-actions" style="margin-top:10px"><button class="dash-btn dash-btn-ghost" id="tqImport">${c.I.download} Import selected</button></div>` : ""}`;
+        body().querySelectorAll("[data-del-question]").forEach((b) => b.addEventListener("click", async () => {
+          try { await c.api.del(`/academic/exams/${exam.id}/questions/${b.dataset.delQuestion}`); load(); }
+          catch (e) { c.toast(e.message || "Could not remove the question.", "error"); }
+        }));
+        body().querySelector("#tqForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const raw = Object.fromEntries(new FormData(e.target).entries());
+          const payload = { question_text: raw.question_text, question_type: raw.question_type, marks: Number(raw.marks), correct_answer: raw.correct_answer || "" };
+          if (raw.options && raw.options.trim()) payload.options = JSON.stringify(raw.options.split(/\n+/).map((x) => x.trim()).filter(Boolean));
+          try { await c.api.post(`/academic/exams/${exam.id}/questions`, payload); c.toast("Question added.", "success"); load(); }
+          catch (err2) { c.toast(err2.message || "Could not add the question.", "error"); }
+        });
+        const importBtn = body().querySelector("#tqImport");
+        if (importBtn) importBtn.addEventListener("click", async () => {
+          const ids = [...body().querySelectorAll("[data-bank-import]:checked")].map((x) => Number(x.dataset.bankImport));
+          if (!ids.length) return c.toast("Select at least one question.", "error");
+          try { const r = await c.api.post(`/academic/exams/${exam.id}/questions/import`, { question_ids: ids }); c.toast(`Imported ${r.imported} question(s).`, "success"); load(); }
+          catch (err2) { c.toast(err2.message || "Could not import.", "error"); }
+        });
+      } catch (e) { body().innerHTML = c.errorState(e.message); }
+    };
+    load();
+  }
+
+  /** Online examination attempts: the submission queue, per-attempt grading
+      of subjective answers and the results release. */
+  function openOnlineExamAttempts(c, exam) {
+    const modal = c.openModal(`Online attempts — ${exam.title}`, `<div class="dash-card-pad">${c.loading()}</div>`, { wide: true });
+    const body = () => modal.querySelector(".dash-modal-body");
+    const load = async () => {
+      try {
+        const data = await c.api.get(`/academic/exams/${exam.id}/attempts`);
+        const attempts = data.attempts || [];
+        body().innerHTML = `
+          <p class="dash-info-line">${attempts.length} attempt(s) · paper total ${c.esc(data.questionTotal)} marks · ${data.questionCount} question(s)
+            ${data.exam.results_released_at ? ` · <strong>results released</strong>` : ""}</p>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Student</th><th>Status</th><th>Started</th><th>Submitted</th><th>Auto</th><th>Score</th><th></th></tr></thead>
+            <tbody>${attempts.length ? attempts.map((a) => `<tr>
+              <td><strong>${c.esc(a.name)}</strong><small>${c.esc(a.admission_no || "")}</small></td>
+              <td>${c.pill(a.status === "graded" ? "graded" : a.status === "submitted" ? "submitted" : "pending")}</td>
+              <td>${c.fmtDateTime(a.started_at)}</td>
+              <td>${c.fmtDateTime(a.submitted_at)}</td>
+              <td>${c.esc(a.auto_score == null ? "—" : a.auto_score)}</td>
+              <td><strong>${c.esc(a.score == null ? "—" : a.score)}</strong></td>
+              <td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-attempt-grade="${c.esc(a.id)}">${a.status === "in_progress" ? "View" : "Grade"}</button></td>
+            </tr>`).join("") : c.emptyRow(7, "No attempts yet.")}</tbody></table></div>
+          <div class="dash-actions" style="margin-top:14px">
+            <button class="dash-btn dash-btn-ghost" id="attemptsRefresh">Refresh</button>
+            <button class="dash-btn dash-btn-primary" id="releaseResults">${c.I.check} Release results to students</button>
+          </div>`;
+        body().querySelector("#attemptsRefresh").addEventListener("click", load);
+        body().querySelector("#releaseResults").addEventListener("click", async (e) => {
+          if (!window.confirm("Release this examination's results to the students? They will be able to see their marked papers.")) return;
+          const btn = e.currentTarget; btn.disabled = true;
+          try {
+            await c.api.post(`/academic/exams/${exam.id}/release-results`, {});
+            c.toast("Results released — students have been notified.", "success"); load();
+          } catch (err2) { c.toast(err2.message || "Could not release results.", "error"); btn.disabled = false; }
+        });
+        body().querySelectorAll("[data-attempt-grade]").forEach((b) => b.addEventListener("click", () => openAttemptGrading(c, exam, b.dataset.attemptGrade, load)));
+      } catch (e) { body().innerHTML = c.errorState(e.message); }
+    };
+    load();
+  }
+
+  function openAttemptGrading(c, exam, attemptId, done) {
+    const modal = c.openModal("Grade attempt", `<div class="dash-card-pad">${c.loading()}</div>`, { wide: true });
+    const body = () => modal.querySelector(".dash-modal-body");
+    (async () => {
+      try {
+        const data = await c.api.get(`/academic/exams/${exam.id}/attempts/${attemptId}`);
+        const a = data.attempt;
+        body().innerHTML = `
+          <p class="dash-info-line"><strong>${c.esc(a.name)}</strong> (${c.esc(a.admission_no || "")}) · ${c.pill(a.status === "graded" ? "graded" : a.status === "submitted" ? "submitted" : "pending")}
+            · auto-marked ${c.esc(a.auto_score == null ? 0 : a.auto_score)} · total so far <strong>${c.esc(a.score == null ? "—" : a.score)}</strong></p>
+          ${(data.questions || []).map((q, i) => `
+            <div class="exam-review-question">
+              <div class="exam-question-head"><strong>Question ${i + 1}</strong>
+                <span class="hint">${c.esc(q.marks)} mark(s) · ${q.is_correct === 1 ? "correct" : q.is_correct === 0 ? "incorrect" : "manual marking"}</span></div>
+              <p class="exam-question-text">${c.esc(q.question_text)}</p>
+              <p class="exam-review-line"><span>Answer:</span> ${c.esc(q.answer_text || "— not answered —")}</p>
+              ${q.question_type === "multiple_choice" || q.question_type === "true_false"
+                ? `<p class="exam-review-line"><span>Correct:</span> ${c.esc(q.correct_answer || "—")}</p>` : ""}
+              <div class="dash-field" style="max-width:220px"><label>Award (0–${c.esc(q.marks)})</label>
+                <input class="score-input grade-mark" type="number" min="0" max="${c.esc(q.marks)}" step="0.5" value="${q.marks_awarded == null ? "" : c.esc(q.marks_awarded)}" data-question="${c.esc(q.id)}"></div>
+            </div>`).join("")}
+          <div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" id="saveGrades">${c.I.check} Save grades</button></div>`;
+        body().querySelector("#saveGrades").addEventListener("click", async (e) => {
+          const btn = e.currentTarget; btn.disabled = true;
+          const answers = [];
+          body().querySelectorAll(".grade-mark").forEach((input) => {
+            if (input.value !== "") answers.push({ question_id: Number(input.dataset.question), marks_awarded: Number(input.value) });
+          });
+          if (!answers.length) { c.toast("Award at least one mark.", "error"); btn.disabled = false; return; }
+          try {
+            const r = await c.api.put(`/academic/exams/${exam.id}/attempts/${attemptId}/grade`, { answers });
+            c.toast(`Grades saved — final score ${r.score} / ${r.total}.`, "success");
+            c.closeModal(); if (done) done();
+          } catch (err2) { c.toast(err2.message || "Could not save grades.", "error"); btn.disabled = false; }
+        });
+      } catch (e) { body().innerHTML = c.errorState(e.message); }
+    })();
   }
 
   /* ------------------------------- results -------------------------------- */

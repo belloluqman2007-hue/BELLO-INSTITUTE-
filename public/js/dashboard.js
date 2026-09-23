@@ -318,7 +318,8 @@
     if (hash.startsWith("#/app")) return false;
     if (hash === "#/login" || hash.startsWith("#/login/")) return true;
     const path = window.location.pathname.replace(/\/+$/, "") || "/";
-    return path === "/login" || path === "/admin/login";
+    return path === "/login" || path === "/admin/login" ||
+      path === "/forgot-password" || path === "/reset-password";
   }
 
   function resetSessionState() {
@@ -496,7 +497,10 @@
 
   function renderLogin(root, error, session, username) {
     applyTheme(null);
-    document.title = "Admin Sign-In — BELLO";
+    // One unified BELLO sign-in for EVERY account type. The server decides
+    // who the user is and routes them — the form never asks for a role.
+    document.title = "Sign in — BELLO";
+    const path = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
     // Shown ONLY when /api/auth/me reports a live session: the visitor is
     // told who is signed in and must explicitly choose to continue — the
     // dashboard is never entered without that deliberate action or a
@@ -512,31 +516,50 @@
               <button type="button" id="dashSignOutBtn">Sign out</button>
             </div>
           </div>` : "";
+    if (path === "/forgot-password") return renderForgotPassword(root);
+    if (path === "/reset-password") return renderResetPassword(root);
     root.innerHTML = `
       <div class="dash-login-page">
         <div class="dash-login-card">
           <div class="brand-row">
             <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
-            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Admin Sign-In</div></div>
+            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">One login · every account</div></div>
           </div>
-          <h1>Sign in to your dashboard</h1>
-          <p class="sub">Islamic School, Western Academy and platform administrators use the same sign-in — BELLO routes you to the right dashboard automatically.</p>
+          <h1>Sign in to BELLO</h1>
+          <p class="sub">Administrators, teachers, students and parents all sign in here — BELLO takes you straight to the right workspace.</p>
           ${notice}
           ${error ? `<div class="dash-login-error" role="alert" aria-live="assertive">${esc(error)}</div>` : ""}
           <form id="dashLoginForm" novalidate>
             <div class="dash-login-field">
-              <label for="dlUser">Username</label>
+              <label for="dlUser">Email or username</label>
               <input id="dlUser" name="username" autocomplete="username" value="${esc(username || "")}" required>
             </div>
             <div class="dash-login-field">
               <label for="dlPass">Password</label>
-              <input id="dlPass" name="password" type="password" autocomplete="current-password" required>
+              <div class="dash-login-password">
+                <input id="dlPass" name="password" type="password" autocomplete="current-password" required>
+                <button type="button" class="dash-password-toggle" id="dlPassToggle" aria-label="Show password" aria-pressed="false">Show</button>
+              </div>
+            </div>
+            <div class="dash-login-row">
+              <label class="dash-login-remember"><input type="checkbox" id="dlRemember" name="remember"> Remember me</label>
+              <a class="dash-login-forgot" href="/forgot-password" id="dlForgot">Forgot password?</a>
             </div>
             <button class="dash-login-submit" type="submit">Sign In</button>
           </form>
           <div class="dash-login-foot">Registering a new institution? <a href="/register-madrasa" data-noroute style="font-weight:700;color:#38146a;">Register an Islamic School</a> or <a href="/western-schools" data-noroute style="font-weight:700;color:#38146a;">a Western Academy</a>.</div>
         </div>
       </div>`;
+
+    const passToggle = root.querySelector("#dlPassToggle");
+    if (passToggle) passToggle.addEventListener("click", () => {
+      const input = root.querySelector("#dlPass");
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      passToggle.textContent = show ? "Hide" : "Show";
+      passToggle.setAttribute("aria-pressed", show ? "true" : "false");
+      passToggle.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    });
 
     // After a failed attempt the form is re-rendered, so put the cursor back
     // where the visitor has to type next instead of leaving focus nowhere.
@@ -580,6 +603,7 @@
       // engine; the form.<name> shortcut is not implemented by jsdom).
       const username = (form.elements.username.value || "").trim();
       const password = form.elements.password.value || "";
+      const remember = Boolean(root.querySelector("#dlRemember") && root.querySelector("#dlRemember").checked);
       // Browsers with `required` normally block this, but autofill and
       // password managers can submit an empty field — say so rather than
       // firing a request that silently 400s.
@@ -590,7 +614,7 @@
       if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Signing in…"; }
       let result;
       try {
-        result = await window.API.login(username, password);
+        result = await window.API.login(username, password, remember);
       } catch (err) {
         // A failed network request has no .message worth showing; everything
         // else (401 wrong password, 403 deactivated, 429 rate limited) does.
@@ -628,6 +652,148 @@
       window.location.hash = targetHash;
       await boot();
     });
+  }
+
+  /* --------------------------------------------------------------------
+     Password recovery (forgot / reset) — same card design as the sign-in.
+     The server never reveals whether an account exists, so both screens
+     speak in the same neutral voice.
+     -------------------------------------------------------------------- */
+  function authCardShell(kicker, title, sub, inner) {
+    return `
+      <div class="dash-login-page">
+        <div class="dash-login-card">
+          <div class="brand-row">
+            <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
+            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(kicker)}</div></div>
+          </div>
+          <h1>${esc(title)}</h1>
+          <p class="sub">${esc(sub)}</p>
+          ${inner}
+          <div class="dash-login-foot"><a href="/login" style="font-weight:700;color:#38146a;">Back to sign in</a></div>
+        </div>
+      </div>`;
+  }
+
+  function renderForgotPassword(root) {
+    document.title = "Reset your password — BELLO";
+    root.innerHTML = authCardShell(
+      "Account recovery",
+      "Forgot your password?",
+      "Enter the email address or username of your BELLO account and we will create a reset link for it.",
+      `<div id="fpArea">
+        <form id="fpForm" novalidate>
+          <div class="dash-login-field">
+            <label for="fpId">Email or username</label>
+            <input id="fpId" name="identifier" autocomplete="username" required>
+          </div>
+          <button class="dash-login-submit" type="submit">Create reset link</button>
+        </form>
+      </div>`
+    );
+    const form = root.querySelector("#fpForm");
+    const btn = form.querySelector("button[type=submit]");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const identifier = (form.elements.identifier.value || "").trim();
+      if (!identifier) {
+        root.querySelector("#fpArea").insertAdjacentHTML("afterbegin",
+          `<div class="dash-login-error" role="alert">Enter your username or email address.</div>`);
+        return;
+      }
+      btn.disabled = true; btn.textContent = "Working…";
+      try {
+        await window.API.post("/auth/forgot-password", { identifier });
+        root.querySelector("#fpArea").innerHTML = `
+          <div class="dash-login-success" role="status">
+            <strong>Request received.</strong>
+            <p>If that account exists, a reset link has been created. When email delivery is configured it is on its way; otherwise your institution's administrator can hand you the link.</p>
+          </div>`;
+      } catch (err) {
+        root.querySelector("#fpArea").innerHTML = `
+          <div class="dash-login-error" role="alert">${esc((err && err.message) || "Could not submit the request. Please try again.")}</div>
+          <form id="fpForm" novalidate>
+            <div class="dash-login-field"><label for="fpId">Email or username</label><input id="fpId" name="identifier" autocomplete="username" required value="${esc(identifier)}"></div>
+            <button class="dash-login-submit" type="submit">Create reset link</button>
+          </form>`;
+        const retry = root.querySelector("#fpForm");
+        if (retry) retry.addEventListener("submit", () => renderForgotPassword(root));
+      } finally {
+        if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = "Create reset link"; }
+      }
+    });
+    const focus = root.querySelector("#fpId");
+    if (focus && focus.focus) { try { focus.focus(); } catch (e) { /* non-fatal */ } }
+  }
+
+  function renderResetPassword(root) {
+    document.title = "Choose a new password — BELLO";
+    const token = new URLSearchParams(window.location.search || "").get("token") || "";
+    if (!token) {
+      root.innerHTML = authCardShell(
+        "Account recovery", "Reset link required",
+        "This page needs the reset link that was created for your account.",
+        `<div class="dash-login-error" role="alert">Open the reset link you were given, or <a href="/forgot-password" style="font-weight:700;">request a new one</a>.</div>`
+      );
+      return;
+    }
+    root.innerHTML = authCardShell(
+      "Account recovery",
+      "Choose a new password",
+      "Pick a new password of at least 8 characters. Every other session of this account will be signed out.",
+      `<div id="rpArea">
+        <form id="rpForm" novalidate>
+          <div class="dash-login-field">
+            <label for="rpPass">New password</label>
+            <div class="dash-login-password">
+              <input id="rpPass" name="newPassword" type="password" autocomplete="new-password" minlength="8" required>
+              <button type="button" class="dash-password-toggle" id="rpPassToggle" aria-label="Show password" aria-pressed="false">Show</button>
+            </div>
+          </div>
+          <div class="dash-login-field">
+            <label for="rpPass2">Confirm new password</label>
+            <input id="rpPass2" name="confirm" type="password" autocomplete="new-password" minlength="8" required>
+          </div>
+          <button class="dash-login-submit" type="submit">Update password</button>
+        </form>
+      </div>`
+    );
+    const toggle = root.querySelector("#rpPassToggle");
+    if (toggle) toggle.addEventListener("click", () => {
+      const input = root.querySelector("#rpPass");
+      const show = input.type === "password";
+      input.type = show ? "text" : "password";
+      toggle.textContent = show ? "Hide" : "Show";
+      toggle.setAttribute("aria-pressed", show ? "true" : "false");
+    });
+    const form = root.querySelector("#rpForm");
+    const btn = form.querySelector("button[type=submit]");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const next = form.elements.newPassword.value || "";
+      const confirm = form.elements.confirm.value || "";
+      const area = root.querySelector("#rpArea");
+      if (next.length < 8) return area.insertAdjacentHTML("afterbegin", `<div class="dash-login-error" role="alert">The new password must be at least 8 characters.</div>`);
+      if (next !== confirm) return area.insertAdjacentHTML("afterbegin", `<div class="dash-login-error" role="alert">The two passwords do not match.</div>`);
+      btn.disabled = true; btn.textContent = "Updating…";
+      try {
+        await window.API.post("/auth/reset-password", { token, newPassword: next });
+        area.innerHTML = `
+          <div class="dash-login-success" role="status">
+            <strong>Your password has been updated.</strong>
+            <p>All previous sign-ins for this account were signed out. You can now sign in with the new password.</p>
+            <a class="dash-login-submit" style="display:block;text-align:center;text-decoration:none;" href="/login">Go to sign in</a>
+          </div>`;
+      } catch (err) {
+        const msg = (err && err.message) || "Could not update the password.";
+        area.innerHTML = `
+          <div class="dash-login-error" role="alert">${esc(msg)}</div>
+          <p class="hint">Request a new reset link — links are single-use and expire after one hour.</p>
+          <a class="dash-login-submit" style="display:block;text-align:center;text-decoration:none;" href="/forgot-password">Request a new link</a>`;
+      }
+    });
+    const focus = root.querySelector("#rpPass");
+    if (focus && focus.focus) { try { focus.focus(); } catch (e) { /* non-fatal */ } }
   }
 
   /* --------------------------------------------------------------------
@@ -2684,6 +2850,40 @@
     content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Settings</div><h2>Administrator Account & Security</h2><p>Update your own contact details and change your password securely.</p></div></div><div class="dash-grid-2"><div class="dash-card"><div class="dash-card-head"><h3>Account details</h3></div><div class="dash-card-pad"><form id="accountForm"><div class="dash-form-grid"><div class="dash-field"><label>Username</label><input disabled value="${esc(a.username)}"></div><div class="dash-field"><label>Role</label><input disabled value="${esc(a.role)}"></div><div class="dash-field"><label>Full name</label><input name="full_name" value="${esc(a.full_name)}"></div><div class="dash-field"><label>Arabic name</label><input name="full_name_ar" dir="rtl" value="${esc(a.full_name_ar)}"></div><div class="dash-field"><label>Email</label><input name="email" type="email" value="${esc(a.email)}"></div><div class="dash-field"><label>Phone</label><input name="phone" value="${esc(a.phone)}"></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save account details</button></form></div></div><div class="dash-card"><div class="dash-card-head"><h3>Change password</h3></div><div class="dash-card-pad"><form id="pwForm"><div class="dash-form-grid"><div class="dash-field" style="grid-column:1/-1"><label>Current Password</label><input name="currentPassword" autocomplete="current-password" type="password" required></div><div class="dash-field" style="grid-column:1/-1"><label>New Password</label><input name="newPassword" autocomplete="new-password" type="password" minlength="8" required></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Update password</button></form><p class="hint" style="margin-top:14px">Use at least eight characters and keep your password private.</p></div></div></div>`;
     content.querySelector("#accountForm").addEventListener("submit", async (e) => { e.preventDefault(); try { await window.API.put("/auth/account", Object.fromEntries(new FormData(e.target))); toast("Account details saved.", "success"); } catch (err) { toast(err.message || "Could not update account.", "error"); } });
     content.querySelector("#pwForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.post("/auth/change-password", { currentPassword: fd.get("currentPassword"), newPassword: fd.get("newPassword") }); toast("Password updated.", "success"); e.target.reset(); } catch (err) { toast(err.message || "Could not update password.", "error"); } });
+    // Pending password-reset requests (admin-mediated delivery). When an
+    // email provider is configured the user gets the link directly; on
+    // installs without one, this queue is how the link reaches them.
+    if (["madrasa_admin", "super_admin"].includes(state.me && state.me.role)) {
+      const resetCard = document.createElement("div");
+      resetCard.className = "dash-card";
+      resetCard.style.gridColumn = "1/-1";
+      content.appendChild(resetCard);
+      const loadResets = async () => {
+        try {
+          const r = await window.API.get("/auth/reset-requests");
+          const rows = (r.requests || []).filter((x) => !x.expired);
+          resetCard.innerHTML = `<div class="dash-card-head"><h3>Password reset requests</h3><span class="hint">${rows.length} pending</span></div>
+            <div class="dash-card-pad">${rows.length ? `<div class="dash-table-wrap"><table class="dash-table">
+              <thead><tr><th>Account</th><th>Role</th>${state.superAdmin ? "<th>Institution</th>" : ""}<th>Requested</th><th>Expires</th><th></th></tr></thead>
+              <tbody>${rows.map((x) => `<tr>
+                <td><strong>${esc(x.fullName || x.username)}</strong><small>${esc(x.username)}</small></td>
+                <td>${esc(x.userRole || "—")}</td>
+                ${state.superAdmin ? `<td>${esc(x.institutionName || "Platform")}</td>` : ""}
+                <td>${esc(String(x.createdAt || "").slice(0, 16).replace("T", " "))}</td>
+                <td>${esc(String(x.expiresAt || "").slice(0, 16).replace("T", " "))}</td>
+                <td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-copy-reset="${esc(x.resetLink || "")}">Copy reset link</button></td>
+              </tr>`).join("")}</tbody></table></div>
+              <p class="hint" style="margin-top:10px">Share the link with the account holder (email, SMS or in person). Links are single-use and expire one hour after the request.</p>`
+              : `<p class="hint">No pending password reset requests.</p>`}</div>`;
+          resetCard.querySelectorAll("[data-copy-reset]").forEach((b) => b.addEventListener("click", async () => {
+            const link = window.location.origin + b.dataset.copyReset;
+            try { await navigator.clipboard.writeText(link); toast("Reset link copied to the clipboard.", "success"); }
+            catch (e) { window.prompt("Copy this reset link:", link); }
+          }));
+        } catch (e) { resetCard.innerHTML = `<div class="dash-card-head"><h3>Password reset requests</h3></div><div class="dash-card-pad"><p class="hint">${esc(e.message || "Could not load reset requests.")}</p></div>`; }
+      };
+      loadResets();
+    }
   }
 
   /* ============================ SUPER ADMIN ============================== */

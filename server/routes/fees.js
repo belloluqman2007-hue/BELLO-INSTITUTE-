@@ -245,7 +245,29 @@ router.get("/records", STAFF, requirePermission("fees.view"), asyncHandler(async
 
 /* ----------------------------- reporting -------------------------------- */
 router.get("/reports", requirePermission("finance.reports"), asyncHandler(async(req,res)=>{const tid=await tenantId(req,res);if(tid==null)return;const where=["p.madrasa_id=?"];const params=[tid];if(req.query.from){where.push("p.payment_date>=?");params.push(validDate(req.query.from)||"");}if(req.query.to){where.push("p.payment_date<=?");params.push(validDate(req.query.to)||"");}if(req.query.sessionId){where.push("p.session_id=?");params.push(toNum(req.query.sessionId,0));}if(req.query.termId){where.push("p.term_id=?");params.push(toNum(req.query.termId,0));}if(req.query.method){where.push("p.method=?");params.push(cleanStr(req.query.method,40));}if(req.query.status){where.push("p.status=?");params.push(cleanStr(req.query.status,20));}if(req.query.classId){where.push("s.class_id=?");params.push(toNum(req.query.classId,0));}if(req.query.studentId){where.push("p.student_id=?");params.push(toNum(req.query.studentId,0));}const rows=await db.all(`SELECT p.*,f.name_en AS fee_name,s.admission_no,s.first_name,s.last_name,c.name_en AS class_name FROM fee_payments p JOIN students s ON s.id=p.student_id AND s.madrasa_id=p.madrasa_id LEFT JOIN fee_items f ON f.id=p.fee_item_id AND f.madrasa_id=p.madrasa_id LEFT JOIN classes c ON c.id=s.class_id AND c.madrasa_id=s.madrasa_id WHERE ${where.join(" AND ")} ORDER BY p.payment_date,p.id`,params);const successful=rows.filter((r)=>r.status==="successful");const sum=successful.reduce((a,r)=>a+n(r.amount_ngn),0);const by=(key)=>Object.values(successful.reduce((o,r)=>{const k=r[key]||"Other";o[k]=(o[k]||0)+n(r.amount_ngn);return o},{})).map((value,i)=>({value}));const grouped=(key)=>{const m={};successful.forEach((r)=>{const k=r[key]||"Other";m[k]=(m[k]||0)+n(r.amount_ngn);});return Object.entries(m).map(([label,value])=>({label,value}));};const balances=await buildBalances(tid,req.query);ok(res,{summary:{totalFeesAssessed:balances.reduce((a,r)=>a+r.total_fees,0),totalAmountCollected:sum,outstandingFees:balances.reduce((a,r)=>a+r.outstanding_balance,0),overdueFees:balances.filter((r)=>r.status==="Overdue").reduce((a,r)=>a+r.outstanding_balance,0),paymentCount:successful.length},payments:rows,byDate:grouped("payment_date"),byClass:grouped("class_name"),byProgram:[],byEducationTrack:[],byFeeType:grouped("fee_name"),byPaymentMethod:grouped("method"),byStatus:grouped("status")});}));
-router.get("/student/:id", FINANCE_VIEW, asyncHandler(async(req,res)=>{const tid=await tenantId(req,res);if(tid==null)return;const student=await canSeeStudent(tid,req,toNum(req.params.id,0));if(!student)return res.status(404).json({error:"Student finance record not found."});const fees=await buildBalances(tid,{studentId:student.id});const payments=await db.all("SELECT p.*,f.name_en AS fee_name FROM fee_payments p LEFT JOIN fee_items f ON f.id=p.fee_item_id AND f.madrasa_id=p.madrasa_id WHERE p.madrasa_id=? AND p.student_id=? ORDER BY p.payment_date DESC,p.id DESC",[tid,student.id]);ok(res,{student,assignedFees:fees,payments,receipts:payments.map((p)=>p.receipt_number).filter(Boolean),totalFees:fees.reduce((a,r)=>a+r.total_fees,0),amountPaid:fees.reduce((a,r)=>a+r.amount_paid,0),outstandingBalance:fees.reduce((a,r)=>a+r.outstanding_balance,0)});}));
+router.get("/student/:id", FINANCE_VIEW, asyncHandler(async(req,res)=>{const tid=await tenantId(req,res);if(tid==null)return;const student=await canSeeStudent(tid,req,toNum(req.params.id,0));if(!student)return res.status(404).json({error:"Student finance record not found."});const fees=await buildBalances(tid,{studentId:student.id});const payments=await db.all("SELECT p.*,f.name_en AS fee_name FROM fee_payments p LEFT JOIN fee_items f ON f.id=p.fee_item_id AND f.madrasa_id=p.madrasa_id WHERE p.madrasa_id=? AND p.student_id=? ORDER BY p.payment_date DESC,p.id DESC",[tid,student.id]);
+// Per-item breakdown for the parent's "pay online" flow: each fee item this
+// student owes on, with what has been paid against it so far. Mirrors the
+// aggregation rules of buildBalances (explicit assignment, else class-wide).
+let feeItems=[];
+try{
+  const items=await db.all("SELECT f.*,t.name_en AS term_name FROM fee_items f LEFT JOIN terms t ON t.id=f.term_id AND t.madrasa_id=f.madrasa_id WHERE f.madrasa_id=? AND f.status='active' AND (f.class_id IS NULL OR f.class_id=?)",[tid,student.class_id]);
+  if(items.length){
+    const im=items.map(()=>"?").join(",");
+    const assignments=await db.all(`SELECT * FROM fee_assignments WHERE madrasa_id=? AND student_id=? AND fee_item_id IN (${im})`,[tid,student.id].concat(items.map((x)=>x.id)));
+    const assignedByItem=new Map(assignments.map((a)=>[Number(a.fee_item_id),a]));
+    const paidRows=await db.all(`SELECT fee_item_id,SUM(amount_ngn) AS paid FROM fee_payments WHERE madrasa_id=? AND student_id=? AND status='successful' AND fee_item_id IN (${im}) GROUP BY fee_item_id`,[tid,student.id].concat(items.map((x)=>x.id)));
+    const paidByItem=new Map(paidRows.map((p)=>[Number(p.fee_item_id),n(p.paid)]));
+    for(const item of items){
+      const assignment=assignedByItem.get(Number(item.id));
+      const due=assignment?n(assignment.amount_due):n(item.amount_ngn);
+      if(due<=0)continue;
+      const paid=paidByItem.get(Number(item.id))||0;
+      feeItems.push({id:item.id,name:item.name_en,term_name:item.term_name||null,amount_due:due,amount_paid:paid,outstanding:Math.max(0,due-paid),due_date:item.due_date||null});
+    }
+  }
+}catch(e){feeItems=[];}
+ok(res,{student,assignedFees:fees,payments,feeItems,receipts:payments.map((p)=>p.receipt_number).filter(Boolean),totalFees:fees.reduce((a,r)=>a+r.total_fees,0),amountPaid:fees.reduce((a,r)=>a+r.amount_paid,0),outstandingBalance:fees.reduce((a,r)=>a+r.outstanding_balance,0)});}));
 /* Exposed so the communication bulk sender can resolve the "outstanding fees"
  * audience from the SAME balance calculation used by the finance screens. */
 module.exports = router;

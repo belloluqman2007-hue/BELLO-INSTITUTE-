@@ -500,6 +500,21 @@ body.dash-western .dash-website-card { background: linear-gradient(135deg, var(-
 .dash-login-submit:disabled { opacity: .6; cursor: not-allowed; }
 .dash-login-foot { margin-top: 18px; text-align: center; font-size: .8rem; color: #726d7b; }
 
+/* Unified login controls: password visibility, remember-me, forgot link ---- */
+.dash-login-password { position: relative; }
+.dash-login-password input { padding-right: 64px; }
+.dash-password-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 6px 10px; border-radius: 8px; border: none; background: transparent; color: #38146a; font-weight: 700; font-size: .76rem; cursor: pointer; }
+.dash-password-toggle:hover { background: #f4f0fa; }
+.dash-password-toggle:focus-visible { outline: 2px solid #38146a; outline-offset: 1px; }
+.dash-login-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 2px 0 10px; }
+.dash-login-remember { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem; font-weight: 600; color: #4d445c; cursor: pointer; }
+.dash-login-remember input { width: 16px; height: 16px; accent-color: #38146a; cursor: pointer; }
+.dash-login-forgot { font-size: .82rem; font-weight: 700; color: #38146a; text-decoration: none; }
+.dash-login-forgot:hover { text-decoration: underline; }
+.dash-login-success { background: #e8f6ee; border: 1px solid #cdeeda; color: #1d6b3f; padding: 12px 14px; border-radius: 10px; font-size: .84rem; margin-bottom: 14px; }
+.dash-login-success p { margin: 6px 0 10px; }
+.dash-login-error a { color: #b5423a; font-weight: 700; }
+
 /* Complete tenant admin workspaces --------------------------------------- */
 .dash-actions { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
 .dash-link-btn { border:0; background:none; padding:0; color:var(--d-primary); font:inherit; font-weight:700; cursor:pointer; text-decoration:underline; }

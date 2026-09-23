@@ -2,16 +2,20 @@
 /* ============================================================================
    MULTI-MADRASA PLATFORM — authentication routes
    ----------------------------------------------------------------------------
-   • POST /api/auth/login        (rate-limited, constant-time-ish error)
+   • POST /api/auth/login           (rate-limited, constant-time-ish error)
    • POST /api/auth/logout
    • GET  /api/auth/me
    • POST /api/auth/change-password
-   • GET  /api/csrf-token        (double-submit CSRF token)
+   • POST /api/auth/forgot-password (rate-limited, no account enumeration)
+   • POST /api/auth/reset-password  (single-use, expiring tokens)
+   • GET  /api/auth/reset-requests  (admin-mediated link delivery)
+   • GET  /api/csrf-token           (double-submit CSRF token)
    ========================================================================== */
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const db = require("../db");
+const config = require("../config");
 const { cleanStr, logActivity, asyncHandler } = require("../util");
 const permissionService = require("../services/permissions");
 
@@ -37,7 +41,12 @@ router.get("/csrf-token", (req, res) => {
 function csrfGuard(req, res, next) {
   if (!["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) return next();
   const path = req.path;
-  if (path.startsWith("/auth/login") || path.startsWith("/csrf-token") || path.endsWith("/fees/payment/webhook")) return next();
+  // Pre-auth endpoints: login (credentials), forgot/reset password (the
+  // reset token itself is the bearer secret), and the payment webhook
+  // (provider-HMAC-authenticated instead).
+  if (path.startsWith("/auth/login") || path.startsWith("/auth/forgot-password") ||
+      path.startsWith("/auth/reset-password") || path.startsWith("/csrf-token") ||
+      path.endsWith("/fees/payment/webhook")) return next();
   const token = String(req.get("x-csrf-token") || "");
   if (!token || token !== (req.session && req.session.csrfToken)) {
     return res.status(403).json({ error: "CSRF token missing or invalid. Refresh the page and try again." });
@@ -69,11 +78,41 @@ function sessionStoreMessage(err) {
     "Please try again — if it keeps happening, the server log has the details.";
 }
 
+/* --------------------- session invalidation helper --------------------- */
+
+/**
+ * Removes every stored session that belongs to the given user. Used after a
+ * password change/reset so an old (possibly stolen) session can no longer
+ * act as the account. `exceptSid` keeps the caller's own live session alive
+ * (the signed-in user changing their password should not log themselves out).
+ *
+ * Session rows are owned by express-session's JSON blob, so the user id is
+ * matched by parsing the blob — the table is small (one row per live
+ * session) and this runs only on password events, not per request.
+ */
+async function destroyUserSessions(userId, exceptSid) {
+  const id = Number(userId);
+  if (!id || !Number.isFinite(id)) return 0;
+  const rows = await db.all("SELECT sid, data FROM app_sessions");
+  let removed = 0;
+  for (const row of rows) {
+    if (exceptSid && row.sid === exceptSid) continue;
+    let data = null;
+    try { data = JSON.parse(row.data || "{}"); } catch (e) { continue; }
+    if (data && Number(data.userId) === id) {
+      await db.run("DELETE FROM app_sessions WHERE sid = ?", [row.sid]);
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
 /* ------------------------------ login ---------------------------------- */
 
 router.post("/login", async (req, res) => {
   const username = cleanStr(req.body && req.body.username, 100).toLowerCase();
   const password = String((req.body && req.body.password) || "");
+  const remember = Boolean(req.body && req.body.remember);
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required." });
   }
@@ -128,6 +167,10 @@ router.post("/login", async (req, res) => {
       return res.status(500).json({ error: sessionStoreMessage(err), code: "SESSION_ERROR" });
     }
     req.session.userId = user.id;
+    // "Remember me" lengthens the session cookie (default 30 days instead of
+    // the 12-hour inactivity session). The role/tenant are unaffected — a
+    // longer cookie never grants anything beyond the same account.
+    if (remember) req.session.cookie.maxAge = config.SESSION_REMEMBER_MAX_AGE_MS;
     ensureCsrfToken(req);
     // Audit the sign-in. The password is of course never recorded — only who
     // signed in, in which role and institution, and from where.
@@ -256,8 +299,208 @@ router.post("/change-password", async (req, res) => {
   if (!match) return res.status(400).json({ error: "Current password is incorrect." });
   const hash = await bcrypt.hash(next, 10);
   await db.run("UPDATE users SET password_hash = ? WHERE id = ?", [hash, req.user.id]);
-  logActivity(db, { madrasaId: req.user.madrasaId, userId: req.user.id, action: "change_password", entity: "auth", entityId: String(req.user.id), ip: req.ip });
+  // A password change invalidates every OTHER session of this account (other
+  // browsers/devices). This session stays: the user just proved they own it.
+  const killed = await destroyUserSessions(req.user.id, req.sessionID);
+  logActivity(db, { madrasaId: req.user.madrasaId, userId: req.user.id, action: "change_password", entity: "auth", entityId: String(req.user.id), ip: req.ip, meta: { sessionsInvalidated: killed } });
   res.json({ ok: true });
 });
+
+/* ---------------------- forgot / reset password ------------------------- */
+
+/** Reset tokens are encrypted at rest so an administrator (or the email
+ *  provider, when configured) can deliver the link, while a database dump
+ *  alone never contains a usable secret. Key derived from SESSION_SECRET. */
+function resetTokenKey() {
+  return crypto.scryptSync(String(config.SESSION_SECRET || "bello-dev-secret"), "bello-password-reset-v1", 32);
+}
+function encryptResetToken(token) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", resetTokenKey(), iv);
+  const ct = Buffer.concat([cipher.update(String(token), "utf8"), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ct]).toString("base64");
+}
+function decryptResetToken(enc) {
+  try {
+    const buf = Buffer.from(String(enc || ""), "base64");
+    if (buf.length < 29) return null;
+    const iv = buf.subarray(0, 12);
+    const tag = buf.subarray(12, 28);
+    const ct = buf.subarray(28);
+    const decipher = crypto.createDecipheriv("aes-256-gcm", resetTokenKey(), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+  } catch (e) {
+    return null;
+  }
+}
+
+function hashResetToken(token) {
+  return crypto.createHash("sha256").update(String(token || "")).digest("hex");
+}
+
+const GENERIC_RESET_RESPONSE = {
+  ok: true,
+  message: "If that account exists, a password reset link has been created. " +
+    "If an email address is on file and email delivery is configured, it has been sent; " +
+    "otherwise your institution's administrator can hand you the link.",
+};
+
+/**
+ * POST /api/auth/forgot-password — rate-limited (resetRequestLimiter).
+ * Accepts a username OR an email address. NEVER reveals whether the account
+ * exists: the response is byte-identical either way. Only ACTIVE accounts
+ * get a token; inactive ones get the same generic answer.
+ */
+router.post("/forgot-password", async (req, res) => {
+  const identifier = cleanStr(req.body && (req.body.identifier || req.body.username || req.body.email), 160).toLowerCase().trim();
+  if (!identifier) {
+    return res.status(400).json({ error: "Enter your username or email address." });
+  }
+  try {
+    const user = await db.get(
+      "SELECT id, username, full_name, email, madrasa_id, role, is_active FROM users WHERE LOWER(username) = ? OR (email <> '' AND LOWER(email) = ?)",
+      [identifier, identifier]
+    );
+    if (user && Number(user.is_active) === 1) {
+      // One live token per account: previous unused tokens die immediately.
+      await db.run("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE user_id = ? AND used_at IS NULL", [user.id]);
+      const token = crypto.randomBytes(32).toString("hex");
+      // Naive server-local format — the schema's datetime convention, valid
+      // for both SQLite TEXT and MySQL TIMESTAMP columns.
+      const expiry = new Date(Date.now() + config.PASSWORD_RESET_EXPIRY_MINUTES * 60 * 1000);
+      const p2 = (n) => String(n).padStart(2, "0");
+      const expiresAt = `${expiry.getFullYear()}-${p2(expiry.getMonth() + 1)}-${p2(expiry.getDate())} ${p2(expiry.getHours())}:${p2(expiry.getMinutes())}:${p2(expiry.getSeconds())}`;
+      await db.run(
+        "INSERT INTO password_reset_tokens (user_id, token_hash, token_encrypted, expires_at, requested_ip) VALUES (?,?,?,?,?)",
+        [user.id, hashResetToken(token), encryptResetToken(token), expiresAt, String(req.ip || "").slice(0, 64)]
+      );
+      // Best-effort email delivery. Many self-hosted installs have no email
+      // provider; the admin-mediated link (GET /auth/reset-requests) covers
+      // them, and the user-facing answer stays generic either way.
+      if (user.email) {
+        try {
+          const link = `${config.PUBLIC_URL}/reset-password?token=${token}`;
+          await require("../services/delivery").sendEmail(
+            user.email,
+            "Reset your BELLO password",
+            `<p>Hello ${user.full_name || user.username},</p>` +
+              `<p>Somebody asked to reset the password of your BELLO account <strong>${user.username}</strong>.</p>` +
+              `<p>Open this link within ${config.PASSWORD_RESET_EXPIRY_MINUTES} minutes to choose a new password:</p>` +
+              `<p><a href="${link}">${link}</a></p>` +
+              `<p>If you did not ask for this, you can ignore this message — the link expires on its own and the password stays unchanged.</p>`,
+            `Reset your BELLO password: ${link}`
+          );
+        } catch (e) { /* delivery failure must not change the response */ }
+      }
+      logActivity(db, {
+        madrasaId: user.madrasa_id, userId: user.id, action: "password_reset.request",
+        entity: "auth", entityId: String(user.id), ip: req.ip,
+      });
+    } else if (user) {
+      // Deactivated account: still the generic answer, but audited.
+      logActivity(db, {
+        madrasaId: user.madrasa_id, userId: user.id, action: "password_reset.request_refused_inactive",
+        entity: "auth", entityId: String(user.id), ip: req.ip,
+      });
+    }
+  } catch (e) {
+    // Never surface a database/delivery error here: it would both leak state
+    // and hand an attacker a oracle of a different shape.
+    console.error("forgot-password failed:", e && e.message);
+  }
+  res.json(GENERIC_RESET_RESPONSE);
+});
+
+/**
+ * POST /api/auth/reset-password — consumes a single-use, expiring token and
+ * sets the new password. Every session of the account is invalidated (this
+ * endpoint is used while NOT signed in, so nothing is preserved).
+ */
+router.post("/reset-password", async (req, res) => {
+  const token = cleanStr(req.body && req.body.token, 200);
+  const next = String((req.body && req.body.newPassword) || "");
+  if (!token) return res.status(400).json({ error: "A reset token is required." });
+  if (next.length < 8) return res.status(400).json({ error: "New password must be at least 8 characters." });
+  const row = await db.get(
+    "SELECT * FROM password_reset_tokens WHERE token_hash = ? AND used_at IS NULL",
+    [hashResetToken(token)]
+  );
+  // The same generic error covers unknown, expired and already-used tokens:
+  // the caller learns nothing about which one failed.
+  const INVALID = { error: "This reset link is invalid or has expired. Request a new one." };
+  if (!row) return res.status(400).json(INVALID);
+  const expires = row.expires_at ? new Date(String(row.expires_at).replace(" ", "T")).getTime() : NaN;
+  if (!Number.isFinite(expires) || expires < Date.now()) {
+    await db.run("UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+    return res.status(400).json(INVALID);
+  }
+  // Consume the token atomically: if a concurrent request already used it,
+  // changes === 0 and this request is the one that loses.
+  const consumed = await db.run(
+    "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ? AND used_at IS NULL",
+    [row.id]
+  );
+  if (!consumed || !Number(consumed.changes)) return res.status(400).json(INVALID);
+  const user = await db.get("SELECT id, username, madrasa_id, is_active FROM users WHERE id = ?", [row.user_id]);
+  if (!user || Number(user.is_active) !== 1) return res.status(400).json(INVALID);
+  const hash = await bcrypt.hash(next, 10);
+  await db.run("UPDATE users SET password_hash = ? WHERE id = ?", [hash, user.id]);
+  // Password changed from an unauthenticated flow: drop EVERY session.
+  await destroyUserSessions(user.id, null);
+  logActivity(db, {
+    madrasaId: user.madrasa_id, userId: user.id, action: "password_reset.complete",
+    entity: "auth", entityId: String(user.id), ip: req.ip,
+  });
+  res.json({ ok: true, message: "Your password has been updated. You can now sign in with the new password." });
+});
+
+/**
+ * GET /api/auth/reset-requests — pending reset links for the administrator.
+ * Institution admins see only their own tenant's users; the super admin sees
+ * every request. This is the delivery channel for installs without an email
+ * provider (an institution admin can already set any tenant account's
+ * password directly, so revealing the link grants no new power).
+ */
+router.get("/reset-requests", asyncHandler(async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Authentication required." });
+  if (!["madrasa_admin", "super_admin"].includes(req.user.role)) {
+    return res.status(403).json({ error: "Administrator access required." });
+  }
+  const tenantFilter = req.user.role === "super_admin" ? "" : " AND u.madrasa_id = ? ";
+  const params = req.user.role === "super_admin" ? [] : [req.user.madrasaId];
+  // Expiry is evaluated in JS (not SQL) because the column is TEXT on SQLite
+  // (ISO strings) and TIMESTAMP on MySQL — one comparison rule for both.
+  const rows = await db.all(
+    `SELECT t.id, t.expires_at, t.created_at, t.requested_ip, u.username, u.full_name, u.role AS user_role,
+            u.madrasa_id, m.name_en AS institution_name, t.token_encrypted
+       FROM password_reset_tokens t
+       JOIN users u ON u.id = t.user_id
+       LEFT JOIN madaris m ON m.id = u.madrasa_id
+      WHERE t.used_at IS NULL${tenantFilter}
+      ORDER BY t.id DESC LIMIT 100`,
+    params
+  );
+  const now = Date.now();
+  const requests = rows.map((r) => {
+    const token = decryptResetToken(r.token_encrypted);
+    const exp = r.expires_at ? new Date(String(r.expires_at).replace(" ", "T")).getTime() : NaN;
+    return {
+      id: r.id,
+      username: r.username,
+      fullName: r.full_name,
+      userRole: r.user_role,
+      institutionName: r.institution_name,
+      createdAt: r.created_at,
+      expiresAt: r.expires_at,
+      expired: !Number.isFinite(exp) || exp < now,
+      // The shareable link is only included while the token is still usable.
+      resetLink: token && Number.isFinite(exp) && exp >= now
+        ? `/reset-password?token=${token}`
+        : null,
+    };
+  });
+  res.json({ requests });
+}));
 
 module.exports = { router, csrfGuard, ensureCsrfToken };

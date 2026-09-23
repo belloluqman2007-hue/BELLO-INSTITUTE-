@@ -80,14 +80,14 @@
     put: (p, b) => request("PUT", p, b),
     patch: (p, b) => request("PATCH", p, b),
     del: (p) => request("DELETE", p),
-    async login(username, password) {
+    async login(username, password, remember) {
       let r;
       try {
         r = await fetch(BASE + "/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, remember: Boolean(remember) }),
         });
       } catch (networkError) {
         // DNS failure, offline, server down, TLS error… fetch rejects and the

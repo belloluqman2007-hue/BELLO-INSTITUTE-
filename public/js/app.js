@@ -840,9 +840,12 @@
 
     if (hash.startsWith("#/app") || hash === "#/login" || hash.startsWith("#/login") ||
         // The admin section has real addresses of its own — /login is the
-        // sign-in page (it always asks for a password), /admin the section
-        // itself, which falls back to the sign-in page when unauthenticated.
-        path === "/login" || path === "/admin" || path === "/admin/login") {
+        // unified sign-in page (it always asks for a password), /admin the
+        // section itself, which falls back to the sign-in page when
+        // unauthenticated. /forgot-password and /reset-password are the
+        // self-service recovery pages handled by the same module.
+        path === "/login" || path === "/admin" || path === "/admin/login" ||
+        path === "/forgot-password" || path === "/reset-password") {
       renderDashboard();
     // Every onboarding stage is its own page (…/administrator, …/review,
     // …/submitted), so the whole subtree routes into the matching module.

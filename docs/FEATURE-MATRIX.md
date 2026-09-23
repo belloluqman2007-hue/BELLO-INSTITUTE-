@@ -1,4 +1,4 @@
-# BELLO — Feature Matrix (UX Completion Pass, 2026-09-23)
+# BELLO — Feature Matrix (Auth & Delivery Pass, 2026-09-23)
 
 Legend: ✅ present before this pass · 🆕 added in this pass · ♻️ extended in this pass
 
@@ -39,6 +39,19 @@ Legend: ✅ present before this pass · 🆕 added in this pass · ♻️ extend
 | 26 | Admin | Staff role templates (Accountant, Librarian, Admissions Officer, Academic Officer, HR Officer, Receptionist) — permission bundles on STAFF accounts, no new roles | ♻️ user_permissions | 🆕 `/api/admin/permissions/templates` + apply | ♻️ Roles & Permissions "Apply template" | ✅ roles.manage + audited | 🆕 role-templates | ✅ |
 | 27 | Family | Messaging restriction: student/parent accounts can only write to staff | ♻️ messages | ♻️ `POST /communication/messages` guard | — | ✅ | 🆕 portal-experience | ✅ |
 | 28 | Family | Fee + timetable + attendance + announcement views (existing endpoints verified through the portals) | ✅ | ✅ | 🆕 portal pages | ✅ | 🆕 portal-experience | ✅ |
+
+## Added or completed in the auth & delivery pass (this one)
+
+| # | User | Feature | Backend | API | Frontend | Permissions | Tests | Status |
+|---|------|---------|---------|-----|----------|-------------|-------|--------|
+| 29 | All | **Unified login, one form for all five account types** — no role chooser; server answers with role+tenant and the page hands the session to the right workspace | ♻️ sessions | ♻️ `/api/auth/login` | ♻️ `dashboard.js` login card (show/hide password, remember me, forgot link, inline errors, a11y, mobile) | ✅ server-determined role | 🆕 unified-login-ui | ✅ |
+| 30 | All | **Self-service password reset** — generic request answer (no enumeration), single-use expiring tokens (hashed at rest), reset invalidates all sessions, admin-visible links for schools without email | 🆕 `password_reset_tokens` (migration 036) | 🆕 `/api/auth/forgot-password`, `/reset-password`, `/reset-requests` | 🆕 `/forgot-password`, `/reset-password` pages + admin Account & Security queue | ✅ rate-limited + CSRF | 🆕 password-reset (14) | ✅ |
+| 31 | Teacher | **Online examinations — authoring** — draft→published lifecycle, MC/subjective questions, per-question marks, question-bank import, publish gate (needs questions, no timetable conflict), publish notification | 🆕 `online_exams`, `online_exam_questions`, `exam_attempts`, `exam_answers` (migration 037) | 🆕 `/api/academic/online-exams*` (create/update/publish/questions/import/attempts/grade/release) | 🆕 Teacher → Online Exams manager | 🆕 `exams.create` + own class/subject scope | 🆕 online-exams (13) | ✅ |
+| 32 | Student | **Online examinations — taking** — takeable list, timed runner (server-issued deadline), navigator, autosave, submit confirm, locked-attempt rules, auto-finalize on expiry, marked-paper review after release | ♻️ same tables | 🆕 `/portal/online-exams*` (list/start/save/submit/review) | 🆕 Student → Online Exams runner | ✅ own attempts only, no answers pre-release | 🆕 online-exams | ✅ |
+| 33 | Teacher | **Online examinations — grading** — objective auto-scored, subjective graded with over-award guard, release per exam | ♻️ same tables | 🆕 attempts queue + grade/release endpoints | 🆕 attempts + review views | ✅ attempts.view scope | 🆕 online-exams | ✅ |
+| 34 | Parent | **Online exam visibility per child** — attempts and scores appear on each linked child's exam page; parents can never start or save attempts | ♻️ | 🆕 attempts surfaced via `/portal/exams` scope | ♻️ parent exams page | ✅ linked children only | 🆕 online-exams | ✅ |
+| 35 | Parent | **Online fee payment** — per-item outstanding, initiate, provider checkout redirect, status polling, receipts; success only via verified webhook/callback | ♻️ existing payments tables | ♻️ `/api/payments/initiate` + gateway callback/webhook (auth-order bug FIXED: 403/404/400 now precede the 503 gateway-not-configured answer) | 🆕 Parent → Fees → Pay online + receipt view | ✅ linked children + tenant-scoped fee items | 🆕 parent-payments (9) | ✅ |
+| 36 | All | Exam publish/release notifications | ♻️ notifications | 🆕 `online_exam_published` / `online_exam_released` audiences | ♻️ portal bell | ✅ | 🆕 online-exams | ✅ |
 
 ## Preservation notes
 

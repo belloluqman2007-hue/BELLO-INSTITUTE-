@@ -525,13 +525,348 @@ router.get("/exams", asyncHandler(async (req, res) => {
   if (!target.class_id) return ok(res, { student: studentBrief(target), exams: [] });
   const exams = await db.all(
     `SELECT e.id, e.title, e.exam_date, e.start_time, e.end_time, e.duration_minutes, e.classroom,
-            e.total_marks, e.status, e.instructions, sub.name_en AS subject_name, sub.name_ar AS subject_ar
+            e.total_marks, e.status, e.mode, e.instructions, sub.name_en AS subject_name, sub.name_ar AS subject_ar
        FROM exams e LEFT JOIN subjects sub ON sub.id = e.subject_id AND sub.madrasa_id = e.madrasa_id
       WHERE e.madrasa_id = ? AND e.class_id = ? AND e.status IN ('scheduled','ongoing','published')
       ORDER BY e.exam_date IS NULL, e.exam_date, e.start_time LIMIT 100`,
     [tid, target.class_id]
   );
   ok(res, { student: studentBrief(target), exams });
+}));
+
+/* ---------------------------- online exams ------------------------------ */
+
+/** Server-side window of an online exam (never a client timestamp). */
+function onlineWindow(exam) {
+  if (!exam.exam_date || !exam.start_time || !exam.end_time) return null;
+  const start = new Date(`${String(exam.exam_date).slice(0, 10)}T${String(exam.start_time).slice(0, 5)}:00`);
+  const end = new Date(`${String(exam.exam_date).slice(0, 10)}T${String(exam.end_time).slice(0, 5)}:00`);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+  return { start, end };
+}
+function ts(v) {
+  if (!v) return NaN;
+  if (v instanceof Date) return v.getTime();
+  return new Date(String(v).replace(" ", "T")).getTime();
+}
+/** Server-local "YYYY-MM-DD HH:MM:SS" — the datetime convention the rest of
+ *  the schema uses (CURRENT_TIMESTAMP semantics), safe for both the SQLite
+ *  TEXT columns and MySQL TIMESTAMP columns (dateStrings reads it back). */
+function sqlLocalTs(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/** Loads an online exam for a portal user and validates the class link. */
+async function loadOnlineExam(req, res, tid, target) {
+  const exam = await db.get(
+    `SELECT e.*, sub.name_en AS subject_name, sub.name_ar AS subject_ar, c.name_en AS class_name
+       FROM exams e LEFT JOIN subjects sub ON sub.id = e.subject_id AND sub.madrasa_id = e.madrasa_id
+       LEFT JOIN classes c ON c.id = e.class_id AND c.madrasa_id = e.madrasa_id
+      WHERE e.id = ? AND e.madrasa_id = ?`,
+    [toNum(req.params.id, 0), tid]
+  );
+  if (!exam || exam.mode !== "online") { err(res, 404, "Online examination not found."); return null; }
+  if (Number(exam.class_id) !== Number(target.class_id)) { err(res, 404, "Online examination not found."); return null; }
+  return exam;
+}
+
+/** Public shape of one exam for the listing (no answers, no explanations).
+ *  Attempts and question aggregates are batch-fetched by the caller so the
+ *  listing stays at three queries regardless of exam count. */
+function onlineExamCard(req, exam, target, now, attemptsByExam, totalsByExam) {
+  const window = onlineWindow(exam);
+  const state = !window ? "open" : (now < window.start.getTime() ? "upcoming" : (now > window.end.getTime() ? "closed" : "open"));
+  const attempt = attemptsByExam.get(Number(exam.id)) || null;
+  const q = totalsByExam.get(Number(exam.id)) || { n: 0, total: 0 };
+  const released = Boolean(exam.results_released_at);
+  const windowEnded = window ? now > window.end.getTime() : true;
+  const scoreVisible = Boolean(attempt && attempt.status !== "in_progress" && (released || windowEnded));
+  return {
+    id: exam.id, title: exam.title, subject_name: exam.subject_name, subject_ar: exam.subject_ar,
+    exam_date: exam.exam_date, start_time: exam.start_time, end_time: exam.end_time,
+    duration_minutes: exam.duration_minutes, total_marks: Number(q.total) || Number(exam.total_marks),
+    question_count: Number(q.n), instructions: exam.instructions, status: exam.status,
+    state, results_released: released,
+    attempt: attempt ? {
+      status: attempt.status, started_at: attempt.started_at, submitted_at: attempt.submitted_at,
+      expires_at: attempt.expires_at,
+      score: scoreVisible ? attempt.score : null,
+      auto_score: scoreVisible ? attempt.auto_score : null,
+    } : null,
+    can_take: req.user.role === "student" && ["scheduled", "ongoing", "published"].includes(exam.status) &&
+      state === "open" && (!attempt || attempt.status === "in_progress"),
+  };
+}
+
+/**
+ * GET /api/portal/online-exams — every online examination of the student's
+ * class (or ?studentId= child) with the caller's own attempt state. Correct
+ * answers are never part of this payload.
+ */
+router.get("/online-exams", asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const students = await accessibleStudents(req, tid);
+  const byId = new Map(students.map((s) => [Number(s.id), s]));
+  const target = resolveStudentTarget(req, byId);
+  if (!target) return err(res, 404, "No student record found.");
+  if (!target.class_id) return ok(res, { student: studentBrief(target), exams: [] });
+  const rows = await db.all(
+    `SELECT e.* FROM exams e WHERE e.madrasa_id=? AND e.class_id=? AND e.mode='online'
+       AND e.status IN ('scheduled','ongoing','published','completed') ORDER BY e.exam_date DESC, e.start_time LIMIT 60`,
+    [tid, target.class_id]
+  );
+  if (!rows.length) return ok(res, { student: studentBrief(target), exams: [], serverTime: new Date().toISOString() });
+  const examIds = rows.map((e) => Number(e.id));
+  const marks = examIds.map(() => "?").join(",");
+  const attemptRows = await db.all(
+    `SELECT * FROM exam_attempts WHERE madrasa_id=? AND student_id=? AND exam_id IN (${marks})`,
+    [tid, target.id].concat(examIds)
+  );
+  const attemptsByExam = new Map(attemptRows.map((a) => [Number(a.exam_id), a]));
+  const totalRows = await db.all(
+    `SELECT exam_id, COUNT(*) AS n, COALESCE(SUM(marks),0) AS total FROM exam_questions WHERE madrasa_id=? AND exam_id IN (${marks}) GROUP BY exam_id`,
+    [tid].concat(examIds)
+  );
+  const totalsByExam = new Map(totalRows.map((t) => [Number(t.exam_id), t]));
+  const now = Date.now();
+  ok(res, {
+    student: studentBrief(target),
+    exams: rows.map((exam) => onlineExamCard(req, exam, target, now, attemptsByExam, totalsByExam)),
+    serverTime: new Date().toISOString(),
+  });
+}));
+
+/**
+ * POST /api/portal/online-exams/:id/start — begins (or resumes) the caller's
+ * own single attempt. Every rule is enforced here, on the server: window,
+ * status, class membership, one attempt per student, attempt expiry.
+ */
+router.post("/online-exams/:id/start", asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") return err(res, 403, "Only students take examinations.");
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const students = await accessibleStudents(req, tid);
+  const target = students.length ? students[0] : null;
+  if (!target) return err(res, 404, "No student record found.");
+  const exam = await loadOnlineExam(req, res, tid, target);
+  if (!exam) return;
+  if (!["scheduled", "ongoing", "published"].includes(exam.status)) return err(res, 409, "This examination is not open.");
+  const now = Date.now();
+  const window = onlineWindow(exam);
+  if (window) {
+    if (now < window.start.getTime()) return err(res, 409, "This examination has not started yet.");
+    if (now > window.end.getTime()) return err(res, 409, "This examination has already ended.");
+  }
+  const questions = await db.all(
+    "SELECT id, position, question_text, question_type, options, marks FROM exam_questions WHERE exam_id=? AND madrasa_id=? ORDER BY position, id",
+    [exam.id, tid]
+  );
+  if (!questions.length) return err(res, 409, "This examination has no questions yet.");
+  let attempt = await db.get("SELECT * FROM exam_attempts WHERE exam_id=? AND madrasa_id=? AND student_id=?", [exam.id, tid, target.id]);
+  const deadline = (a) => ts(a.expires_at);
+  if (attempt && attempt.status === "in_progress") {
+    const expires = deadline(attempt);
+    // A lapsed attempt is finalized with whatever was saved — it can never be
+    // reopened, so the paper cannot be finished after time ran out.
+    if (Number.isFinite(expires) && now > expires + 120 * 1000) {
+      const locked = await db.run(
+        "UPDATE exam_attempts SET status='submitted', submitted_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'",
+        [attempt.id]
+      );
+      if (Number(locked.changes) > 0) await finalizeAttempt(tid, attempt);
+      return err(res, 409, "Your time for this examination ran out. It was submitted with the answers you had saved.");
+    }
+  } else if (attempt) {
+    return err(res, 409, "You have already submitted this examination.");
+  }
+  if (!attempt) {
+    const windowEnd = window ? window.end.getTime() : null;
+    const durationMs = Math.max(1, Number(exam.duration_minutes) || 0) * 60 * 1000;
+    let expiresAt;
+    if (durationMs > 0) expiresAt = windowEnd ? new Date(Math.min(now + durationMs, windowEnd)) : new Date(now + durationMs);
+    else expiresAt = windowEnd ? new Date(windowEnd) : new Date(now + 60 * 60 * 1000);
+    try {
+      await db.run(
+        "INSERT INTO exam_attempts (madrasa_id, exam_id, student_id, user_id, status, expires_at) VALUES (?,?,?,?, 'in_progress', ?)",
+        [tid, exam.id, target.id, req.user.id, sqlLocalTs(expiresAt)]
+      );
+    } catch (e) {
+      // The UNIQUE (exam_id, student_id) constraint is the duplicate-attempt
+      // backstop when two tabs race; the loser resumes the winner's attempt.
+      if (!/unique|duplicate/i.test(String(e && e.message))) throw e;
+    }
+    attempt = await db.get("SELECT * FROM exam_attempts WHERE exam_id=? AND madrasa_id=? AND student_id=?", [exam.id, tid, target.id]);
+  }
+  if (!attempt || attempt.status !== "in_progress") return err(res, 409, "You have already submitted this examination.");
+  const saved = await db.all("SELECT exam_question_id, answer_text FROM exam_answers WHERE attempt_id=? AND madrasa_id=?", [attempt.id, tid]);
+  ok(res, {
+    exam: {
+      id: exam.id, title: exam.title, subject_name: exam.subject_name, instructions: exam.instructions,
+      exam_date: exam.exam_date, start_time: exam.start_time, end_time: exam.end_time,
+      duration_minutes: exam.duration_minutes, total_marks: Number(exam.total_marks), question_count: questions.length,
+    },
+    questions: questions.map((q) => ({
+      id: q.id, position: q.position, question_text: q.question_text,
+      question_type: q.question_type, options: q.options, marks: q.marks,
+    })),
+    answers: saved.map((a) => ({ question_id: a.exam_question_id, answer: a.answer_text })),
+    attempt: { id: attempt.id, started_at: attempt.started_at, expires_at: attempt.expires_at },
+    serverTime: new Date().toISOString(),
+  });
+}));
+
+/**
+ * PUT /api/portal/online-exams/:id/answers — autosave. Strictly inside the
+ * attempt's time budget; the graded/locked state refuses writes.
+ */
+router.put("/online-exams/:id/answers", asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") return err(res, 403, "Only students take examinations.");
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const students = await accessibleStudents(req, tid);
+  const target = students.length ? students[0] : null;
+  if (!target) return err(res, 404, "No student record found.");
+  const exam = await loadOnlineExam(req, res, tid, target);
+  if (!exam) return;
+  const attempt = await db.get("SELECT * FROM exam_attempts WHERE exam_id=? AND madrasa_id=? AND student_id=?", [exam.id, tid, target.id]);
+  if (!attempt || attempt.status !== "in_progress") return err(res, 409, "This attempt is no longer open.");
+  const expires = ts(attempt.expires_at);
+  if (Number.isFinite(expires) && Date.now() > expires) return err(res, 409, "Your time has run out — submit what you have saved.");
+  const incoming = Array.isArray(req.body && req.body.answers) ? req.body.answers.slice(0, 200) : [];
+  if (!incoming.length) return err(res, 400, "No answers supplied.");
+  const questions = await db.all("SELECT id FROM exam_questions WHERE exam_id=? AND madrasa_id=?", [exam.id, tid]);
+  const validIds = new Set(questions.map((q) => Number(q.id)));
+  for (const a of incoming) {
+    if (!validIds.has(toNum(a.question_id || a.questionId, 0))) return err(res, 400, "One of the answers does not belong to this examination.");
+  }
+  for (const a of incoming) {
+    const qid = toNum(a.question_id || a.questionId, 0);
+    const text = cleanStr(a.answer !== undefined ? a.answer : a.answer_text, 8000);
+    const existing = await db.get("SELECT id FROM exam_answers WHERE attempt_id=? AND exam_question_id=? AND madrasa_id=?", [attempt.id, qid, tid]);
+    if (existing) await db.run("UPDATE exam_answers SET answer_text=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?", [text, existing.id, tid]);
+    else await db.run("INSERT INTO exam_answers (madrasa_id, attempt_id, exam_question_id, answer_text) VALUES (?,?,?,?)", [tid, attempt.id, qid, text]);
+  }
+  ok(res, { ok: true, saved: incoming.length, serverTime: new Date().toISOString(), expires_at: attempt.expires_at });
+}));
+
+/** Grades the objective answers of a submitted attempt and returns totals. */
+async function finalizeAttempt(tid, attempt) {
+  const questions = await db.all("SELECT * FROM exam_questions WHERE exam_id=? AND madrasa_id=? ORDER BY position, id", [attempt.exam_id, tid]);
+  const answers = await db.all("SELECT * FROM exam_answers WHERE attempt_id=? AND madrasa_id=?", [attempt.id, tid]);
+  const byQuestion = new Map(answers.map((a) => [Number(a.exam_question_id), a]));
+  let auto = 0, total = 0;
+  for (const q of questions) {
+    total += Number(q.marks);
+    const a = byQuestion.get(Number(q.id));
+    if (!a) continue;
+    let options = q.options;
+    if (typeof options === "string" && options.trim()) { try { options = JSON.parse(options); } catch (e) { options = null; } }
+    if (q.question_type === "multiple_choice" || q.question_type === "true_false" || q.question_type === "short_answer" || q.question_type === "fill_in_the_blank") {
+      const correct = String(q.correct_answer || "").trim().toLowerCase();
+      if (correct) {
+        const given = String(a.answer_text || "").trim().toLowerCase();
+        const isCorrect = given === correct;
+        await db.run("UPDATE exam_answers SET is_correct=?, marks_awarded=?, graded_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",
+          [isCorrect ? 1 : 0, isCorrect ? Number(q.marks) : 0, a.id, tid]);
+        if (isCorrect) auto += Number(q.marks);
+      }
+    }
+  }
+  const subjective = answers.filter((a) => a.is_correct === null && a.marks_awarded !== null && a.marks_awarded !== undefined)
+    .reduce((sum, a) => sum + Number(a.marks_awarded), 0);
+  const score = Math.round((auto + subjective) * 100) / 100;
+  await db.run("UPDATE exam_attempts SET auto_score=?, score=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?",
+    [Math.round(auto * 100) / 100, score, attempt.id, tid]);
+  return { auto: Math.round(auto * 100) / 100, score, total: Math.round(total * 100) / 100 };
+}
+
+/**
+ * POST /api/portal/online-exams/:id/submit — locks the attempt exactly once.
+ * A short grace window (2 minutes) lets a finished paper survive a slow
+ * network; after that the submission is refused. Duplicate submissions and
+ * post-deadline edits are impossible by construction.
+ */
+router.post("/online-exams/:id/submit", asyncHandler(async (req, res) => {
+  if (req.user.role !== "student") return err(res, 403, "Only students take examinations.");
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const students = await accessibleStudents(req, tid);
+  const target = students.length ? students[0] : null;
+  if (!target) return err(res, 404, "No student record found.");
+  const exam = await loadOnlineExam(req, res, tid, target);
+  if (!exam) return;
+  const attempt = await db.get("SELECT * FROM exam_attempts WHERE exam_id=? AND madrasa_id=? AND student_id=?", [exam.id, tid, target.id]);
+  if (!attempt) return err(res, 409, "You have not started this examination.");
+  if (attempt.status !== "in_progress") return err(res, 409, "This examination has already been submitted.");
+  const expires = ts(attempt.expires_at);
+  if (Number.isFinite(expires) && Date.now() > expires + 120 * 1000) {
+    // Too late: lock whatever is saved, without accepting this submission.
+    await db.run("UPDATE exam_attempts SET status='submitted', submitted_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'", [attempt.id]);
+    const fresh = await db.get("SELECT * FROM exam_attempts WHERE id=?", [attempt.id]);
+    await finalizeAttempt(tid, fresh);
+    return err(res, 409, "Your time had already run out; the saved answers were submitted for you.");
+  }
+  const locked = await db.run(
+    "UPDATE exam_attempts SET status='submitted', submitted_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'",
+    [attempt.id]
+  );
+  if (!Number(locked.changes)) return err(res, 409, "This examination has already been submitted.");
+  const fresh = await db.get("SELECT * FROM exam_attempts WHERE id=?", [attempt.id]);
+  const result = await finalizeAttempt(tid, fresh);
+  const window = onlineWindow(exam);
+  const released = Boolean(exam.results_released_at);
+  const windowEnded = window ? Date.now() > window.end.getTime() : true;
+  ok(res, {
+    ok: true, submitted_at: fresh.submitted_at,
+    auto_score: result.auto, score: result.score, total: result.total,
+    score_visible: released || windowEnded, results_released: released,
+    message: "Your examination has been submitted.",
+  });
+}));
+
+/**
+ * GET /api/portal/online-exams/:id/review — the caller's own marked paper.
+ * Available once results are released (or the window has closed). This is
+ * the ONLY place correct answers and explanations reach a student, and only
+ * for their own attempt.
+ */
+router.get("/online-exams/:id/review", asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const students = await accessibleStudents(req, tid);
+  const byId = new Map(students.map((s) => [Number(s.id), s]));
+  const target = resolveStudentTarget(req, byId);
+  if (!target) return err(res, 404, "No student record found.");
+  const exam = await loadOnlineExam(req, res, tid, target);
+  if (!exam) return;
+  const attempt = await db.get("SELECT * FROM exam_attempts WHERE exam_id=? AND madrasa_id=? AND student_id=?", [exam.id, tid, target.id]);
+  if (!attempt || attempt.status === "in_progress") return err(res, 404, "No submitted examination to review.");
+  const window = onlineWindow(exam);
+  const released = Boolean(exam.results_released_at);
+  const windowEnded = window ? Date.now() > window.end.getTime() : true;
+  if (!released && !windowEnded) return err(res, 403, "Results for this examination have not been released yet.");
+  const questions = await db.all("SELECT * FROM exam_questions WHERE exam_id=? AND madrasa_id=? ORDER BY position, id", [exam.id, tid]);
+  const answers = await db.all("SELECT * FROM exam_answers WHERE attempt_id=? AND madrasa_id=?", [attempt.id, tid]);
+  const byQuestion = new Map(answers.map((a) => [Number(a.exam_question_id), a]));
+  ok(res, {
+    exam: {
+      id: exam.id, title: exam.title, subject_name: exam.subject_name,
+      total_marks: Number(exam.total_marks), results_released: released,
+    },
+    attempt: { status: attempt.status, submitted_at: attempt.submitted_at, auto_score: attempt.auto_score, score: attempt.score },
+    questions: questions.map((q) => {
+      const a = byQuestion.get(Number(q.id));
+      return {
+        id: q.id, position: q.position, question_text: q.question_text, question_type: q.question_type,
+        options: q.options, marks: q.marks,
+        answer: a ? a.answer_text : "", is_correct: a ? a.is_correct : null, marks_awarded: a ? a.marks_awarded : null,
+        correct_answer: q.correct_answer, explanation: q.explanation,
+      };
+    }),
+  });
 }));
 
 /* ------------------------------- contacts ------------------------------- */

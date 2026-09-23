@@ -236,6 +236,13 @@ const CORS_ORIGINS = String(process.env.CORS_ORIGINS || "")
    fires dozens of API calls per minute) is never starved by it.
 --------------------------------------------------------------------------- */
 const LOGIN_RATE_LIMIT = Number(process.env.LOGIN_RATE_LIMIT || 10);
+// Password-reset request limiter (per IP). The endpoint must survive a whole
+// school office sharing one proxy IP while still throttling token spam.
+const PASSWORD_RESET_RATE_LIMIT = Number(process.env.PASSWORD_RESET_RATE_LIMIT || 10);
+// How long a password reset token stays valid (minutes) and how long a
+// "remember me" session lasts vs. the regular inactivity session.
+const PASSWORD_RESET_EXPIRY_MINUTES = Number(process.env.PASSWORD_RESET_EXPIRY_MINUTES || 60);
+const SESSION_REMEMBER_MAX_AGE_MS = Number(process.env.SESSION_REMEMBER_MAX_AGE_HOURS || 24 * 30) * 60 * 60 * 1000;
 // Development gets room to breathe: the end-to-end smoke script and a dev
 // clicking around must not be throttled by a limit meant for the internet.
 // Production default: 2000 requests / 15 min / IP — an active staff of dozens
@@ -503,7 +510,10 @@ module.exports = {
   EFFECTIVE_API_BASE,
   SESSION_SECRET,
   SESSION_MAX_AGE_MS,
+  SESSION_REMEMBER_MAX_AGE_MS,
   SESSION_PRUNE_MINUTES,
+  PASSWORD_RESET_RATE_LIMIT,
+  PASSWORD_RESET_EXPIRY_MINUTES,
   SUPER_ADMIN_USERNAME,
   SUPER_ADMIN_PASSWORD,
   PUBLIC_URL,

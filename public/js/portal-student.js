@@ -30,6 +30,7 @@
       { key: "lessons", label: "Lessons", icon: "book", route: "lessons" },
       { key: "assignments", label: "Assignments", icon: "file", route: "assignments" },
       { key: "exams", label: "Exam Timetable", icon: "academic", route: "exams" },
+      { key: "online-exams", label: "Online Exams", icon: "academic", route: "online-exams" },
       { key: "results", label: "Results", icon: "check", route: "results" },
       { key: "attendance", label: "Attendance", icon: "check", route: "attendance" },
       { key: "fees", label: "School Fees", icon: "money", route: "fees" },
@@ -49,13 +50,15 @@
 
   const PAGE_TITLES = {
     dashboard: "My Dashboard", timetable: "My Timetable", lessons: "Lessons", assignments: "My Assignments",
-    exams: "Exam Timetable", results: "My Results", attendance: "My Attendance", fees: "School Fees",
+    exams: "Exam Timetable", "online-exams": "Online Exams", results: "My Results", attendance: "My Attendance", fees: "School Fees",
     library: "My Library", quran: "Qur'an Progress", calendar: "Calendar & Events", messages: "Messages",
     notifications: "Notifications", account: "My Account",
   };
   function pageTitle(route) {
     const top = route.split("/")[0];
     if (route.startsWith("assignments/")) return "Assignment";
+    if (route.startsWith("online-exams/take/")) return "Take Exam";
+    if (route.startsWith("online-exams/review/")) return "Exam Review";
     return PAGE_TITLES[top] || null;
   }
 
@@ -276,10 +279,11 @@
     card.innerHTML = `<div class="dash-table-wrap"><table class="dash-table">
       <thead><tr><th>Examination</th><th>Subject</th><th>Date</th><th>Time</th><th>Room</th><th>Marks</th><th>Status</th></tr></thead>
       <tbody>${rows.length ? rows.map((e) => `<tr>
-        <td><strong>${c.esc(e.title)}</strong></td><td>${c.esc(e.subject_name || "—")}</td>
+        <td><strong>${c.esc(e.title)}</strong>${e.mode === "online" ? `<small><a href="#/student/online-exams">Online examination — take it here</a></small>` : ""}</td><td>${c.esc(e.subject_name || "—")}</td>
         <td>${c.fmtDate(e.exam_date)}</td>
         <td>${e.start_time ? `${c.esc(String(e.start_time).slice(0, 5))}${e.end_time ? "–" + c.esc(String(e.end_time).slice(0, 5)) : ""}` : "—"}</td>
-        <td>${c.esc(e.classroom || "—")}</td><td>${c.esc(e.total_marks)}</td><td>${c.pill(e.status)}</td></tr>`).join("") : c.emptyRow(7, "No examinations scheduled.")}</tbody></table></div>`;
+        <td>${e.mode === "online" ? "In the portal" : c.esc(e.classroom || "—")}</td><td>${c.esc(e.total_marks)}</td><td>${c.pill(e.status)}</td></tr>`).join("") : c.emptyRow(7, "No examinations scheduled.")}</tbody></table></div>`;
+    card.querySelectorAll("a[href='#/student/online-exams']").forEach((a) => a.addEventListener("click", (ev) => { ev.preventDefault(); c.go("online-exams"); }));
   }
 
   /* -------------------------------- results --------------------------------- */
@@ -556,6 +560,256 @@
     });
   }
 
+  /* ----------------------------- online exams --------------------------------- */
+
+  function examStatePill(c, e) {
+    if (e.attempt && e.attempt.status !== "in_progress") {
+      return `<span class="dash-pill ${e.attempt.status === "graded" ? "ok" : "info"}">${e.attempt.status === "graded" ? "Graded" : "Submitted"}</span>`;
+    }
+    if (e.attempt && e.attempt.status === "in_progress") return `<span class="dash-pill warn">In progress</span>`;
+    if (e.state === "upcoming") return `<span class="dash-pill muted">Upcoming</span>`;
+    if (e.state === "closed") return `<span class="dash-pill danger">Closed</span>`;
+    return `<span class="dash-pill ok">Open</span>`;
+  }
+
+  async function pageOnlineExams(c, content) {
+    content.innerHTML = c.pageHead("Academic", "Online examinations", "Examinations you take right here in the portal — timed, submitted and graded online.", "");
+    const holder = document.createElement("div");
+    content.appendChild(holder);
+    (async () => {
+      try {
+        const data = await c.api.get("/portal/online-exams");
+        const rows = data.exams || [];
+        if (!rows.length) {
+          holder.innerHTML = `<div class="dash-card"><div class="dash-card-pad">${c.emptyState("academic", "No online examinations", "When your teachers publish an online examination for your class it will appear here.")}</div></div>`;
+          return;
+        }
+        holder.innerHTML = `<div class="dash-card"><div class="dash-card-head"><h3>Your online examinations</h3><span class="hint">${rows.length} total</span></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Examination</th><th>Subject</th><th>Window</th><th>Marks</th><th>Status</th><th>Result</th><th></th></tr></thead>
+            <tbody>${rows.map((e) => `<tr>
+              <td><strong>${c.esc(e.title)}</strong><small>${e.question_count} question(s)</small></td>
+              <td>${c.esc(e.subject_name || "—")}</td>
+              <td>${c.fmtDate(e.exam_date)}<small>${c.esc(e.start_time || "")}–${c.esc(e.end_time || "")}</small></td>
+              <td>${c.esc(e.total_marks)}</td>
+              <td>${examStatePill(c, e)}</td>
+              <td>${e.attempt && e.attempt.score != null ? `<strong>${c.esc(e.attempt.score)}</strong> / ${c.esc(e.total_marks)}` : (e.attempt ? "Pending" : "—")}</td>
+              <td><div class="module-actions">
+                ${e.can_take ? `<button class="dash-btn dash-btn-primary dash-btn-sm" data-exam-take="${e.id}">${e.attempt ? "Resume" : "Start"}</button>` : ""}
+                ${e.attempt && e.attempt.status !== "in_progress" && (e.results_released || e.state === "closed") ? `<button class="dash-btn dash-btn-ghost dash-btn-sm" data-exam-review="${e.id}">Review</button>` : ""}
+              </div></td>
+            </tr>`).join("")}</tbody></table></div></div>`;
+        holder.querySelectorAll("[data-exam-take]").forEach((b) => b.addEventListener("click", () => c.go(`online-exams/take/${b.dataset.examTake}`)));
+        holder.querySelectorAll("[data-exam-review]").forEach((b) => b.addEventListener("click", () => c.go(`online-exams/review/${b.dataset.examReview}`)));
+      } catch (e) {
+        holder.innerHTML = `<div class="dash-card"><div class="dash-card-pad">${c.errorState(e.message)}</div></div>`;
+      }
+    })();
+  }
+
+  /** The exam runner. Timing, saving and submission all go through the
+      server; this page only renders state and never decides the rules. */
+  async function pageTakeExam(c, content, route) {
+    const examId = Number(String(route).split("/").pop()) || 0;
+    content.innerHTML = c.pageHead("Academic", "Online examination", "Answer every question, save as you go, then submit before the timer ends.", "");
+    const holder = document.createElement("div");
+    content.appendChild(holder);
+    let payload = null;
+    try {
+      payload = await c.api.post(`/portal/online-exams/${examId}/start`, {});
+    } catch (e) {
+      holder.innerHTML = `<div class="dash-card"><div class="dash-card-pad">
+        <div class="dash-login-error" role="alert">${c.esc(e.message || "This examination cannot be opened.")}</div>
+        <a class="dash-btn dash-btn-primary" href="#/student/online-exams">Back to online examinations</a>
+      </div></div>`;
+      return;
+    }
+    const exam = payload.exam, questions = payload.questions || [];
+    const answers = new Map((payload.answers || []).map((a) => [Number(a.question_id), String(a.answer || "")]));
+    // Server/client clock offset so the countdown matches the server's idea
+    // of the remaining time, not the device's clock.
+    const offset = Date.now() - new Date(payload.serverTime).getTime();
+    const deadline = new Date(String(payload.attempt.expires_at).replace(" ", "T")).getTime();
+
+    function parseOptions(q) {
+      try { const o = JSON.parse(q.options || "[]"); return Array.isArray(o) ? o : []; } catch (e) { return []; }
+    }
+    function questionInputHtml(q) {
+      const current = answers.get(Number(q.id)) || "";
+      const name = `q_${q.id}`;
+      if (q.question_type === "multiple_choice") {
+        const opts = parseOptions(q);
+        return opts.map((o, i) => `
+          <label class="exam-option"><input type="radio" name="${name}" value="${c.esc(String(o))}" ${String(current) === String(o) ? "checked" : ""}>
+          <span>${c.esc(String(o))}</span></label>`).join("");
+      }
+      if (q.question_type === "true_false") {
+        return ["True", "False"].map((o) => `
+          <label class="exam-option"><input type="radio" name="${name}" value="${o}" ${current === o ? "checked" : ""}><span>${o}</span></label>`).join("");
+      }
+      if (q.question_type === "long_answer" || q.question_type === "essay") {
+        return `<textarea class="exam-answer-textarea" data-question="${q.id}" rows="5" placeholder="Write your answer…">${c.esc(current)}</textarea>`;
+      }
+      return `<input class="exam-answer-input" data-question="${q.id}" type="text" value="${c.esc(current)}" placeholder="Your answer">`;
+    }
+
+    holder.innerHTML = `
+      <div class="exam-runner">
+        <div class="exam-runner-bar">
+          <div>
+            <strong>${c.esc(exam.title)}</strong>
+            <small>${c.esc(exam.subject_name || "")} · ${questions.length} question(s) · ${c.esc(exam.total_marks)} marks</small>
+          </div>
+          <div class="exam-timer" id="examTimer" role="timer" aria-live="off">--:--</div>
+        </div>
+        ${exam.instructions ? `<div class="exam-instructions"><strong>Instructions</strong><p>${c.esc(exam.instructions)}</p></div>` : ""}
+        <div class="exam-navigator" id="examNavigator" aria-label="Question navigator">
+          ${questions.map((q, i) => `<button type="button" class="exam-nav-chip" data-goto="q${q.id}">${i + 1}</button>`).join("")}
+        </div>
+        <div class="exam-questions" id="examQuestions">
+          ${questions.map((q, i) => `
+            <div class="exam-question" id="q${q.id}">
+              <div class="exam-question-head"><strong>Question ${i + 1}</strong><span class="hint">${c.esc(q.marks)} mark(s) · ${c.esc(q.question_type.replace(/_/g, " "))}</span></div>
+              <p class="exam-question-text">${c.esc(q.question_text)}</p>
+              ${questionInputHtml(q)}
+            </div>`).join("")}
+        </div>
+        <div class="exam-runner-actions">
+          <button type="button" class="dash-btn dash-btn-ghost" id="examSave">Save progress</button>
+          <button type="button" class="dash-btn dash-btn-primary" id="examSubmit">Submit examination</button>
+        </div>
+        <p class="hint" id="examSaveHint">Answers save when you press Save progress — submit before the timer reaches zero.</p>
+      </div>`;
+
+    const timerEl = holder.querySelector("#examTimer");
+    let remaining = 0, timerHandle = null, finished = false;
+    function paintTimer() {
+      remaining = Math.max(0, deadline - (Date.now() - offset));
+      const m = Math.floor(remaining / 60000), s = Math.floor((remaining % 60000) / 1000);
+      timerEl.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      timerEl.classList.toggle("is-low", remaining < 5 * 60 * 1000);
+      if (remaining <= 0 && !finished) { finished = true; submit(true); }
+    }
+    timerHandle = setInterval(paintTimer, 1000);
+    paintTimer();
+
+    holder.querySelectorAll(".exam-nav-chip").forEach((chip) => chip.addEventListener("click", () => {
+      const target = holder.querySelector(`#${chip.dataset.goto}`);
+      if (target && target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }));
+
+    function collectAnswers() {
+      const out = [];
+      for (const q of questions) {
+        if (q.question_type === "multiple_choice" || q.question_type === "true_false") {
+          const picked = holder.querySelector(`input[name="q_${q.id}"]:checked`);
+          answers.set(Number(q.id), picked ? picked.value : "");
+        } else {
+          const field = holder.querySelector(`[data-question="${q.id}"]`);
+          answers.set(Number(q.id), field ? field.value : "");
+        }
+        const value = answers.get(Number(q.id));
+        if (value !== undefined && value !== "") out.push({ question_id: Number(q.id), answer: String(value) });
+      }
+      return out;
+    }
+
+    async function saveAnswers() {
+      if (finished) return;
+      const payload2 = collectAnswers();
+      const hint = holder.querySelector("#examSaveHint");
+      try {
+        await c.api.put(`/portal/online-exams/${examId}/answers`, { answers: payload2 });
+        if (hint) hint.textContent = `Saved at ${new Date().toLocaleTimeString()}.`;
+        holder.querySelectorAll(".exam-nav-chip").forEach((chip, i) => {
+          const q = questions[i];
+          chip.classList.toggle("is-answered", Boolean(answers.get(Number(q.id))));
+        });
+      } catch (e) {
+        if (hint) hint.textContent = e.message || "Could not save — check your connection and press Save again.";
+        if (e && e.status === 409) { finished = true; clearInterval(timerHandle); }
+      }
+    }
+
+    async function submit(auto) {
+      if (finished && !auto) return;
+      if (!auto && !window.confirm("Submit this examination? You cannot change your answers afterwards.")) return;
+      finished = true;
+      clearInterval(timerHandle);
+      const btn = holder.querySelector("#examSubmit");
+      if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
+      const saveBtn = holder.querySelector("#examSave");
+      if (saveBtn) saveBtn.disabled = true;
+      // Best effort: send the latest answers first so the graded paper holds
+      // what is on screen, then lock it in.
+      try { await c.api.put(`/portal/online-exams/${examId}/answers`, { answers: collectAnswers() }); } catch (e) { /* the submit below is the authority */ }
+      let result = null, error = null;
+      try { result = await c.api.post(`/portal/online-exams/${examId}/submit`, {}); }
+      catch (e) { error = e; }
+      holder.innerHTML = `
+        <div class="dash-card"><div class="dash-card-pad exam-submit-card">
+          ${error
+            ? `<div class="dash-login-error" role="alert">${c.esc(error.message || "The examination could not be submitted.")}</div>`
+            : `<div class="exam-submit-icon">${c.I.check}</div>
+               <h3>${auto ? "Time ended — your saved answers were submitted" : "Examination submitted"}</h3>
+               <p>${result && result.message ? c.esc(result.message) : ""}</p>
+               ${result && result.score_visible
+                 ? `<p class="exam-score-line">Your score: <strong>${c.esc(result.score)} / ${c.esc(result.total)}</strong>${result.score !== result.auto_score ? ` (auto-marked: ${c.esc(result.auto_score)})` : ""}</p>`
+                 : `<p class="hint">Your score will be shown once the examination results are released.</p>`}`}
+          <a class="dash-btn dash-btn-primary" href="#/student/online-exams">Back to online examinations</a>
+        </div></div>`;
+    }
+
+    holder.querySelector("#examSave").addEventListener("click", saveAnswers);
+    holder.querySelector("#examSubmit").addEventListener("click", () => submit(false));
+    // Gentle autosave every 25 seconds so a dropped connection loses at most
+    // a few seconds of typing. Both intervals stop themselves the moment the
+    // runner is no longer on screen (route change), so nothing keeps firing
+    // against a detached page.
+    const autosaveHandle = setInterval(() => {
+      if (!holder.isConnected) { clearInterval(autosaveHandle); clearInterval(timerHandle); return; }
+      if (!finished) saveAnswers();
+    }, 25000);
+  }
+
+  async function pageReviewExam(c, content, route) {
+    const examId = Number(String(route).split("/").pop()) || 0;
+    content.innerHTML = c.pageHead("Academic", "Examination review", "Your marked paper — answers, marks and the correct answers.", "");
+    const holder = document.createElement("div");
+    content.appendChild(holder);
+    (async () => {
+      try {
+        const data = await c.api.get(`/portal/online-exams/${examId}/review`);
+        const a = data.attempt;
+        holder.innerHTML = `
+          <div class="dash-stats-grid">
+            ${c.statCard("academic", c.esc(a.score != null ? a.score : "—"), "Your score", "", `out of ${c.esc(data.exam.total_marks)}`)}
+            ${c.statCard("check", c.esc(a.auto_score != null ? a.auto_score : "—"), "Auto-marked", "", "objective questions")}
+            ${c.statCard("clock", c.fmtDateTime(a.submitted_at), "Submitted", "", data.attempt.status)}
+          </div>
+          <div class="dash-card"><div class="dash-card-head"><h3>${c.esc(data.exam.title)}</h3><span class="hint">${data.questions.length} question(s)</span></div>
+            <div class="dash-card-pad">
+              ${(data.questions || []).map((q, i) => `
+                <div class="exam-review-question">
+                  <div class="exam-question-head"><strong>Question ${i + 1}</strong>
+                    <span class="hint">${c.esc(q.marks)} mark(s) · you scored ${c.esc(q.marks_awarded == null ? "—" : q.marks_awarded)}</span></div>
+                  <p class="exam-question-text">${c.esc(q.question_text)}</p>
+                  <p class="exam-review-line"><span>Your answer:</span> ${c.esc(q.answer || "—")}</p>
+                  ${q.question_type === "multiple_choice" || q.question_type === "true_false" || q.question_type === "short_answer" || q.question_type === "fill_in_the_blank"
+                    ? `<p class="exam-review-line"><span>Correct answer:</span> ${c.esc(q.correct_answer || "—")}</p>` : ""}
+                  ${q.is_correct === 1 ? `<span class="dash-pill ok">Correct</span>` : q.is_correct === 0 ? `<span class="dash-pill danger">Incorrect</span>` : `<span class="dash-pill muted">Marked by teacher</span>`}
+                  ${q.explanation ? `<p class="exam-review-explanation">${c.esc(q.explanation)}</p>` : ""}
+                </div>`).join("")}
+            </div></div>`;
+      } catch (e) {
+        holder.innerHTML = `<div class="dash-card"><div class="dash-card-pad">
+          <div class="dash-login-error" role="alert">${c.esc(e.message || "This paper is not available for review.")}</div>
+          <a class="dash-btn dash-btn-primary" href="#/student/online-exams">Back to online examinations</a>
+        </div></div>`;
+      }
+    })();
+  }
+
   /* -------------------------------- router ------------------------------------- */
 
   async function render(content, route, c) {
@@ -565,6 +819,9 @@
     if (top === "lessons") return pageLessons(c, content);
     if (top === "assignments" || top.startsWith("assignments/")) return pageAssignments(c, content, top);
     if (top === "exams") return pageExams(c, content);
+    if (top === "online-exams") return pageOnlineExams(c, content);
+    if (top.startsWith("online-exams/take/")) return pageTakeExam(c, content, top);
+    if (top.startsWith("online-exams/review/")) return pageReviewExam(c, content, top);
     if (top === "results") return pageResults(c, content);
     if (top === "attendance") return pageAttendance(c, content);
     if (top === "fees") return pageFees(c, content);

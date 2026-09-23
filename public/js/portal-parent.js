@@ -303,9 +303,23 @@
       content.appendChild(holder);
       (async () => {
         try {
-          const data = await c.api.get(`/portal/exams?studentId=${child.id}`);
+          const [data, online] = await Promise.all([
+            c.api.get(`/portal/exams?studentId=${child.id}`),
+            c.api.get(`/portal/online-exams?studentId=${child.id}`).catch(() => ({ exams: [] })),
+          ]);
           const rows = data.exams || [];
-          holder.innerHTML = `<div class="dash-card"><div class="dash-table-wrap"><table class="dash-table">
+          const onlineRows = (online.exams || []).filter((e) => e.mode !== undefined || e.question_count !== undefined);
+          const onlineHtml = onlineRows.length ? `<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-head"><h3>Online examinations</h3><span class="hint">taken in the student portal</span></div>
+            <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Examination</th><th>Subject</th><th>Window</th><th>Marks</th><th>Attempt</th><th>Score</th></tr></thead>
+            <tbody>${onlineRows.map((e) => `<tr>
+              <td><strong>${c.esc(e.title)}</strong></td><td>${c.esc(e.subject_name || "—")}</td>
+              <td>${c.fmtDate(e.exam_date)}<small>${c.esc(e.start_time || "")}–${c.esc(e.end_time || "")}</small></td>
+              <td>${c.esc(e.total_marks)}</td>
+              <td>${e.attempt ? c.pill(e.attempt.status === "graded" ? "graded" : e.attempt.status === "in_progress" ? "pending" : "submitted") : `<span class="hint">${e.state === "upcoming" ? "Not started" : e.state === "closed" ? "Window closed" : "Open"}</span>`}</td>
+              <td>${e.attempt && e.attempt.score != null ? `<strong>${c.esc(e.attempt.score)}</strong> / ${c.esc(e.total_marks)}` : "—"}</td>
+            </tr>`).join("")}</tbody></table></div></div>` : "";
+          holder.innerHTML = `${onlineHtml}<div class="dash-card"><div class="dash-table-wrap"><table class="dash-table">
             <thead><tr><th>Examination</th><th>Subject</th><th>Date</th><th>Time</th><th>Room</th><th>Status</th></tr></thead>
             <tbody>${rows.length ? rows.map((e) => `<tr>
               <td><strong>${c.esc(e.title)}</strong></td><td>${c.esc(e.subject_name || "—")}</td>
@@ -317,32 +331,127 @@
     });
   }
 
-  async function pageFees(c, content) {
+  async function pageFees(c, content, route) {
     withChild(c, content, (child) => {
-      const rerender = () => pageFees(c, content);
+      const rerender = () => pageFees(c, content, route);
       bindChildSwitcher(c, content, rerender);
-      content.insertAdjacentHTML("beforeend", c.pageHead("Parent", `School fees — ${child.name}`, "Fee statement, payment history and receipts.", ""));
+      // The payment gateway returns to this page with ?payment=REF&status=…
+      // (see /api/fees/payment/callback). Show the outcome banner and, while
+      // the reference is still pending, poll the authoritative status.
+      const qs = new URLSearchParams(String(route || "").split("?")[1] || "");
+      const payRef = qs.get("payment"), payStatus = qs.get("status");
+      content.insertAdjacentHTML("beforeend", c.pageHead("Parent", `School fees — ${child.name}`, "Fee statement, payment history, online payment and receipts.",
+        `<button class="dash-btn dash-btn-primary" id="payOnlineBtn">${c.I.money} Pay online</button>`));
+      const banner = document.createElement("div");
+      if (payRef) content.appendChild(banner);
       const holder = document.createElement("div");
       content.appendChild(holder);
+      const paintBanner = (status, receipt) => {
+        if (!payRef) return;
+        if (status === "successful") {
+          banner.innerHTML = `<div class="dash-card"><div class="dash-card-pad dash-login-success" role="status">
+            <strong>Payment successful.</strong> ${receipt ? `Receipt ${c.esc(receipt)} — download it below.` : "The receipt appears below once the record is written."}
+          </div></div>`;
+        } else if (status === "pending") {
+          banner.innerHTML = `<div class="dash-card"><div class="dash-card-pad" role="status">
+            <strong>Payment pending.</strong> Waiting for the payment provider to confirm reference ${c.esc(payRef)}… this page updates itself.
+          </div></div>`;
+        } else {
+          banner.innerHTML = `<div class="dash-card"><div class="dash-card-pad dash-login-error" role="alert">
+            <strong>Payment not completed.</strong> Reference ${c.esc(payRef)} did not go through. If you were debited, contact the school office with the reference.
+          </div></div>`;
+        }
+      };
       (async () => {
         try {
           const data = await c.api.get(`/fees/student/${child.id}`);
           const payments = data.payments || [];
+          const feeItems = (data.feeItems || []).filter((f) => f.outstanding > 0);
+          const outstanding = Number(data.outstandingBalance || 0);
           holder.innerHTML = `
             <div class="dash-stats-grid">
               ${c.statCard("money", c.fmtMoney(data.totalFees), "Total billed")}
               ${c.statCard("check", c.fmtMoney(data.amountPaid), "Paid")}
-              ${c.statCard("money", c.fmtMoney(data.outstandingBalance), "Outstanding", data.outstandingBalance > 0 ? "accent" : "")}
+              ${c.statCard("money", c.fmtMoney(outstanding), "Outstanding", outstanding > 0 ? "accent" : "")}
             </div>
+            ${outstanding > 0 && feeItems.length ? `<div class="dash-card"><div class="dash-card-head"><h3>Outstanding fees</h3><span class="hint">pay online or at the school office</span></div>
+              <div class="dash-table-wrap"><table class="dash-table">
+                <thead><tr><th>Fee</th><th>Term</th><th>Due date</th><th>Billed</th><th>Paid</th><th>Outstanding</th></tr></thead>
+                <tbody>${feeItems.map((f) => `<tr>
+                  <td><strong>${c.esc(f.name)}</strong></td><td>${c.esc(f.term_name || "—")}</td><td>${c.fmtDate(f.due_date)}</td>
+                  <td>${c.fmtMoney(f.amount_due)}</td><td>${c.fmtMoney(f.amount_paid)}</td><td><strong>${c.fmtMoney(f.outstanding)}</strong></td>
+                </tr>`).join("")}</tbody></table></div></div>` : ""}
             <div class="dash-card"><div class="dash-card-head"><h3>Payments</h3><span class="hint">${payments.length} record(s)</span></div>
               <div class="dash-table-wrap"><table class="dash-table">
                 <thead><tr><th>Date</th><th>Fee</th><th>Method</th><th>Amount</th><th>Status</th><th>Receipt</th></tr></thead>
                 <tbody>${payments.length ? payments.map((p) => `<tr>
                   <td>${c.fmtDate(p.payment_date)}</td><td>${c.esc(p.fee_name || "—")}</td><td>${c.esc(p.method || "—")}</td>
                   <td>${c.fmtMoney(p.amount_ngn)}</td><td>${c.pill(p.status)}</td>
-                  <td>${p.receipt_number ? `<a class="dash-btn dash-btn-ghost dash-btn-sm" href="${c.api.url(`/fees/payments/${p.id}/receipt`)}" target="_blank">${c.I.download} Receipt</a>` : "—"}</td></tr>`).join("") : c.emptyRow(6, "No payments recorded yet.")}</tbody></table></div></div>`;
+                  <td>${p.receipt_number ? `<a class="dash-btn dash-btn-ghost dash-btn-sm" href="${c.api.url(`/fees/payments/${p.id}/receipt`)}" target="_blank">${c.I.download} Receipt</a>` : (p.reference ? `<small>${c.esc(p.reference)}</small>` : "—")}</td></tr>`).join("") : c.emptyRow(6, "No payments recorded yet.")}</tbody></table></div></div>`;
         } catch (e) { holder.innerHTML = `<div class="dash-card"><div class="dash-card-pad">${c.errorState(e.message)}</div></div>`; }
       })();
+      // Payment status follow-up: the query param says what the callback saw,
+      // but the STATUS endpoint is the authority while a payment settles.
+      if (payRef) {
+        let rounds = 0;
+        const poll = async () => {
+          rounds += 1;
+          try {
+            const st = await c.api.get(`/fees/payment/status/${encodeURIComponent(payRef)}`);
+            const status = st.payment && st.payment.status;
+            paintBanner(status, st.payment && st.payment.receipt_number);
+            if (status === "pending" && rounds < 12) setTimeout(poll, 5000);
+          } catch (e) { paintBanner(payStatus || "failed", null); }
+        };
+        paintBanner(payStatus || "pending", null);
+        if (payStatus === "pending" || !payStatus) poll();
+      }
+      // Pay online: the server validates the child link, creates a PENDING
+      // payment row and hands back the provider's checkout URL. The payment
+      // is only marked successful by the provider webhook/callback — never
+      // by this page.
+      const payBtn = content.querySelector("#payOnlineBtn");
+      if (payBtn) payBtn.addEventListener("click", async () => {
+        let items = [];
+        let outstandingNow = 0;
+        try {
+          const data = await c.api.get(`/fees/student/${child.id}`);
+          items = (data.feeItems || []).filter((f) => f.outstanding > 0);
+          outstandingNow = Number(data.outstandingBalance || 0);
+        } catch (e) { /* the modal still works with a manual amount */ }
+        const modal = c.openModal("Pay school fees online", `
+          <form id="payOnlineForm">
+            <p class="hint">You will be taken to the payment provider's secure checkout. The school only records the payment once the provider confirms it.</p>
+            <div class="dash-field"><label>Fee *</label><select name="fee_item_id" required>
+              ${items.length ? items.map((f) => `<option value="${c.esc(f.id)}" data-outstanding="${c.esc(f.outstanding)}">${c.esc(f.name)} — outstanding ${c.fmtMoney(f.outstanding)}</option>`).join("") : `<option value="">No fee items with an outstanding balance</option>`}
+            </select></div>
+            <div class="dash-field"><label>Amount (₦) *</label><input name="amount_ngn" type="number" min="1" step="0.01" required value="${items.length ? Math.max(1, Math.floor(items[0].outstanding)) : ""}"></div>
+            <button class="dash-btn dash-btn-primary" type="submit" style="margin-top:12px">${c.I.money} Continue to payment</button>
+          </form>`);
+        const form = modal.querySelector("#payOnlineForm");
+        const feeSelect = form.querySelector("select[name=fee_item_id]");
+        const amountInput = form.querySelector("input[name=amount_ngn]");
+        if (feeSelect) feeSelect.addEventListener("change", () => {
+          const opt = feeSelect.selectedOptions[0];
+          if (opt && opt.dataset.outstanding) amountInput.value = Math.max(1, Math.floor(Number(opt.dataset.outstanding)));
+        });
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const btn = form.querySelector("button[type=submit]");
+          btn.disabled = true; btn.textContent = "Opening checkout…";
+          try {
+            const payload = Object.fromEntries(new FormData(form).entries());
+            const r = await c.api.post("/fees/payment/initiate", {
+              student_id: child.id, fee_item_id: Number(payload.fee_item_id), amount_ngn: Number(payload.amount_ngn),
+            });
+            if (r && r.payment_url) window.location.href = r.payment_url;
+            else { c.toast("The payment provider did not return a checkout link.", "error"); btn.disabled = false; btn.textContent = "Continue to payment"; }
+          } catch (err2) {
+            c.toast(err2.message || "Could not start the payment.", "error");
+            btn.disabled = false; btn.textContent = "Continue to payment";
+          }
+        });
+      });
     });
   }
 
@@ -515,7 +624,7 @@
     if (top === "assignments") return pageAssignments(c, content);
     if (top === "timetable") return pageTimetable(c, content);
     if (top === "exams") return pageExams(c, content);
-    if (top === "fees") return pageFees(c, content);
+    if (top === "fees") return pageFees(c, content, route);
     if (top === "meetings") return pageMeetings(c, content);
     if (top === "quran") return pageQuran(c, content);
     if (top === "calendar") return pageCalendar(c, content);

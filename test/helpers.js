@@ -61,6 +61,9 @@ function initEnv() {
   process.env.SUPER_ADMIN_USERNAME = "testadmin";
   process.env.SUPER_ADMIN_PASSWORD = "TestAdmin123!";
   process.env.LOGIN_RATE_LIMIT = "20";
+  // The password-reset endpoint has its own strict per-IP bucket in
+  // production; tests exercise the whole flow many times from one address.
+  process.env.PASSWORD_RESET_RATE_LIMIT = "200";
   process.env.API_RATE_LIMIT = "1000000";
   process.env.UPLOAD_DIR = path.join(tmpDir, "uploads");
   // Keep every scratch file (state marker, pre-migration snapshots, upload

@@ -35,6 +35,17 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts. Please wait and try again." },
 });
 
+/* Password-reset requests: unauthenticated surface, so it gets its own
+   strict per-IP bucket. The response is always generic (no account
+   enumeration), but the token table must still not be spammable. */
+const resetRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: config.PASSWORD_RESET_RATE_LIMIT,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many password reset requests. Please wait and try again." },
+});
+
 /* ---------------------------------------------------------------------------
    PUBLIC (logged-out) endpoints.
    These are reachable without an account, so they get their own limits: the
@@ -71,4 +82,4 @@ const verifyLimiter = rateLimit({
   message: { error: "Too many verification attempts. Please wait a few minutes and try again." },
 });
 
-module.exports = { apiLimiter, loginLimiter, publicLimiter, publicWriteLimiter, verifyLimiter };
+module.exports = { apiLimiter, loginLimiter, resetRequestLimiter, publicLimiter, publicWriteLimiter, verifyLimiter };

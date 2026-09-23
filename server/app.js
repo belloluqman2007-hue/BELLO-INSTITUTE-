@@ -19,7 +19,7 @@ const session = require("express-session");
 const config = require("./config");
 const DBSessionStore = require("./session-store");
 const { loadUser, requireSuperAdmin } = require("./middleware/auth");
-const { apiLimiter, loginLimiter } = require("./middleware/ratelimit");
+const { apiLimiter, loginLimiter, resetRequestLimiter } = require("./middleware/ratelimit");
 const { router: authRouter, csrfGuard, ensureCsrfToken } = require("./routes/auth");
 const platformRouter = require("./routes/platform");
 const { router: madrasaRouter, rootRouter: madrasaRootRouter } = require("./routes/madrasa");
@@ -174,6 +174,10 @@ function createApp() {
   app.get("/login", schoolLinkHandler);
   app.get("/admin", schoolLinkHandler);
   app.get("/admin/login", schoolLinkHandler);
+  // Self-service password recovery — real, shareable addresses so a reset
+  // link (from email, or handed over by an administrator) opens directly.
+  app.get("/forgot-password", schoolLinkHandler);
+  app.get("/reset-password", schoolLinkHandler);
   // Parent portal — "Book a meeting" (Parent-Teacher Meetings). Real,
   // reloadable addresses so a parent can bookmark the booking page; the SPA
   // shell mounts the parent module there and the API enforces the session.
@@ -206,8 +210,10 @@ function createApp() {
     });
   });
 
-  // Login is separately (more strictly) rate limited
+  // Login and password-reset requests are separately (more strictly) rate
+  // limited — both are unauthenticated surfaces.
   api.use("/auth/login", loginLimiter);
+  api.use("/auth/forgot-password", resetRequestLimiter);
 
   // Sessions
   const sessionSecret = config.SESSION_SECRET || "dev-only-insecure-secret-000000000000000000000000";
@@ -228,6 +234,13 @@ function createApp() {
 
   api.use(csrfGuard);
   api.use(loadUser);
+  // Authenticated API payloads must never sit in a shared/proxy cache or be
+  // re-served from disk cache after logout (browser Back must not re-expose
+  // data). Only anonymous responses (config, csrf token, health) stay neutral.
+  api.use((req, res, next) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    next();
+  });
 
   // CSRF token must be obtainable before login as well
   api.get("/csrf-token", (req, res) => res.json({ csrfToken: ensureCsrfToken(req) }));

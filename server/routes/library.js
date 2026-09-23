@@ -93,5 +93,58 @@ router.post("/fines/:id/pay",ADMIN,requireStaffPermission("library.manage"),asyn
 router.get("/reports",STAFF,requireStaffPermission("library.view"),asyncHandler(async(req,res)=>{const tid=tenantId(req,res);if(!tid)return;const [books,borrowers,fines]=await Promise.all([db.all("SELECT b.id,b.title,b.author,COUNT(l.id) AS borrow_count FROM library_books b LEFT JOIN library_loans l ON l.book_id=b.id AND l.madrasa_id=b.madrasa_id WHERE b.madrasa_id=? GROUP BY b.id,b.title,b.author ORDER BY borrow_count DESC,b.title LIMIT 10",[tid]),db.all("SELECT u.id,u.full_name,l.borrower_type,COUNT(l.id) AS loan_count FROM library_loans l JOIN users u ON u.id=l.borrower_user_id AND u.madrasa_id=l.madrasa_id WHERE l.madrasa_id=? GROUP BY u.id,u.full_name,l.borrower_type ORDER BY loan_count DESC,u.full_name LIMIT 10",[tid]),db.get("SELECT COALESCE(SUM(amount_ngn),0) AS assessed,COALESCE(SUM(CASE WHEN paid=1 THEN amount_ngn ELSE 0 END),0) AS collected,COALESCE(SUM(CASE WHEN paid=0 THEN amount_ngn ELSE 0 END),0) AS outstanding FROM library_fines WHERE madrasa_id=?",[tid])]);ok(res,{topBooks:books,activeBorrowers:borrowers,fines});}));
 router.get("/export/:kind.csv",STAFF,requireStaffPermission("library.view"),asyncHandler(async(req,res)=>{const tid=tenantId(req,res);if(!tid)return;const kind=req.params.kind;let rows,cols;if(kind==="books"){rows=await db.all(`${bookSelect} WHERE b.madrasa_id=? AND b.is_archived=0 ORDER BY b.title`,[tid]);cols=[{label:"Title",key:"title"},{label:"Author",key:"author"},{label:"ISBN",key:"isbn"},{label:"Subject",key:"subject_name"},{label:"Category",key:"category"},{label:"Language",key:"language"},{label:"Total copies",key:"total_copies"},{label:"Available copies",key:"available_copies"}];}else if(kind==="loans"){rows=await db.all(`${loanJoin} WHERE l.madrasa_id=? ORDER BY l.issue_date DESC`,[tid]);cols=[{label:"Book",key:"title"},{label:"Borrower",key:"borrower_name"},{label:"Type",key:"borrower_type"},{label:"Issue date",key:"issue_date"},{label:"Due date",key:"due_date"},{label:"Return date",key:"return_date"},{label:"Status",key:"status"},{label:"Fine NGN",key:"fine_ngn"}];}else return err(res,404,"Export not found.");csv.sendCsv(res,`library-${kind}-${today()}.csv`,csv.toCsv(rows,cols));}));
 
+/* --------------------------- self-service loans ------------------------- */
+/*
+ * GET /api/library/my-loans — the caller's own borrowing record.
+ *   • student → loans on their own portal account
+ *   • parent  → loans on every linked child's portal account
+ *   • teacher → loans on their own staff account
+ * Read-only: nobody can alter their own loans from the portal.
+ */
+router.get("/my-loans", asyncHandler(async (req, res) => {
+  const tid = tenantId(req, res); if (!tid) return;
+  let borrowerUserIds = [];
+  if (req.user.role === "student" || req.user.role === "teacher") {
+    borrowerUserIds = [Number(req.user.id)];
+  } else if (req.user.role === "parent") {
+    const children = await db.all(
+      `SELECT u.id FROM users u
+        JOIN parent_links pl ON pl.student_id = u.student_id AND pl.madrasa_id = u.madrasa_id
+       WHERE pl.madrasa_id = ? AND pl.user_id = ? AND u.role = 'student' AND u.is_active = 1`,
+      [tid, req.user.id]
+    );
+    borrowerUserIds = children.map((c) => Number(c.id));
+  } else if (req.user.role === "madrasa_admin" || req.user.role === "super_admin") {
+    return err(res, 403, "Use the library loans register.");
+  }
+  if (!borrowerUserIds.length) return ok(res, { loans: [], summary: { active: 0, overdue: 0, fines: 0 } });
+  const um = borrowerUserIds.map(() => "?").join(",");
+  const loans = await db.all(
+    `SELECT l.id, l.book_id, b.title, b.author, b.isbn, l.issue_date, l.due_date, l.return_date, l.status,
+            l.renewal_count, l.fine_ngn, u.student_id AS borrower_student_id, u.full_name AS borrower_name
+       FROM library_loans l
+       JOIN library_books b ON b.id = l.book_id AND b.madrasa_id = l.madrasa_id
+       JOIN users u ON u.id = l.borrower_user_id AND u.madrasa_id = l.madrasa_id
+      WHERE l.madrasa_id = ? AND l.borrower_user_id IN (${um})
+      ORDER BY l.issue_date DESC, l.id DESC LIMIT 200`,
+    [tid].concat(borrowerUserIds)
+  );
+  const loansWithOverdue = loans.map((x) => Object.assign({}, x, { days_overdue: overdueDays(String(x.due_date).slice(0, 10)) }));
+  const fineRows = await db.get(
+    `SELECT COALESCE(SUM(CASE WHEN f.paid = 0 THEN f.amount_ngn ELSE 0 END), 0) AS unpaid
+       FROM library_fines f JOIN library_loans l ON l.id = f.loan_id AND l.madrasa_id = f.madrasa_id
+      WHERE f.madrasa_id = ? AND l.borrower_user_id IN (${um})`,
+    [tid].concat(borrowerUserIds)
+  );
+  ok(res, {
+    loans: loansWithOverdue,
+    summary: {
+      active: loansWithOverdue.filter((l) => l.status === "active" || l.status === "overdue").length,
+      overdue: loansWithOverdue.filter((l) => (l.status === "active" || l.status === "overdue") && l.days_overdue > 0).length,
+      fines: Number(fineRows && fineRows.unpaid || 0),
+    },
+  });
+}));
+
 router.use((error,req,res,next)=>{if(error&&Number(error.status)>=400&&Number(error.status)<500)return err(res,Number(error.status),error.message);if(error&&(/file|image|JPG|PNG|WEBP|limit/i.test(error.message||"")))return err(res,400,error.message);next(error);});
 module.exports=router;

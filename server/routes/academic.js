@@ -312,6 +312,111 @@ router.get("/assignments/:id/submissions/:studentId/attachment", STAFF, requireS
   res.download(sub.attachment_path, sub.original_name || "submission");
 }));
 
+/* ------------------------------ question bank --------------------------- */
+/*
+ * A reusable bank of questions per subject and class level. It complements
+ * the existing exams module (which owns scheduling, invigilation and marks)
+ * without forcing an online-exam system: teachers build questions here and
+ * reuse them when setting papers. Reads need questionbank.view; writes need
+ * questionbank.manage; a teacher may only edit questions they created.
+ */
+const QUESTION_TYPES = new Set(["multiple_choice", "short_answer", "long_answer", "true_false", "fill_in_the_blank"]);
+const DIFFICULTIES = new Set(["easy", "medium", "hard"]);
+const QUESTION_STATUSES = new Set(["active", "archived"]);
+
+async function questionInput(tid, body, current = {}) {
+  const b = body || {};
+  const text = cleanStr(b.question_text !== undefined ? b.question_text : current.question_text, 5000);
+  if (!text) return { error: "Question text is required." };
+  const typeRaw = cleanStr(b.question_type !== undefined ? b.question_type : current.question_type, 30);
+  const type = QUESTION_TYPES.has(typeRaw) ? typeRaw : "short_answer";
+  let options = b.options !== undefined ? b.options : current.options;
+  if (options !== undefined && options !== null && typeof options !== "string") options = JSON.stringify(options);
+  if (typeof options === "string" && options.length > 8000) return { error: "Options are too long." };
+  const marks = Number(b.marks !== undefined ? b.marks : current.marks);
+  if (!Number.isFinite(marks) || marks <= 0 || marks > 500) return { error: "Marks must be between 0.5 and 500." };
+  const difficultyRaw = cleanStr(b.difficulty !== undefined ? b.difficulty : current.difficulty, 20);
+  const difficulty = DIFFICULTIES.has(difficultyRaw) ? difficultyRaw : "medium";
+  const statusRaw = cleanStr(b.status !== undefined ? b.status : current.status, 20);
+  const status = QUESTION_STATUSES.has(statusRaw) ? statusRaw : "active";
+  const subjectId = b.subject_id !== undefined ? (toNum(b.subject_id, 0) || null) : (current.subject_id || null);
+  const classId = b.class_id !== undefined ? (toNum(b.class_id, 0) || null) : (current.class_id || null);
+  if (subjectId && !await db.get("SELECT id FROM subjects WHERE id = ? AND madrasa_id = ?", [subjectId, tid])) return { error: "Unknown subject." };
+  if (classId && !await db.get("SELECT id FROM classes WHERE id = ? AND madrasa_id = ?", [classId, tid])) return { error: "Unknown class." };
+  return {
+    text, type, options: options == null ? "" : String(options),
+    correctAnswer: cleanStr(b.correct_answer !== undefined ? b.correct_answer : current.correct_answer, 2000),
+    marks, difficulty, status, subjectId, classId,
+    explanation: cleanStr(b.explanation !== undefined ? b.explanation : current.explanation, 5000),
+    tags: cleanStr(b.tags !== undefined ? b.tags : current.tags, 255),
+  };
+}
+
+router.get("/questions", STAFF, requireStaffPermission("questionbank.view"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (!tid) return;
+  const { page, perPage, offset } = pageInfo(req);
+  const where = ["q.madrasa_id = ?"]; const params = [tid];
+  if (req.query.includeArchived !== "true") where.push("q.status <> 'archived'");
+  if (req.user.role === "teacher") where.push("(q.created_by = ? OR q.status = 'active')");
+  if (req.user.role === "teacher") params.push(req.user.id);
+  for (const [query, column, numeric] of [["subjectId", "q.subject_id", true], ["classId", "q.class_id", true], ["difficulty", "q.difficulty", false], ["type", "q.question_type", false]]) {
+    if (req.query[query]) { where.push(`${column} = ?`); params.push(numeric ? toNum(req.query[query], 0) : cleanStr(req.query[query], 40)); }
+  }
+  const q = cleanStr(req.query.q || req.query.search, 120).toLowerCase();
+  if (q) { const like = `%${q}%`; where.push("(LOWER(q.question_text) LIKE ? OR LOWER(q.tags) LIKE ?)"); params.push(like, like); }
+  const sqlWhere = where.join(" AND ");
+  const count = await db.get(`SELECT COUNT(*) AS n FROM question_bank q WHERE ${sqlWhere}`, params);
+  const rows = await db.all(
+    `SELECT q.*, s.name_en AS subject_name, c.name_en AS class_name, u.full_name AS created_by_name
+       FROM question_bank q
+       LEFT JOIN subjects s ON s.id = q.subject_id AND s.madrasa_id = q.madrasa_id
+       LEFT JOIN classes c ON c.id = q.class_id AND c.madrasa_id = q.madrasa_id
+       LEFT JOIN users u ON u.id = q.created_by
+      WHERE ${sqlWhere} ORDER BY q.id DESC LIMIT ? OFFSET ?`,
+    params.concat([perPage, offset])
+  );
+  const total = Number(count ? count.n : 0);
+  ok(res, { questions: rows, total, page, perPage, totalPages: Math.max(1, Math.ceil(total / perPage)) });
+}));
+
+router.post("/questions", STAFF, requireStaffPermission("questionbank.manage"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (!tid) return;
+  const input = await questionInput(tid, req.body);
+  if (input.error) return err(res, 400, input.error);
+  const r = await db.run(
+    `INSERT INTO question_bank (madrasa_id, subject_id, class_id, question_text, question_type, options, correct_answer, marks, difficulty, explanation, tags, status, created_by)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [tid, input.subjectId, input.classId, input.text, input.type, input.options, input.correctAnswer, input.marks, input.difficulty, input.explanation, input.tags, input.status, req.user.id]
+  );
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "question.create", entity: "question", entityId: String(r.lastInsertRowid), ip: req.ip });
+  ok(res, { ok: true, id: Number(r.lastInsertRowid) });
+}));
+
+router.patch("/questions/:id", STAFF, requireStaffPermission("questionbank.manage"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (!tid) return;
+  const row = await db.get("SELECT * FROM question_bank WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
+  if (!row) return err(res, 404, "Question not found.");
+  if (req.user.role === "teacher" && Number(row.created_by) !== Number(req.user.id)) return err(res, 403, "You can only edit questions you created.");
+  const input = await questionInput(tid, req.body, row);
+  if (input.error) return err(res, 400, input.error);
+  await db.run(
+    `UPDATE question_bank SET subject_id=?, class_id=?, question_text=?, question_type=?, options=?, correct_answer=?, marks=?, difficulty=?, explanation=?, tags=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?`,
+    [input.subjectId, input.classId, input.text, input.type, input.options, input.correctAnswer, input.marks, input.difficulty, input.explanation, input.tags, input.status, row.id, tid]
+  );
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "question.update", entity: "question", entityId: String(row.id), ip: req.ip });
+  ok(res, { ok: true });
+}));
+
+router.delete("/questions/:id", STAFF, requireStaffPermission("questionbank.manage"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (!tid) return;
+  const row = await db.get("SELECT * FROM question_bank WHERE id = ? AND madrasa_id = ?", [toNum(req.params.id, 0), tid]);
+  if (!row) return err(res, 404, "Question not found.");
+  if (req.user.role === "teacher" && Number(row.created_by) !== Number(req.user.id)) return err(res, 403, "You can only delete questions you created.");
+  await db.run("UPDATE question_bank SET status='archived', updated_at=CURRENT_TIMESTAMP WHERE id=? AND madrasa_id=?", [row.id, tid]);
+  logActivity(db, { madrasaId: tid, userId: req.user.id, action: "question.archive", entity: "question", entityId: String(row.id), ip: req.ip });
+  ok(res, { ok: true, archived: true });
+}));
+
 /* ------------------------------ examinations --------------------------- */
 async function examConflict(tid, exam, excludeId) {
   if (!exam.examDate || !exam.startTime || !exam.endTime) return null;

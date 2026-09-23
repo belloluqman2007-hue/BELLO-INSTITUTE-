@@ -642,7 +642,124 @@ router.post("/", requirePermission("teachers.create"), asyncHandler(async (req, 
   ok(res, { ok: true, id: teacherId, staffId, username, tempPassword: b.password ? undefined : password });
 }));
 
-/* ------------------------------ details -------------------------------- */
+/* --------------------------- teacher dashboard --------------------------- */
+
+/**
+ * GET /api/teachers/dashboard
+ * One aggregate for the teacher workspace: today's timetable, assigned
+ * classes/subjects with student counts, attendance still unmarked today,
+ * assignments awaiting grading, results awaiting entry/correction, recent
+ * announcements and upcoming calendar events. Every query is scoped to the
+ * teacher's own assignments inside their own tenant.
+ */
+router.get("/dashboard", requireRole("teacher", "madrasa_admin"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+
+  const scope = await getTeacherAssignments(tid, req.user.id);
+  const classIds = scope.anyClassAnySubject
+    ? (await db.all("SELECT id FROM classes WHERE madrasa_id = ? AND is_active = 1", [tid])).map((c) => Number(c.id))
+    : [...scope.assignedClassIds];
+  const classes = classIds.length
+    ? await db.all(`SELECT c.*, (SELECT COUNT(*) FROM students s WHERE s.madrasa_id = c.madrasa_id AND s.class_id = c.id AND s.status IN ('active','promoted','suspended')) AS student_count
+                     FROM classes c WHERE c.madrasa_id = ? AND c.id IN (${classIds.map(() => "?").join(",")}) ORDER BY c.sort_order, c.name_en`, [tid].concat(classIds))
+    : [];
+  const subjectRows = scope.anyClassAnySubject
+    ? await db.all("SELECT * FROM subjects WHERE madrasa_id = ? AND is_active = 1 ORDER BY name_en", [tid])
+    : await db.all(
+      `SELECT DISTINCT sub.* FROM subjects sub
+        JOIN teacher_assignments ta ON ta.subject_id = sub.id AND ta.madrasa_id = sub.madrasa_id
+       WHERE sub.madrasa_id = ? AND ta.user_id = ? AND sub.is_active = 1 ORDER BY sub.name_en`,
+      [tid, req.user.id]
+    );
+  const today = new Date().toISOString().slice(0, 10);
+  const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getUTCDay()];
+
+  const todaySlots = await db.all(
+    `SELECT ts.period, ts.start_time, ts.end_time, ts.room, c.name_en AS class_name, c.id AS class_id,
+            sub.name_en AS subject_name, sub.name_ar AS subject_ar
+       FROM timetable_slots ts
+       JOIN classes c ON c.id = ts.class_id AND c.madrasa_id = ts.madrasa_id
+       LEFT JOIN subjects sub ON sub.id = ts.subject_id
+      WHERE ts.madrasa_id = ? AND ts.teacher_id = ? AND ts.day = ?
+      ORDER BY ts.period`,
+    [tid, req.user.id, dayName]
+  );
+
+  // Classes with no attendance register yet today (only for classes that meet
+  // today, i.e. have a timetable slot for this teacher).
+  const classesToday = [...new Set(todaySlots.map((s) => Number(s.class_id)))];
+  let attendancePending = [];
+  if (classesToday.length) {
+    const marks = classesToday.map(() => "?").join(",");
+    const marked = await db.all(`SELECT DISTINCT class_id FROM attendance WHERE madrasa_id = ? AND day = ? AND class_id IN (${marks})`, [tid, today].concat(classesToday));
+    const markedSet = new Set(marked.map((m) => Number(m.class_id)));
+    attendancePending = classesToday.filter((c) => !markedSet.has(c));
+  }
+
+  // Assignments with ungraded submissions (teacher's own assignments).
+  const assignmentsPending = await db.all(
+    `SELECT h.id, h.title, h.due_date, c.name_en AS class_name, sub.name_en AS subject_name,
+            (SELECT COUNT(*) FROM assignment_submissions x WHERE x.madrasa_id = h.madrasa_id AND x.assignment_id = h.id AND x.score IS NULL) AS ungraded
+       FROM homework h
+       LEFT JOIN classes c ON c.id = h.class_id AND c.madrasa_id = h.madrasa_id
+       LEFT JOIN subjects sub ON sub.id = h.subject_id AND sub.madrasa_id = h.madrasa_id
+      WHERE h.madrasa_id = ? AND h.kind = 'assignment' AND h.status = 'published'
+        AND (h.teacher_id = ? OR (h.teacher_id IS NULL AND h.created_by = ?))
+        AND EXISTS (SELECT 1 FROM assignment_submissions x2 WHERE x2.madrasa_id = h.madrasa_id AND x2.assignment_id = h.id AND x2.score IS NULL)
+      ORDER BY h.due_date IS NULL, h.due_date LIMIT 10`,
+    [tid, req.user.id, req.user.id]
+  );
+
+  // Result workflow counts for this teacher's class-subject pairs. Bounded by
+  // the current term so the counters reflect live work, not all history.
+  let resultCounts = { draft: 0, submitted: 0, returned: 0, approved: 0, published: 0 };
+  const pairList = scope.anyClassAnySubject ? [] : [...scope.classSubjects].map((k) => k.split(":").map(Number));
+  if (scope.anyClassAnySubject || pairList.length) {
+    const currentTerm = await db.get(
+      `SELECT t.id FROM terms t JOIN academic_sessions s ON s.id = t.session_id
+        WHERE t.madrasa_id = ? ORDER BY s.is_current DESC, s.id DESC, t.position DESC LIMIT 1`,
+      [tid]
+    );
+    if (currentTerm) {
+      const where = ["r.madrasa_id = ?", "r.term_id = ?", "(r.entered_by = ? OR r.modified_by = ?)"];
+      const params = [tid, currentTerm.id, req.user.id, req.user.id];
+      if (!scope.anyClassAnySubject && pairList.length) {
+        where.push("( " + pairList.map(() => "(r.class_id = ? AND r.subject_id = ?)").join(" OR ") + " )");
+        for (const [cid, sid] of pairList) params.push(cid, sid);
+      } else if (!scope.anyClassAnySubject) {
+        where.length = 0; // no assignments → nothing to count
+      }
+      if (where.length) {
+        const grouped = await db.all(`SELECT r.status, COUNT(*) AS n FROM results r WHERE ${where.join(" AND ")} GROUP BY r.status`, params);
+        for (const row of grouped) if (resultCounts[row.status] !== undefined) resultCounts[row.status] = Number(row.n);
+      }
+    }
+  }
+
+  const [announcements, events, unread] = await Promise.all([
+    db.all("SELECT id, title, body, created_at FROM announcements WHERE madrasa_id = ? AND is_active = 1 AND status = 'published' AND (audience = 'all' OR audience = 'teachers' OR target_type IN ('all','teachers','staff')) ORDER BY COALESCE(published_at, created_at) DESC, id DESC LIMIT 5", [tid]),
+    db.all("SELECT id, title, event_type, start_date, end_date, start_time, end_time, location FROM calendar_events WHERE madrasa_id = ? AND status = 'published' AND COALESCE(end_date, start_date) >= ? AND audience IN ('all','teachers','staff') ORDER BY start_date, start_time LIMIT 6", [tid, today]),
+    db.get("SELECT COUNT(*) AS n FROM notifications WHERE madrasa_id = ? AND recipient_user_id = ? AND read_at IS NULL", [tid, req.user.id]),
+  ]);
+
+  const nextSlot = todaySlots.find((s) => s.start_time && s.start_time >= new Date().toISOString().slice(11, 16)) || null;
+
+  ok(res, {
+    teacher: { id: req.user.id, fullName: req.user.fullName },
+    today, todayName: dayName,
+    classes,
+    subjects: subjectRows,
+    todaySlots,
+    nextSlot,
+    attendancePending,
+    assignmentsPending,
+    resultCounts,
+    announcements,
+    events,
+    unreadNotifications: Number(unread.n || 0),
+  });
+}));
 
 router.get("/:id", requirePermission("teachers.view"), asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res); if (tid == null) return;

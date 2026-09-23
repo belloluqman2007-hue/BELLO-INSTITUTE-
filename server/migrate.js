@@ -2371,6 +2371,115 @@ const MIGRATIONS = [
       await addIdx("CREATE INDEX idx_fee_assignment_history_tenant ON fee_assignment_history (madrasa_id, fee_assignment_id, id)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    // UX-completion pass: three product gaps that had no storage at all.
+    //
+    //   1. Academic calendar & school events — sessions and terms already
+    //      exist, but holidays, exam weeks, PTM dates, admission deadlines
+    //      and school activities had nowhere to live. calendar_events is a
+    //      tenant-owned table with audience targeting so the same record can
+    //      be shown to everyone, staff only, or specific classes.
+    //   2. Platform support tickets — institutions had no channel to raise
+    //      an issue with the platform operator, and the operator had no
+    //      queue. support_tickets is tenant-owned (the institution that
+    //      raised it) with notes and an assignment/priority/status workflow
+    //      for the super admin.
+    //   3. Question bank — exams exist with marks and scheduling, but there
+    //      was no reusable bank of questions per subject/class/difficulty.
+    //
+    // All three follow the existing conventions: madrasa_id on every row,
+    // dialect-aware types, indexes matching the real query patterns.
+    id: "035_calendar_support_questionbank",
+    up: async (api, dialect) => {
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS calendar_events (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          title VARCHAR(200) NOT NULL,
+          description TEXT,
+          event_type VARCHAR(40) NOT NULL DEFAULT 'activity',
+          start_date DATE NOT NULL,
+          end_date DATE,
+          start_time VARCHAR(5) NOT NULL DEFAULT '',
+          end_time VARCHAR(5) NOT NULL DEFAULT '',
+          location VARCHAR(160) NOT NULL DEFAULT '',
+          audience VARCHAR(30) NOT NULL DEFAULT 'all',
+          target_ids TEXT,
+          status VARCHAR(20) NOT NULL DEFAULT 'published',
+          created_by INT,
+          created_at ${D.ts()},
+          updated_at ${D.ts()},
+          ${D.fkClause(dialect, "madrasa_id", "madaris")}UNIQUE (madrasa_id, title, start_date)
+        )${D.engine(dialect)}
+      `);
+      const idx = async (sql) => {
+        try { await api.run(sql); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      };
+      await idx("CREATE INDEX idx_calendar_events_tenant_date ON calendar_events (madrasa_id, start_date, status)");
+      await idx("CREATE INDEX idx_calendar_events_audience ON calendar_events (madrasa_id, audience, status)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS support_tickets (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          subject VARCHAR(200) NOT NULL,
+          body TEXT,
+          category VARCHAR(40) NOT NULL DEFAULT 'general',
+          priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+          status VARCHAR(20) NOT NULL DEFAULT 'open',
+          created_by INT,
+          assigned_to INT,
+          resolved_at ${dialect === "mysql" ? "TIMESTAMP NULL" : "TEXT"},
+          created_at ${D.ts()},
+          updated_at ${D.ts()},
+          ${D.fkClause(dialect, "madrasa_id", "madaris")}UNIQUE (madrasa_id, id)
+        )${D.engine(dialect)}
+      `);
+      await idx("CREATE INDEX idx_support_tickets_tenant ON support_tickets (madrasa_id, status, updated_at)");
+      await idx("CREATE INDEX idx_support_tickets_platform ON support_tickets (status, priority, updated_at)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS support_ticket_notes (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          ticket_id INT NOT NULL,
+          author_user_id INT NOT NULL,
+          author_role VARCHAR(30) NOT NULL DEFAULT '',
+          note TEXT,
+          internal_only INT NOT NULL DEFAULT 0,
+          created_at ${D.ts()},
+          ${D.fkClause(dialect, "ticket_id", "support_tickets")}UNIQUE (ticket_id, id)
+        )${D.engine(dialect)}
+      `);
+      await idx("CREATE INDEX idx_support_ticket_notes_ticket ON support_ticket_notes (ticket_id, created_at)");
+
+      await api.run(`
+        CREATE TABLE IF NOT EXISTS question_bank (
+          id ${D.autoInc(dialect)},
+          madrasa_id INT NOT NULL,
+          subject_id INT,
+          class_id INT,
+          question_text TEXT NOT NULL,
+          question_type VARCHAR(30) NOT NULL DEFAULT 'short_answer',
+          options TEXT,
+          correct_answer TEXT,
+          marks DECIMAL(6,2) NOT NULL DEFAULT 1,
+          difficulty VARCHAR(20) NOT NULL DEFAULT 'medium',
+          explanation TEXT,
+          tags VARCHAR(255) NOT NULL DEFAULT '',
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          created_by INT,
+          created_at ${D.ts()},
+          updated_at ${D.ts()},
+          ${D.fkClause(dialect, "madrasa_id", "madaris")}UNIQUE (madrasa_id, id)
+        )${D.engine(dialect)}
+      `);
+      await idx("CREATE INDEX idx_question_bank_tenant ON question_bank (madrasa_id, subject_id, class_id, status)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

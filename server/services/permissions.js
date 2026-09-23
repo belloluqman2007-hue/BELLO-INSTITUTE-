@@ -55,6 +55,8 @@ const CATALOGUE = [
     ["assignments.create", "Create and grade assignments"],
     ["exams.view", "View examinations"],
     ["exams.create", "Create examinations"],
+    ["questionbank.view", "View the question bank"],
+    ["questionbank.manage", "Create and edit question-bank entries"],
     ["results.enter", "Enter results"],
     ["results.edit", "Edit results"],
     ["results.submit", "Submit results for review"],
@@ -101,6 +103,14 @@ const CATALOGUE = [
     ["admissions.create", "Create applications"],
     ["admissions.approve", "Approve applications"],
     ["admissions.reject", "Reject applications"],
+  ] },
+  { key: "calendar", label: "Calendar & Events", permissions: [
+    ["calendar.view", "View the academic calendar and school events"],
+    ["calendar.manage", "Create and edit calendar events"],
+  ] },
+  { key: "support", label: "Platform Support", permissions: [
+    ["support.view", "View this institution's support tickets"],
+    ["support.create", "Raise support tickets with the platform"],
   ] },
   { key: "website", label: "Institution website", permissions: [
     ["website.view", "View website settings"],
@@ -167,6 +177,9 @@ const TEACHER_DEFAULTS = [
   "lessons.view", "lessons.create",
   "assignments.view", "assignments.create",
   "exams.view",
+  // Teachers read the shared calendar (their dashboard shows upcoming events)
+  // and consult the question bank; managing either stays administrator-only.
+  "calendar.view", "questionbank.view",
   "results.enter", "results.edit", "results.submit",
   "report_cards.view",
   "library.view", "library.issue", "library.return",

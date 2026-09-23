@@ -49,8 +49,9 @@ Usernames are **case-insensitive** (`Admin` and `admin` are the same account).
 ```bash
 npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results,
                          #            timetables, published results and public-site flags
-npm test                 # automated suite (isolated temp database, 215 tests —
-                         # includes browser-level checks that drive public/js/app.js in jsdom)
+npm test                 # automated suite (isolated temp database, 535 tests —
+                         # includes browser-level checks that drive the public site,
+                         # the admin console and the three portals in jsdom)
 bash test/smoke.sh       # end-to-end checks against a running dev server (70 checks)
 ```
 
@@ -63,7 +64,7 @@ instead of failing silently:
 | ------------------ | ------------- | --- |
 | *This platform has no accounts yet…* | The database is empty — the super admin was never created (e.g. `SUPER_ADMIN_PASSWORD` was unset on a host that skipped seeding, or the data directory was wiped). | `npm run reset-admin-password` with `SUPER_ADMIN_PASSWORD` set |
 | *Invalid username or password.* | The account exists; the credentials are wrong. | `npm run reset-admin-password` to set a known password |
-| *Those details are correct, but the … account has no administrator dashboard* | A teacher/student/parent account — correct password, no admin console. | Sign in with an admin account |
+| *Opening your workspace…* | Correct password for a teacher/student/parent account — the platform is handing the session to that account's own workspace. | Nothing: the browser continues to `/teacher`, `/student` or `/parent` automatically |
 | *Too many sign-in attempts…* | Rate limit (`LOGIN_RATE_LIMIT`, default 10 per 15 min). | Wait, or raise the limit |
 
 ### Demo logins (after `npm run seed -- --demo`)
@@ -76,6 +77,10 @@ instead of failing silently:
 | Teacher       | `demo-quraniyya-ust1`     | `Demo1234!`   |
 | Parent        | `demo-quraniyya-parent1`  | `Parent1234!` |
 | Student       | `demo-quraniyya-stu1`     | `Student1234!`|
+
+Teachers sign in at **`/teacher`**, students at **`/student`** and parents at
+**`/parent`** — or simply use the main sign-in (`/login`), which hands every
+account to its own workspace automatically.
 
 (`demo-fatihah-…` accounts exist for the second madrasa as well. Parent 1 is
 linked to two children, demonstrating the multi-child parent portal.)
@@ -150,8 +155,41 @@ render.yaml        NEW Render service definition (production)
   student photo/name/admission number/class/session/term, per-subject scores,
   totals, average, grade, remarks, position, attendance, teacher & admin
   comments, promotion status. Arabic + RTL when Arabic names are present.
-- **Student & parent portals** — login, profiles, results history,
-  download/print report cards, announcements.
+- **Teacher workspace (`/teacher`)** — today's classes from the timetable,
+  pending attendance and grading queues, result workflow counters, assigned
+  classes with rosters, lesson plans, assignments with submissions and
+  grading, examinations with marks entry, the results gradebook
+  (draft → submit for review), leave self-service, library self-service,
+  messages, notifications and the shared calendar — all scoped server-side to
+  the teacher's own assignments.
+- **Student portal (`/student`)** — dashboard (timetable today, attendance,
+  pending assignments, upcoming exams, fee balance), weekly timetable,
+  lessons, assignments with submission AND resubmission (until graded),
+  feedback and scores, exam timetable, results with printable report cards,
+  attendance history, fee statement with receipts, library loans, Qur'an
+  progress (Islamic institutions only), messages with teachers/admins,
+  notification centre, announcements and account self-service.
+- **Parent portal (`/parent`)** — family dashboard with every linked child,
+  a child switcher on every child-scoped page (attendance, results, report
+  cards, assignments, timetable, exams, fees, Qur'an progress), the complete
+  Parent-Teacher Meeting booking flow (`/parent/meetings`, double-booking
+  prevented server-side), messages with the children's teachers, and
+  notifications. Child relationships are validated by the server on every
+  request — a child id from the browser is never trusted.
+- **Academic calendar & school events** — holidays, exam weeks, PTM dates,
+  admission deadlines and activities with audience targeting (everyone, staff,
+  students & parents, parents only, or specific classes), shown on every
+  portal dashboard and manageable from `Academic → Calendar & Events`.
+- **Platform support tickets** — institutions raise tickets with the platform
+  team (`Platform Support` in the admin sidebar); the super admin works a
+  platform-wide queue with status/priority/assignment, public replies and
+  internal notes the institution can never see. Every action audited.
+- **Question bank** — reusable questions per subject, class level, type,
+  difficulty and marks, complementing the examinations module.
+- **Staff role templates** — Accountant, Librarian, Admissions Officer,
+  Academic Officer, HR Officer and Receptionist bundles applied to STAFF
+  accounts through the existing granular permission system (no new roles);
+  fine-tune afterwards in Roles & Permissions.
 - **Admission numbers** — per-madrasa prefix (from settings or slug),
   sequential 4-digit suffix.
 - **Photos & logo uploads** — validated file types/size, stored under

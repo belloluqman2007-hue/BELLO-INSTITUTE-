@@ -131,7 +131,7 @@
       },
       {
         key: "academic", label: "Academic", icon: "academic",
-        items: [["Lessons", "academic/lessons"], ["Assignments", "academic/assignments"], ["Examinations", "academic/examinations"], ["Results", "academic/results"], ["Report Cards", "academic/report-cards"], ["Academic Sessions", "academic/sessions"], ["Terms", "academic/terms"]],
+        items: [["Lessons", "academic/lessons"], ["Assignments", "academic/assignments"], ["Examinations", "academic/examinations"], ["Question Bank", "academic/question-bank"], ["Results", "academic/results"], ["Report Cards", "academic/report-cards"], ["Academic Sessions", "academic/sessions"], ["Terms", "academic/terms"], ["Calendar & Events", "academic/calendar"]],
       },
       {
         key: "admissions", label: "Admissions", icon: "admissions",
@@ -186,6 +186,12 @@
         key: "settings", label: "Settings", icon: "settings",
         items: [[t.settingsLabel, "settings/institution"], ["Administrator Account", "settings/account"], ["Staff Accounts", "settings/staff"], ["Roles & Permissions", "settings/roles"], ["Audit Log", "settings/audit"], ["Password & Security", "settings/security"], ["Notifications", "settings/notifications"]],
       },
+      {
+        // The institution's channel to the platform operator — tenants raise
+        // tickets from here and follow the operator's replies.
+        key: "support", label: "Platform Support", icon: "shield",
+        items: [["Support Tickets", "support/tickets"], ["New Ticket", "support/new"]],
+      },
     ];
 
     // This module is part of the Islamic product, but is never included in
@@ -211,6 +217,7 @@
       { key: "madaris", label: "Madrasas & Academies", icon: "building", route: "platform/madaris" },
       { key: "registrations", label: "Registrations", icon: "admissions", route: "platform/registrations" },
       { key: "plans", label: "Subscription Plans", icon: "money", route: "platform/plans" },
+      { key: "tickets", label: "Support Tickets", icon: "shield", route: "platform/tickets" },
       { key: "analytics", label: "Platform Analytics", icon: "chart", route: "platform/analytics" },
       { key: "activity", label: "Activity Log", icon: "activity", route: "platform/activity" },
       { key: "backups", label: "Backups & Storage", icon: "file", route: "platform/backups" },
@@ -324,17 +331,53 @@
   }
 
   /** Roles this console is built for. Every other (valid!) account — teacher,
-      student, parent — authenticates successfully but has no admin dashboard
-      to enter, and MUST be told so instead of being dropped back on an empty
-      form ("I sign in and nothing happens"). */
+      student, parent — belongs to its OWN workspace (public/js/portal*.js,
+      served at /teacher, /student and /parent); signing in here hands the
+      visitor straight over to it instead of leaving them on a dead form. */
   const ADMIN_ROLES = ["madrasa_admin", "super_admin"];
   const ROLE_LABELS = {
     teacher: "teacher",
     student: "student",
     parent: "parent",
   };
+  const PORTAL_HOME = {
+    teacher: "/teacher",
+    student: "/student",
+    parent: "/parent",
+  };
 
-  /** Why a correct username/password still cannot open this console. */
+  /**
+   * Hands a correctly-authenticated non-admin account to its own workspace.
+   * Returns true when the hand-off was made (the caller must stop rendering
+   * the admin console). The interstitial keeps the page readable while the
+   * browser loads the portal, and doubles as the assertable marker in tests.
+   */
+  function routeToWorkspace(role) {
+    const home = PORTAL_HOME[role];
+    if (!home) return false;
+    const who = ROLE_LABELS[role] || "this";
+    const root = document.getElementById(ROOT_ID);
+    if (root) {
+      applyTheme(null);
+      root.innerHTML = `
+        <div class="dash-login-page">
+          <div class="dash-login-card">
+            <div class="brand-row">
+              <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
+              <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(who)} workspace</div></div>
+            </div>
+            <h1>Opening your workspace…</h1>
+            <p class="sub">You are signed in with a ${esc(who)} account, so this sign-in is handing you to the ${esc(who)} portal.</p>
+            <p><a class="dash-login-submit" style="display:block;text-align:center;text-decoration:none;" href="${home}">Continue to the ${esc(who)} portal</a></p>
+          </div>
+        </div>`;
+    }
+    window.location.replace(home);
+    return true;
+  }
+
+  /** Why a correct username/password still cannot open this console. Only
+      reached for a role that has neither an admin console nor a portal. */
   function nonAdminMessage(role) {
     const who = ROLE_LABELS[role] || "this";
     return `Those details are correct, but the ${who} account has no administrator dashboard. ` +
@@ -364,9 +407,13 @@
 
     const authenticated = me.loggedIn && ADMIN_ROLES.includes(me.role);
 
-    // Signed in with a real account that simply is not an administrator: end
-    // that session and say why, rather than re-rendering a blank form.
+    // Signed in with a real account that has its OWN workspace (teacher,
+    // student, parent): hand it over to that portal. The session stays open —
+    // the portal is the right place for it.
     if (me.loggedIn && !authenticated) {
+      if (routeToWorkspace(me.role)) return;
+      // No portal exists for this role at all: end the session and say why,
+      // rather than re-rendering a blank form.
       try { await window.API.logout(); } catch (e) { /* best effort */ }
       resetSessionState();
       renderLogin(root, nonAdminMessage(me.role), null);
@@ -558,9 +605,10 @@
       }
 
       // Authenticated — but this console only serves administrators. A
-      // teacher/student/parent must be told that, not silently returned to
-      // the form with their session still open.
+      // teacher/student/parent account has its own workspace: hand it over
+      // (the live session is exactly what the portal needs).
       if (!ADMIN_ROLES.includes(result && result.role)) {
+        if (routeToWorkspace(result && result.role)) return;
         try { await window.API.logout(); } catch (e2) { /* best effort */ }
         resetSessionState();
         renderLogin(root, nonAdminMessage(result && result.role), null, username);
@@ -592,6 +640,7 @@
         "platform/madaris": "Madrasas & Academies",
         "platform/registrations": "Registrations",
         "platform/plans": "Subscription Plans",
+        "platform/tickets": "Support Tickets",
         "platform/analytics": "Platform Analytics",
         "platform/activity": "Activity Log",
         "platform/backups": "Backups & Storage",
@@ -825,6 +874,7 @@
     payroll: ["payroll.view", "payslips.view"],
     hr: ["staff_leave.view"],
     settings: ["institution.settings", "users.manage", "roles.manage", "audit.view"],
+    support: ["support.view", "support.create"],
   };
 
   function filterSchemaByPermission(schema) {
@@ -1001,6 +1051,8 @@
       if (route === "academic/results") return await pageResultsWorkbook(content);
       if (route === "academic/report-cards") return await pageReportCards(content);
       if (route === "academic/sessions" || route === "academic/terms") return await pageSessionsManager(content, route);
+      if (route === "academic/question-bank") return await pageQuestionBank(content);
+      if (route === "academic/calendar") return await pageCalendarEvents(content);
 
       // Admissions, communication and finance
       if (route === "admissions/applications" || route === "admissions/status") return await pageAdmissionApplications(content);
@@ -1044,6 +1096,8 @@
       if (route === "settings/roles") return await pageRoles(content);
       if (route === "settings/audit") return await pageAuditLog(content);
       if (route === "settings/notifications") return await pageNotificationSettings(content);
+      // Platform support — the institution's ticket queue with the operator.
+      if (route === "support/tickets" || route === "support/new") return await pageSupportTickets(content, route);
       return pageComingSoon(content, "Dashboard", route);
     } catch (e) {
       content.innerHTML = `<div class="dash-coming-soon"><div class="icon">${I.close}</div><h3>Something went wrong</h3><p>${esc(e.message || "Please try again.")}</p></div>`;
@@ -2371,7 +2425,10 @@
             <td>${u.isActive ? `<span class="dash-pill ok">Active</span>` : `<span class="dash-pill">Inactive</span>`}</td>
             <td>${u.effective.length} of ${groups.reduce((a, g) => a + g.permissions.length, 0)}
               ${u.overrides.length ? `<small class="hint"> · ${u.overrides.length} override(s)</small>` : ""}</td>
-            <td><button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-edit-perms="${u.id}">${I.edit} Edit</button></td>
+            <td><div class="module-actions">
+              <button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-edit-perms="${u.id}">${I.edit} Edit</button>
+              ${u.role === "teacher" ? `<button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" data-template-perms="${u.id}">Apply template</button>` : ""}
+            </div></td>
           </tr>`).join("")}</tbody>
         </table></div>` : `<div class="dash-card-pad"><div class="dash-empty-state">
           <div class="dash-empty-state-icon">${I.users}</div><h3>No staff accounts yet</h3>
@@ -2422,6 +2479,44 @@
             submit.disabled = false;
             toast(err.message || "Could not update permissions.", "error");
           }
+        });
+      });
+    });
+
+    // Recommended staff-role templates: apply a curated permission bundle to
+    // a staff (teacher) account in one action, then fine-tune with Edit.
+    content.querySelectorAll("[data-template-perms]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const user = users.find((u) => String(u.id) === btn.getAttribute("data-template-perms"));
+        if (!user) return;
+        let templates = [];
+        try { templates = (await window.API.get("/admin/permissions/templates")).templates || []; }
+        catch (e) { toast(e.message || "Could not load the role templates.", "error"); return; }
+        const modal = openModal(`Role template — ${user.fullName || user.username}`, `
+          <p class="hint">Applying a template replaces this account's permission overrides so it behaves as that staff role. You can fine-tune afterwards with Edit.</p>
+          <div class="dash-form-grid">
+            ${templates.map((t) => `
+              <div class="dash-field" style="border:1px solid var(--d-line);border-radius:12px;padding:12px">
+                <label style="display:flex;gap:8px;align-items:center;font-weight:750">
+                  <input type="radio" name="template" value="${esc(t.key)}" required>${esc(t.label)}
+                </label>
+                <small class="hint">${esc(t.description)}</small>
+              </div>`).join("")}
+          </div>
+          <div class="dash-modal-actions">
+            <button type="button" class="dash-btn dash-btn-ghost" data-cancel>Cancel</button>
+            <button type="button" class="dash-btn dash-btn-primary" id="applyTemplateBtn">${I.check} Apply template</button>
+          </div>`);
+        modal.querySelector("[data-cancel]").addEventListener("click", closeModal);
+        modal.querySelector("#applyTemplateBtn").addEventListener("click", async () => {
+          const selected = modal.querySelector('input[name="template"]:checked');
+          if (!selected) return toast("Choose a template first.", "error");
+          if (!window.confirm(`Apply the "${selected.value}" template to ${user.fullName || user.username}? Their current overrides will be replaced.`)) return;
+          try {
+            await window.API.post(`/admin/permissions/users/${user.id}/template`, { template: selected.value });
+            toast("Template applied.", "success");
+            closeModal(); go("settings/roles");
+          } catch (err) { toast(err.message || "Could not apply the template.", "error"); }
         });
       });
     });
@@ -2688,6 +2783,8 @@
     if (route.startsWith("platform/madaris/")) return await pageSuperMadarisDetail(content, decodeURIComponent(route.slice("platform/madaris/".length)));
     if (route === "platform/registrations") return await pageSuperRegistrations(content);
     if (route === "platform/plans") return await pageSuperPlans(content);
+    if (route === "platform/tickets") return await pageSuperTickets(content);
+    if (route.startsWith("platform/tickets/")) return await pageSuperTicketDetail(content, decodeURIComponent(route.slice("platform/tickets/".length)));
     if (route === "platform/analytics") return await pageSuperAnalytics(content);
     if (route === "platform/activity") return await pageSuperActivity(content);
     if (route === "platform/backups") return await pageSuperBackups(content);
@@ -3373,6 +3470,373 @@
       try { await window.API.put("/platform/settings", body); toast("Settings saved.", "success"); }
       catch (err) { toast(err.message || "Could not save settings.", "error"); }
     });
+  }
+
+  /* ====================================================================
+     ACADEMIC CALENDAR & SCHOOL EVENTS  (route: academic/calendar)
+     ==================================================================== */
+  /** Page head + optional action buttons, shared by the pages below. */
+  function supportHead(crumb, title, sub, actionsHtml) {
+    return `<div class="dash-page-head"><div><div class="dash-crumb">${esc(crumb)}</div><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ""}</div>${actionsHtml ? `<div class="dash-actions">${actionsHtml}</div>` : ""}</div>`;
+  }
+  /** Full status pill for the pages below (dashboard.js's pillFor returns
+      only the class name; these pages want the whole element). */
+  function statusPill(status) {
+    const cls = pillFor(status);
+    return `<span class="dash-pill ${cls}">${esc(String(status || "—").replace(/_/g, " "))}</span>`;
+  }
+
+  const EVENT_TYPES = [
+    ["term", "Term dates"], ["holiday", "Holiday"], ["exam", "Exam week"], ["ptm", "Parent-Teacher Meeting"],
+    ["admission_deadline", "Admission deadline"], ["results_publication", "Results publication"],
+    ["activity", "School activity"], ["other", "Other"],
+  ];
+  const EVENT_AUDIENCES = [
+    ["all", "Everyone"], ["teachers", "Staff & teachers"], ["students", "Students & parents"],
+    ["parents", "Parents only"], ["specific_classes", "Specific classes"],
+  ];
+
+  async function pageCalendarEvents(content) {
+    content.innerHTML = supportHead("Academic", "Calendar & events", "Holidays, exam weeks, meetings, deadlines and school activities — what the portals see.", `
+      <button class="dash-btn dash-btn-primary" id="calNew">${I.plus} New event</button>`);
+    const card = document.createElement("div");
+    card.className = "dash-card";
+    content.appendChild(card);
+    const classes = await window.API.get("/classes").then((d) => d.classes || []).catch(() => []);
+    const load = async () => {
+      card.innerHTML = `<div class="dash-card-pad">Loading…</div>`;
+      try {
+        const data = await window.API.get("/calendar?limit=300");
+        const rows = data.events || [];
+        card.innerHTML = `<div class="dash-card-head"><h3>All events</h3><span class="hint">${rows.length} published/upcoming</span></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Event</th><th>Type</th><th>Dates</th><th>Audience</th><th>Status</th><th></th></tr></thead>
+            <tbody>${rows.length ? rows.map((e) => `<tr>
+              <td><strong>${esc(e.title)}</strong>${e.location ? `<small>${esc(e.location)}</small>` : ""}</td>
+              <td>${statusPill(e.event_type)}</td>
+              <td>${fmtDate(e.start_date)}${e.end_date && e.end_date !== e.start_date ? " – " + fmtDate(e.end_date) : ""}${e.start_time ? ` · ${esc(String(e.start_time).slice(0, 5))}` : ""}</td>
+              <td>${esc(String(e.audience).replace(/_/g, " "))}${e.audience === "specific_classes" && (e.target_ids || []).length ? ` (${e.target_ids.length} class(es))` : ""}</td>
+              <td>${statusPill(e.status)}</td>
+              <td><div class="module-actions">
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" data-cal-edit="${e.id}">Edit</button>
+                <button class="dash-btn dash-btn-danger dash-btn-sm" data-cal-del="${e.id}">Delete</button>
+              </div></td></tr>`).join("") : emptyRow(6, "No calendar events yet.")}</tbody></table></div>`;
+        card.querySelectorAll("[data-cal-edit]").forEach((b) => b.addEventListener("click", () => eventForm(rows.find((x) => String(x.id) === b.dataset.calEdit))));
+        card.querySelectorAll("[data-cal-del]").forEach((b) => b.addEventListener("click", async () => {
+          if (!window.confirm("Delete this calendar event?")) return;
+          try { await window.API.del(`/calendar/${b.dataset.calDel}`); toast("Event deleted.", "success"); load(); }
+          catch (e) { toast(e.message || "Could not delete the event.", "error"); }
+        }));
+      } catch (e) { card.innerHTML = `<div class="dash-card-pad">${esc(e.message || "Could not load events.")}</div>`; }
+    };
+    const eventForm = (event) => {
+      const isNew = !event;
+      const modal = openModal(isNew ? "New calendar event" : "Edit calendar event", `
+        <form id="calForm"><div class="dash-form-grid">
+          <div class="dash-field" style="grid-column:1/-1"><label>Title *</label><input name="title" required maxlength="200" value="${esc(event && event.title)}"></div>
+          <div class="dash-field"><label>Type</label><select name="event_type">${options(EVENT_TYPES.map((t) => ({ id: t[0], label: t[1] })), event && event.event_type, (t) => t.label)}</select></div>
+          <div class="dash-field"><label>Audience</label><select name="audience" id="calAudience">${options(EVENT_AUDIENCES.map((a) => ({ id: a[0], label: a[1] })), event && event.audience, (a) => a.label)}</select></div>
+          <div class="dash-field"><label>Start date *</label><input name="start_date" type="date" required value="${esc((event && String(event.start_date).slice(0, 10)) || todayIso())}"></div>
+          <div class="dash-field"><label>End date</label><input name="end_date" type="date" value="${esc(event && event.end_date ? String(event.end_date).slice(0, 10) : "")}"></div>
+          <div class="dash-field"><label>Start time</label><input name="start_time" placeholder="HH:MM" value="${esc(event && event.start_time)}"></div>
+          <div class="dash-field"><label>End time</label><input name="end_time" placeholder="HH:MM" value="${esc(event && event.end_time)}"></div>
+          <div class="dash-field"><label>Location</label><input name="location" maxlength="160" value="${esc(event && event.location)}"></div>
+          <div class="dash-field"><label>Status</label><select name="status">${["published", "draft", "archived"].map((s) => `<option value="${s}"${event && event.status === s ? " selected" : ""}>${s}</option>`).join("")}</select></div>
+          <div class="dash-field" id="calClassesField" style="grid-column:1/-1"><label>Classes (specific audiences)</label>
+            <select name="target_ids" id="calClasses" multiple size="4">${classes.map((cl) => `<option value="${cl.id}"${event && (event.target_ids || []).includes(Number(cl.id)) ? " selected" : ""}>${esc(cl.name_en)}</option>`).join("")}</select>
+            <small class="hint">Only used when the audience is "Specific classes".</small></div>
+          <div class="dash-field" style="grid-column:1/-1"><label>Description</label><textarea name="description" rows="3">${esc(event && event.description)}</textarea></div>
+        </div>
+        <div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} Save event</button></div></form>`, { wide: true });
+      const syncClasses = () => {
+        const isClasses = modal.querySelector("#calAudience").value === "specific_classes";
+        modal.querySelector("#calClassesField").style.display = isClasses ? "" : "none";
+      };
+      modal.querySelector("#calAudience").addEventListener("change", syncClasses);
+      syncClasses();
+      modal.querySelector("#calForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const payload = Object.fromEntries(fd.entries());
+        payload.target_ids = [...modal.querySelector("#calClasses").selectedOptions].map((o) => Number(o.value));
+        try {
+          if (isNew) await window.API.post("/calendar", payload);
+          else await window.API.patch(`/calendar/${event.id}`, payload);
+          toast("Event saved.", "success"); closeModal(); load();
+        } catch (err) { toast(err.message || "Could not save the event.", "error"); }
+      });
+    };
+    content.querySelector("#calNew").addEventListener("click", () => eventForm(null));
+    load();
+  }
+
+  /* ====================================================================
+     QUESTION BANK  (route: academic/question-bank)
+     ==================================================================== */
+  async function pageQuestionBank(content) {
+    content.innerHTML = supportHead("Academic", "Question bank", "A reusable bank of questions per subject and class level — for setting papers and tests.", `
+      <button class="dash-btn dash-btn-primary" id="qNew">${I.plus} New question</button>`);
+    const card = document.createElement("div");
+    card.className = "dash-card";
+    content.appendChild(card);
+    const [subjects, classes] = await Promise.all([
+      window.API.get("/subjects").then((d) => d.subjects || []).catch(() => []),
+      window.API.get("/classes").then((d) => d.classes || []).catch(() => []),
+    ]);
+    const load = async () => {
+      card.innerHTML = `<div class="dash-card-pad">Loading…</div>`;
+      try {
+        const data = await window.API.get("/academic/questions?perPage=50");
+        const rows = data.questions || [];
+        card.innerHTML = `<div class="dash-card-head"><h3>Questions</h3><span class="hint">${data.total || 0} total</span></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Question</th><th>Subject</th><th>Class</th><th>Type</th><th>Marks</th><th>Difficulty</th><th></th></tr></thead>
+            <tbody>${rows.length ? rows.map((q) => `<tr>
+              <td style="max-width:380px">${esc(String(q.question_text).slice(0, 120))}${q.tags ? `<small>${esc(q.tags)}</small>` : ""}</td>
+              <td>${esc(q.subject_name || "—")}</td><td>${esc(q.class_name || "Any")}</td>
+              <td>${esc(q.question_type.replace(/_/g, " "))}</td><td>${esc(q.marks)}</td><td>${statusPill(q.difficulty)}</td>
+              <td><div class="module-actions">
+                <button class="dash-btn dash-btn-ghost dash-btn-sm" data-q-edit="${q.id}">Edit</button>
+                <button class="dash-btn dash-btn-danger dash-btn-sm" data-q-del="${q.id}">Archive</button>
+              </div></td></tr>`).join("") : emptyRow(7, "No questions yet — add the first one.")}</tbody></table></div>`;
+        card.querySelectorAll("[data-q-edit]").forEach((b) => b.addEventListener("click", () => questionForm(rows.find((x) => String(x.id) === b.dataset.qEdit))));
+        card.querySelectorAll("[data-q-del]").forEach((b) => b.addEventListener("click", async () => {
+          if (!window.confirm("Archive this question?")) return;
+          try { await window.API.del(`/academic/questions/${b.dataset.qDel}`); toast("Question archived.", "success"); load(); }
+          catch (e) { toast(e.message || "Could not archive.", "error"); }
+        }));
+      } catch (e) { card.innerHTML = `<div class="dash-card-pad">${esc(e.message || "Could not load questions.")}</div>`; }
+    };
+    const questionForm = (question) => {
+      const isNew = !question;
+      const types = [["multiple_choice", "Multiple choice"], ["short_answer", "Short answer"], ["long_answer", "Long answer / essay"], ["true_false", "True / false"], ["fill_in_the_blank", "Fill in the blank"]];
+      const modal = openModal(isNew ? "New question" : "Edit question", `
+        <form id="qForm"><div class="dash-form-grid">
+          <div class="dash-field" style="grid-column:1/-1"><label>Question *</label><textarea name="question_text" rows="3" required maxlength="5000">${esc(question && question.question_text)}</textarea></div>
+          <div class="dash-field"><label>Subject</label><select name="subject_id"><option value="">Any subject</option>${options(subjects, question && question.subject_id)}</select></div>
+          <div class="dash-field"><label>Class level</label><select name="class_id"><option value="">Any class</option>${options(classes, question && question.class_id)}</select></div>
+          <div class="dash-field"><label>Type</label><select name="question_type">${options(types.map((t) => ({ id: t[0], label: t[1] })), (question && question.question_type) || "short_answer", (t) => t.label)}</select></div>
+          <div class="dash-field"><label>Marks *</label><input name="marks" type="number" min="0.5" step="0.5" required value="${esc((question && question.marks) || 1)}"></div>
+          <div class="dash-field"><label>Difficulty</label><select name="difficulty">${["easy", "medium", "hard"].map((d) => `<option value="${d}"${(question ? question.difficulty : "medium") === d ? " selected" : ""}>${d}</option>`).join("")}</select></div>
+          <div class="dash-field"><label>Tags</label><input name="tags" placeholder="comma,separated,tags" value="${esc(question && question.tags)}"></div>
+          <div class="dash-field" style="grid-column:1/-1"><label>Options (for multiple choice / true-false, one per line)</label><textarea name="options" rows="3">${esc(question && question.options)}</textarea></div>
+          <div class="dash-field" style="grid-column:1/-1"><label>Correct answer</label><input name="correct_answer" value="${esc(question && question.correct_answer)}"></div>
+          <div class="dash-field" style="grid-column:1/-1"><label>Explanation</label><textarea name="explanation" rows="2">${esc(question && question.explanation)}</textarea></div>
+        </div>
+        <div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} Save question</button></div></form>`, { wide: true });
+      modal.querySelector("#qForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const payload = Object.fromEntries(new FormData(e.target).entries());
+        try {
+          if (isNew) await window.API.post("/academic/questions", payload);
+          else await window.API.patch(`/academic/questions/${question.id}`, payload);
+          toast("Question saved.", "success"); closeModal(); load();
+        } catch (err) { toast(err.message || "Could not save the question.", "error"); }
+      });
+    };
+    content.querySelector("#qNew").addEventListener("click", () => questionForm(null));
+    load();
+  }
+
+  /* ====================================================================
+     PLATFORM SUPPORT — institution side  (routes: support/*)
+     ==================================================================== */
+  async function pageSupportTickets(content, route) {
+    const isNew = route === "support/new";
+    content.innerHTML = supportHead("Platform Support", isNew ? "Raise a support ticket" : "Support tickets", "Your institution's tickets with the BELLO platform team.", `
+      <a class="dash-btn dash-btn-primary" href="#/app/${encodeURIComponent("support/new")}">${I.plus} New ticket</a>`);
+    if (isNew) {
+      const form = document.createElement("div");
+      form.className = "dash-card";
+      form.innerHTML = `<div class="dash-card-pad">
+        <form id="newTicketForm"><div class="dash-form-grid">
+          <div class="dash-field" style="grid-column:1/-1"><label>Subject *</label><input name="subject" required maxlength="200"></div>
+          <div class="dash-field"><label>Category</label><select name="category">${["general", "billing", "technical", "admissions", "data", "feature_request", "security"].map((x) => `<option value="${x}">${x.replace(/_/g, " ")}</option>`).join("")}</select></div>
+          <div class="dash-field"><label>Priority</label><select name="priority">${["low", "medium", "high", "urgent"].map((x) => `<option value="${x}"${x === "medium" ? " selected" : ""}>${x}</option>`).join("")}</select></div>
+          <div class="dash-field" style="grid-column:1/-1"><label>Describe the issue *</label><textarea name="body" rows="6" required></textarea></div>
+        </div>
+        <div class="dash-actions" style="margin-top:14px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} Submit ticket</button></div></form>
+      </div>`;
+      content.appendChild(form);
+      form.querySelector("#newTicketForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          await window.API.post("/support/tickets", Object.fromEntries(new FormData(e.target).entries()));
+          toast("Ticket submitted — the platform team will respond.", "success");
+          go("support/tickets");
+        } catch (err) { toast(err.message || "Could not submit the ticket.", "error"); }
+      });
+      return;
+    }
+    const card = document.createElement("div");
+    card.className = "dash-card";
+    content.appendChild(card);
+    const load = async () => {
+      card.innerHTML = `<div class="dash-card-pad">Loading…</div>`;
+      try {
+        const data = await window.API.get("/support/tickets");
+        const rows = data.tickets || [];
+        card.innerHTML = `<div class="dash-card-head"><h3>Your tickets</h3><span class="hint">${rows.length} total</span></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+            <tbody>${rows.length ? rows.map((t) => `<tr>
+              <td><strong>${esc(t.subject)}</strong><small>#${t.id}</small></td>
+              <td>${esc(String(t.category).replace(/_/g, " "))}</td><td>${statusPill(t.priority)}</td>
+              <td>${statusPill(t.status)}</td><td>${fmtDate(t.updated_at)}</td>
+              <td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-ticket-open="${t.id}">Open</button></td></tr>`).join("") : emptyRow(6, "No tickets raised yet.")}</tbody></table></div>`;
+        card.querySelectorAll("[data-ticket-open]").forEach((b) => b.addEventListener("click", () => openTicket(Number(b.dataset.ticketOpen), load)));
+      } catch (e) { card.innerHTML = `<div class="dash-card-pad">${esc(e.message || "Could not load tickets.")}</div>`; }
+    };
+    load();
+  }
+
+  async function openTicket(ticketId, onChange) {
+    const modal = openModal("Ticket #" + ticketId, `<div class="dash-card-pad">Loading…</div>`, { wide: true });
+    const render = async () => {
+      try {
+        const data = await window.API.get(`/support/tickets/${ticketId}`);
+        const t = data.ticket;
+        modal.querySelector(".dash-modal-head h3").textContent = t.subject;
+        modal.querySelector(".dash-modal-body").innerHTML = `
+          <div class="portal-detail-meta" style="margin:6px 0 14px">
+            <div><b>Status</b>${statusPill(t.status)}</div>
+            <div><b>Priority</b>${statusPill(t.priority)}</div>
+            <div><b>Category</b>${esc(String(t.category).replace(/_/g, " "))}</div>
+            <div><b>Updated</b>${fmtDate(t.updated_at)}</div>
+          </div>
+          <div class="dash-card" style="margin-bottom:12px"><div class="dash-card-pad"><p style="white-space:pre-wrap">${esc(t.body)}</p>
+            <small class="hint">Raised by ${esc(t.created_by_name || "administrator")} on ${fmtDate(t.created_at)}</small></div></div>
+          <div class="portal-rows">
+            ${(data.notes || []).map((n) => `<div class="portal-notif">
+              <div class="portal-notif-body"><strong>${esc(n.author_name || "Platform team")}</strong>
+                <p style="white-space:pre-wrap">${esc(n.note)}</p><small>${fmtDate(n.created_at)}</small></div></div>`).join("") || `<p class="hint">No replies yet.</p>`}
+          </div>
+          ${["open", "in_progress", "awaiting_reply"].includes(t.status) ? `
+            <form id="ticketReplyForm" style="margin-top:12px">
+              <div class="dash-field"><label>Reply</label><textarea name="note" rows="3" required></textarea></div>
+              <div class="dash-actions" style="margin-top:10px">
+                <button class="dash-btn dash-btn-primary" type="submit">Send reply</button>
+                <button class="dash-btn dash-btn-ghost" type="button" id="ticketCloseBtn">Close ticket</button>
+              </div></form>` : `<p class="hint" style="margin-top:10px">This ticket is ${esc(t.status)}.</p>`}`;
+        const replyForm = modal.querySelector("#ticketReplyForm");
+        if (replyForm) {
+          replyForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            try {
+              await window.API.post(`/support/tickets/${ticketId}/notes`, { note: new FormData(e.target).get("note") });
+              toast("Reply sent.", "success"); render(); if (onChange) onChange();
+            } catch (err) { toast(err.message || "Could not send the reply.", "error"); }
+          });
+          modal.querySelector("#ticketCloseBtn").addEventListener("click", async () => {
+            if (!window.confirm("Close this ticket?")) return;
+            try { await window.API.patch(`/support/tickets/${ticketId}`, { status: "closed" }); toast("Ticket closed.", "success"); render(); if (onChange) onChange(); }
+            catch (err) { toast(err.message || "Could not close the ticket.", "error"); }
+          });
+        }
+      } catch (e) { modal.querySelector(".dash-modal-body").innerHTML = `<div class="dash-card-pad">${esc(e.message || "Could not load the ticket.")}</div>`; }
+    };
+    render();
+  }
+
+  /* ====================================================================
+     PLATFORM SUPPORT — super admin queue  (route: platform/tickets)
+     ==================================================================== */
+  async function pageSuperTickets(content) {
+    content.innerHTML = supportHead("Platform", "Support tickets", "Every institution's tickets, newest activity first.", "");
+    const stats = document.createElement("div");
+    stats.className = "dash-stats-grid";
+    content.appendChild(stats);
+    const card = document.createElement("div");
+    card.className = "dash-card";
+    content.appendChild(card);
+    const load = async (filter) => {
+      stats.innerHTML = `<div class="dash-card-pad">Loading…</div>`;
+      card.innerHTML = `<div class="dash-card-pad">Loading…</div>`;
+      try {
+        const data = await window.API.get(`/platform/tickets${filter ? `?status=${encodeURIComponent(filter)}` : ""}`);
+        const rows = data.tickets || [];
+        const counts = data.counts || {};
+        stats.innerHTML = `
+          ${statCard("shield", counts.open || 0, "Open", counts.open ? "accent" : "")}
+          ${statCard("clock", counts.in_progress || 0, "In progress")}
+          ${statCard("chat", counts.awaiting_reply || 0, "Awaiting reply")}
+          ${statCard("check", (counts.resolved || 0) + (counts.closed || 0), "Resolved / closed")}`;
+        card.innerHTML = `<div class="dash-card-head"><h3>Ticket queue</h3>
+            <div class="dash-filters"><select id="ticketFilter">
+              ${["", "open", "in_progress", "awaiting_reply", "resolved", "closed"].map((s) => `<option value="${s}"${s === (filter || "") ? " selected" : ""}>${s ? s.replace(/_/g, " ") : "all statuses"}</option>`).join("")}
+            </select></div></div>
+          <div class="dash-table-wrap"><table class="dash-table">
+            <thead><tr><th>Ticket</th><th>Institution</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Updated</th><th></th></tr></thead>
+            <tbody>${rows.length ? rows.map((t) => `<tr>
+              <td><strong>${esc(t.subject)}</strong><small>#${t.id} · ${esc(String(t.category).replace(/_/g, " "))}</small></td>
+              <td>${esc(t.madrasa_name || "—")}</td>
+              <td>${statusPill(t.priority)}</td><td>${statusPill(t.status)}</td>
+              <td>${esc(t.assigned_to_name || "—")}</td><td>${fmtDate(t.updated_at)}</td>
+              <td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-sa-ticket="${t.id}">Open</button></td></tr>`).join("") : emptyRow(7, "No tickets.")}</tbody></table></div>`;
+        card.querySelector("#ticketFilter").addEventListener("change", (e) => load(e.target.value));
+        card.querySelectorAll("[data-sa-ticket]").forEach((b) => b.addEventListener("click", () => pageSuperTicketDetail(content, b.dataset.saTicket, () => load(filter))));
+      } catch (e) { card.innerHTML = `<div class="dash-card-pad">${esc(e.message || "Could not load tickets.")}</div>`; stats.innerHTML = ""; }
+    };
+    load("");
+  }
+
+  async function pageSuperTicketDetail(content, id, onBack) {
+    const render = async () => {
+      let data;
+      try { data = await window.API.get(`/platform/tickets/${id}`); }
+      catch (e) { content.innerHTML = errorBlock("Platform", "Ticket", e); return; }
+      const t = data.ticket;
+      const notes = data.notes || [];
+      content.innerHTML = supportHead("Platform", t.subject, `Ticket #${t.id} · ${t.madrasa_name} · raised by ${t.created_by_name || "administrator"}`, `
+        <button class="dash-btn dash-btn-ghost" id="backToTickets">Back to queue</button>`);
+      const grid = document.createElement("div");
+      grid.className = "portal-grid-2";
+      grid.innerHTML = `
+        <div class="dash-card"><div class="dash-card-head"><h3>Ticket</h3></div><div class="dash-card-pad">
+          <div class="portal-detail-meta">
+            <div><b>Status</b>${statusPill(t.status)}</div>
+            <div><b>Priority</b>${statusPill(t.priority)}</div>
+            <div><b>Category</b>${esc(String(t.category).replace(/_/g, " "))}</div>
+            <div><b>Assigned</b>${esc(t.assigned_to_name || "—")}</div>
+          </div>
+          <p style="white-space:pre-wrap">${esc(t.body)}</p>
+          <form id="saTicketUpdate" style="margin-top:12px"><div class="dash-form-grid">
+            <div class="dash-field"><label>Status</label><select name="status">${["open", "in_progress", "awaiting_reply", "resolved", "closed"].map((s) => `<option value="${s}"${t.status === s ? " selected" : ""}>${s.replace(/_/g, " ")}</option>`).join("")}</select></div>
+            <div class="dash-field"><label>Priority</label><select name="priority">${["low", "medium", "high", "urgent"].map((p) => `<option value="${p}"${t.priority === p ? " selected" : ""}>${p}</option>`).join("")}</select></div>
+            <div class="dash-field"><label>Assign to</label><input name="assigned_to" type="number" min="0" placeholder="super admin user id" value="${t.assigned_to || ""}"></div>
+          </div><div class="dash-actions" style="margin-top:10px"><button class="dash-btn dash-btn-primary" type="submit">${I.check} Update ticket</button></div></form>
+        </div></div>
+        <div class="dash-card"><div class="dash-card-head"><h3>Notes & replies</h3></div><div class="dash-card-pad">
+          <div class="portal-rows">
+            ${notes.length ? notes.map((n) => `<div class="portal-notif${n.internal_only ? "" : " is-unread"}">
+              <div class="portal-notif-body"><strong>${esc(n.author_name || "—")}</strong>${n.internal_only ? ' <span class="dash-pill warn">internal</span>' : ""}
+                <p style="white-space:pre-wrap">${esc(n.note)}</p><small>${fmtDate(n.created_at)}</small></div></div>`).join("") : `<p class="hint">No notes yet.</p>`}
+          </div>
+          <form id="saTicketNote" style="margin-top:12px"><div class="dash-field">
+            <label>Add note</label><textarea name="note" rows="3" required></textarea>
+            <label style="display:flex;gap:8px;align-items:center;margin-top:8px;font-weight:600"><input type="checkbox" name="internal_only"> Internal only (hidden from the institution)</label>
+          </div><div class="dash-actions" style="margin-top:10px"><button class="dash-btn dash-btn-primary" type="submit">Add note</button></div></form>
+        </div></div>`;
+      content.appendChild(grid);
+      grid.querySelector("#saTicketUpdate").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = Object.fromEntries(new FormData(e.target).entries());
+        const body = { status: fd.status, priority: fd.priority };
+        if (fd.assigned_to !== String(t.assigned_to || "")) body.assigned_to = Number(fd.assigned_to) || 0;
+        try { await window.API.patch(`/platform/tickets/${id}`, body); toast("Ticket updated.", "success"); render(); }
+        catch (err) { toast(err.message || "Could not update.", "error"); }
+      });
+      grid.querySelector("#saTicketNote").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          await window.API.post(`/platform/tickets/${id}/notes`, { note: fd.get("note"), internal_only: fd.get("internal_only") === "on" });
+          toast("Note added.", "success"); render();
+        } catch (err) { toast(err.message || "Could not add the note.", "error"); }
+      });
+      content.querySelector("#backToTickets").addEventListener("click", () => { if (onBack) onBack(); else go("platform/tickets"); });
+    };
+    render();
   }
 
   /* --------------------------------------------------------------------

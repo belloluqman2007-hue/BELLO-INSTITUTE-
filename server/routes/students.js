@@ -321,11 +321,17 @@ router.get("/:id", requirePermission("students.view"), asyncHandler(async (req, 
     ? assignedTotal
     : await db.get("SELECT COALESCE(SUM(amount_ngn), 0) AS total FROM fee_items WHERE madrasa_id = ? AND status = 'active' AND (class_id IS NULL OR class_id = ?)", [tid, s.class_id]);
   const messageHistory = await db.all("SELECT id, scope, author_name, body, created_at FROM messages WHERE madrasa_id = ? AND (scope != 'direct' OR user_id = ? OR recipient_user_id = ?) ORDER BY id DESC LIMIT 50", [tid, req.user.id, req.user.id]);
+  // Portal-account status (additive; never exposes password hashes). Both the
+  // student login and the linked parent logins are read from the SAME tables
+  // the login flow uses (users / parent_links), always scoped to this tenant.
+  const portalAccounts = await readPortalAccounts(tid, s.id);
   ok(res, {
     student: Object.assign({}, s, { class_en: classRow ? classRow.name_en : "", class_ar: classRow ? classRow.name_ar : "", islamic_class_name: islamicClass ? islamicClass.name_en : "", western_class_name: westernClass ? westernClass.name_en : "" }),
     terms, results, attendance, payments, documents, groups, statusHistory, classHistory, communications, lifeRecords, homework,
     application, finance: { paid, billed: Number(feeTotal && feeTotal.total || 0), outstanding: Math.max(0, Number(feeTotal && feeTotal.total || 0) - paid) },
     communicationHistory: messageHistory,
+    portalAccount: portalAccounts.student,
+    parentAccounts: portalAccounts.parents,
   });
 }));
 
@@ -581,6 +587,38 @@ router.post("/:id/photo", requireRole("madrasa_admin"), imageUploader("photos", 
 }));
 
 /* ------------------------------ portal account ------------------------- */
+
+/**
+ * Reads the login accounts attached to one student, for the student-profile
+ * "Portal access" panel. Tenant id is always the SERVER-derived one; only
+ * non-sensitive columns are selected (never password_hash).
+ */
+async function readPortalAccounts(tid, studentId) {
+  const student = await db.get(
+    "SELECT id, username, is_active, created_at FROM users WHERE student_id = ? AND madrasa_id = ? AND role = 'student'",
+    [studentId, tid]
+  );
+  const parents = await db.all(
+    `SELECT u.id, u.username, u.full_name, u.phone, u.is_active, u.created_at
+       FROM parent_links pl JOIN users u ON u.id = pl.user_id AND u.madrasa_id = pl.madrasa_id
+      WHERE pl.madrasa_id = ? AND pl.student_id = ? AND u.role = 'parent'
+      ORDER BY u.username`,
+    [tid, studentId]
+  );
+  for (const p of parents) {
+    p.is_active = Number(p.is_active) === 1;
+    p.children = await db.all(
+      `SELECT s.id, s.first_name, s.last_name, s.admission_no
+         FROM parent_links pl JOIN students s ON s.id = pl.student_id AND s.madrasa_id = pl.madrasa_id
+        WHERE pl.madrasa_id = ? AND pl.user_id = ? ORDER BY s.first_name, s.last_name`,
+      [tid, p.id]
+    );
+  }
+  return {
+    student: student ? { id: student.id, username: student.username, is_active: Number(student.is_active) === 1, created_at: student.created_at } : null,
+    parents,
+  };
+}
 
 /** Create (or reset) the student's portal login account. */
 router.post("/:id/portal-account", requireRole("madrasa_admin"), asyncHandler(async (req, res) => {

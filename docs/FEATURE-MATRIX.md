@@ -53,6 +53,16 @@ Legend: ✅ present before this pass · 🆕 added in this pass · ♻️ extend
 | 35 | Parent | **Online fee payment** — per-item outstanding, initiate, provider checkout redirect, status polling, receipts; success only via verified webhook/callback | ♻️ existing payments tables | ♻️ `/api/payments/initiate` + gateway callback/webhook (auth-order bug FIXED: 403/404/400 now precede the 503 gateway-not-configured answer) | 🆕 Parent → Fees → Pay online + receipt view | ✅ linked children + tenant-scoped fee items | 🆕 parent-payments (9) | ✅ |
 | 36 | All | Exam publish/release notifications | ♻️ notifications | 🆕 `online_exam_published` / `online_exam_released` audiences | ♻️ portal bell | ✅ | 🆕 online-exams | ✅ |
 
+## Added or completed in the account-creation pass (this one)
+
+| # | User | Feature | Backend | API | Frontend | Permissions | Tests | Status |
+|---|------|---------|---------|-----|----------|-------------|-------|--------|
+| 37 | Admin | **Student portal login — create & reset from the UI** — the "Portal access" tab in the existing student-profile modal shows *No login yet* or the username + active state, and creates or resets the login | ♻️ `users` | ♻️ existing `POST /api/students/:id/portal-account` (no new endpoint) | ♻️ `dashboard.js` — new `data-profile-tab="portal"` entry in the existing tab/render map | ✅ `requireRole("madrasa_admin")` + tenant scope (unchanged) | 🆕 portal-accounts, portal-access-ui | ✅ |
+| 38 | Admin | **Parent portal login — create & link from the UI** — same tab lists every linked parent account with its children, and creates a new one (username, password, display name, phone) | ♻️ `users` + `parent_links` | ♻️ existing `POST /api/students/:id/parent-account` (accepts `student_ids` for multi-child) | ♻️ same Portal access tab | ✅ madrasa_admin + tenant scope (unchanged) | 🆕 portal-accounts, portal-access-ui | ✅ |
+| 39 | Admin | **Account creation during admission conversion** — the CONVERT TO STUDENT action now offers optional student/parent logins with editable usernames (defaults: admission number, admission number + `-p`) and one shared password; the confirmation names the created usernames | ♻️ unchanged | ♻️ existing `POST /api/admissions/:id/convert` fields `create_student_account`, `create_parent_account`, `student_username`, `parent_username`, `password` | ♻️ `academic-admissions.js` `#convertApplicant` (previously posted `{}`) | ✅ `admissions.approve` (unchanged) | 🆕 portal-accounts | ✅ |
+| 40 | Admin | **Portal-account status on the student record** — `GET /api/students/:id` additively reports the student login (username, is_active, created_at) and the linked parent logins with their children | ♻️ reads `users` / `parent_links` only | ♻️ additive fields `portalAccount`, `parentAccounts` — existing fields untouched | ♻️ consumed by the Portal access tab | ✅ existing staff-only rule preserved; never returns password hashes | 🆕 portal-accounts | ✅ |
+| 41 | All | **Account creation & login guide** — the complete flow for all five account types, the one-login-page rule, and how Accountant/HR/Receptionist/Librarian staff are TEACHER accounts + permission templates | — | — | 📄 `README.md` | — | 🆕 source-contract tests | ✅ |
+
 ## Preservation notes
 
 - The 5 core account roles are unchanged; "staff roles" are **permission bundles** on
@@ -64,3 +74,10 @@ Legend: ✅ present before this pass · 🆕 added in this pass · ♻️ extend
   endpoint for Western tenants, server-side).
 - No duplicate modules: the portals share one shell (`portal.js`) and the admin's design
   system (`dashboard.css`); the PTM booking flow remains the single implementation.
+- The account-creation pass added **no** new endpoint, module, modal system or login page.
+  The student/parent/admission-conversion APIs already existed and are unchanged; the work
+  was the missing UI plus one additive, read-only extension of `GET /api/students/:id`.
+- Authorization was **not** relaxed to make the feature work: `POST
+  /students/:id/portal-account` and `/parent-account` keep `requireRole("madrasa_admin")`,
+  the same rule every other student write endpoint in that router uses. Teachers, students
+  and parents get 403; a cross-tenant student id gets 404.

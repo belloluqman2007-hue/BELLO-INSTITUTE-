@@ -49,7 +49,7 @@ Usernames are **case-insensitive** (`Admin` and `admin` are the same account).
 ```bash
 npm run seed -- --demo   # optional: add 2 demo madaris with users, classes, results,
                          #            timetables, published results and public-site flags
-npm test                 # automated suite (isolated temp database, 581 tests —
+npm test                 # automated suite (isolated temp database, 597 tests —
                          # includes browser-level checks that drive the public site,
                          # the admin console and the three portals in jsdom)
 bash test/smoke.sh       # end-to-end checks against a running dev server (70 checks)
@@ -69,21 +69,33 @@ instead of failing silently:
 
 ### Demo logins (after `npm run seed -- --demo`)
 
-| Role          | Username                  | Password      |
-| ------------- | ------------------------- | ------------- |
-| Super Admin   | `admin`                   | see `.dev-credentials.txt` (local only, git-ignored) |
-| Madrasa Admin (Quraniyya) | `demo-quraniyya-admin` | `Demo1234!` |
-| Madrasa Admin (Fatihah)   | `demo-fatihah-admin`   | `Demo1234!` |
-| Teacher       | `demo-quraniyya-ust1`     | `Demo1234!`   |
-| Parent        | `demo-quraniyya-parent1`  | `Parent1234!` |
-| Student       | `demo-quraniyya-stu1`     | `Student1234!`|
+Every one of these signs in at the **same** `/login` page and is routed to its
+own workspace by the server. The usernames below are exactly what
+`server/seed.js --demo` creates — nothing is invented here.
+
+| Role | Username | Password | Lands on |
+| ---- | -------- | -------- | -------- |
+| Super Admin | `admin` (or `SUPER_ADMIN_USERNAME`) | `SUPER_ADMIN_PASSWORD`, else the generated one in `.dev-credentials.txt` (local only, git-ignored) | `/admin` |
+| Madrasa Admin (Quraniyya) | `demo-quraniyya-admin` | `Demo1234!` | `/admin` |
+| Madrasa Admin (Fatihah) | `demo-fatihah-admin` | `Demo1234!` | `/admin` |
+| Teacher (Quraniyya) | `demo-quraniyya-ust1` | `Demo1234!` | `/teacher` |
+| Teacher (Fatihah) | `demo-fatihah-ust1` | `Demo1234!` | `/teacher` |
+| Student (Quraniyya) | `demo-quraniyya-stu1`, `demo-quraniyya-stu2` | `Student1234!` | `/student` |
+| Student (Fatihah) | `demo-fatihah-stu1`, `demo-fatihah-stu2` | `Student1234!` | `/student` |
+| Parent (Quraniyya) | `demo-quraniyya-parent1`, `demo-quraniyya-parent2` | `Parent1234!` | `/parent` |
+| Parent (Fatihah) | `demo-fatihah-parent1`, `demo-fatihah-parent2` | `Parent1234!` | `/parent` |
+
+The seed creates **no** Accountant/HR/Receptionist demo account, because those
+are not roles — create a teacher account and apply a permission template (see
+*Account creation & login guide* below).
 
 Teachers sign in at **`/teacher`**, students at **`/student`** and parents at
 **`/parent`** — or simply use the main sign-in (`/login`), which hands every
 account to its own workspace automatically.
 
-(`demo-fatihah-…` accounts exist for the second madrasa as well. Parent 1 is
-linked to two children, demonstrating the multi-child parent portal.)
+(Each demo madrasa seeds two parent and two student logins; each parent is
+linked to their own child. The multi-child parent case is supported by the
+parent-account API's `student_ids` array — see the account guide below.)
 
 Demo data is generated **relative to the date you run the seed** — the academic
 session spans the current September→August year, attendance covers the last 20
@@ -134,6 +146,135 @@ request is scoped to `req.user.madrasa_id`, and every tenant-owned query
 filters by it. A Madrasa A account can never reach Madrasa B data via URL,
 ID, query parameter, or forged form fields — verified by automated tests
 (see `docs/SECURITY.md`).
+
+---
+
+## Account creation & login guide (all five account types)
+
+### There is ONE login page
+
+Everybody — platform operator, institution administrator, teacher, student and
+parent — signs in at **`/login`**.
+
+- There is **no role-selection screen**. The form only asks for a username (or
+  email) and a password.
+- The **server** authenticates the credentials, reads the real role from the
+  database, and the page routes the visitor automatically:
+
+| Role | Lands on |
+| ---- | -------- |
+| `SUPER_ADMIN` | `/admin` (platform console) |
+| `MADRASA_ADMIN` | `/admin` (institution dashboard) |
+| `TEACHER` | `/teacher` |
+| `STUDENT` | `/student` |
+| `PARENT` | `/parent` |
+
+A role can never be chosen, typed or forged from the browser. `/teacher`,
+`/student` and `/parent` are simply the workspaces' own addresses; they fall
+back to the same sign-in form when the visitor has no session.
+
+### 1. SUPER_ADMIN — seeded automatically
+
+Created on the **first boot of an empty database** by `server/seed.js` (also
+run by `npm run seed`). It is the only account the platform creates for you.
+
+| Environment variable | Meaning | Default |
+| -------------------- | ------- | ------- |
+| `SUPER_ADMIN_USERNAME` | The super admin's username (lower-cased; sign-in is case-insensitive) | `admin` |
+| `SUPER_ADMIN_PASSWORD` | Its password. **Required in production** — the boot refuses to start without it rather than come up unreachable. | none |
+
+Outside production, if `SUPER_ADMIN_PASSWORD` is unset the seed **generates**
+a password, prints it as a banner and writes it to `.dev-credentials.txt`
+(git-ignored). Existing super admins are never overwritten; use
+`npm run reset-admin-password` to set a new password on an existing database.
+
+### 2. MADRASA_ADMIN — created by the SUPER_ADMIN
+
+Signed in as the super admin: **Platform Console → Madaris / Registrations**.
+Approving a school registration (or creating a madrasa directly) creates the
+institution together with its administrator account
+(`server/routes/platform.js`). There is no second institution-admin flow.
+
+### 3. TEACHER — created by the institution admin
+
+**Admin Dashboard → Teachers → Add Teacher** (`POST /api/teachers`).
+
+- Supply a username; the temporary password is optional — if you leave it out
+  the API generates one and returns it once as `tempPassword`. Hand it to the
+  teacher and ask them to change it from their account page.
+- A teacher can also be created by approving a **teacher application**
+  (Teachers → Teacher Applications → *Approve & create teacher*).
+
+### 4. STUDENT — created by the institution admin
+
+**Admin → Students → open a student profile → "Portal access" tab.**
+
+- The tab shows the current state: *No login yet*, or the existing username
+  with its active/inactive status.
+- Fill in a **username** (lower-case letters, digits, `.`, `-` or `_`, at
+  least 3 characters) and a **password** (at least 8 characters), then press
+  *Create student login* — or *Reset student login* if one already exists, which
+  replaces the username/password on the **same** account rather than making a
+  second one.
+- Alternatively, tick **Create student login** while converting an admission
+  applicant (see below).
+
+The tab is only offered to the institution's administrator, and the endpoint
+behind it (`POST /api/students/:id/portal-account`) enforces the same rule
+server-side, scoped to the administrator's own institution.
+
+### 5. PARENT — created by the institution admin
+
+Same place: **Student profile → "Portal access" tab → Create a parent login**.
+
+- Fields: username, password, display name and phone (the last two fall back
+  to the guardian details already on the student record).
+- The new account is linked to the child immediately, and the tab lists every
+  parent login attached to the student together with **all** of that parent's
+  linked children.
+- One parent account can cover **several children** — the API accepts a
+  `student_ids` array (`POST /api/students/:id/parent-account`).
+- A parent login can also be created during admission conversion.
+
+### Creating accounts during admission conversion
+
+**Admin → Admissions → Applications → open an accepted application → CONVERT
+TO STUDENT.** The conversion dialog offers:
+
+- ☐ **Create student login** — username defaults to the admission number
+- ☐ **Create parent login** — username defaults to the admission number + `-p`
+- one shared **password** (minimum 8 characters) used for whichever boxes are ticked
+
+Both are optional; the student *record* is always created. After a successful
+conversion the confirmation names the accounts that were created, e.g.
+*"Student account created: adm-2026-0007 · Parent account created:
+adm-2026-0007-p"*. Passwords are never echoed back, logged or stored in plain
+text.
+
+### Staff accounts: Accountant, HR Officer, Receptionist, Librarian, …
+
+**These are not separate login roles.** The platform has exactly five account
+roles. An Accountant, HR Officer, Librarian, Receptionist, Admissions Officer
+or Academic Officer is a **TEACHER account with a permission template
+applied**:
+
+1. **Admin → Teachers → Add Teacher** — create the staff member's account as
+   normal.
+2. **Admin → Settings → Roles & Permissions** — find the account.
+3. **Apply the matching permission template** (Accountant, Librarian,
+   Admissions Officer, Academic Officer, HR Officer, Receptionist). The
+   template grants exactly that role's permissions and revokes the teacher
+   defaults it does not include, so e.g. a Librarian cannot grade or export
+   students. You can fine-tune individual permissions afterwards on the same
+   screen.
+4. The person signs in at **`/login`** like everyone else, with a **TEACHER**
+   account, and lands on the teacher workspace.
+5. **Their permissions decide what they see** — an Accountant sees fees,
+   payments and expenses; a Receptionist sees the front-desk and admissions
+   intake screens; and so on.
+
+Applying a template requires the `roles.manage` permission, only works on
+teacher-role accounts, and is written to the audit log.
 
 ## Project structure
 

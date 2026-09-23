@@ -87,7 +87,18 @@ router.post("/messages", asyncHandler(async (req, res) => {
   const recipientIds = [...new Set(ids(b.recipient_user_ids ?? b.recipient_ids ?? b.recipient_user_id))].filter((id) => id !== Number(req.user.id));
   if (!recipientIds.length) return err(res, 400, "At least one recipient is required.");
   const recipients = [];
-  for (const id of recipientIds) { const u = await userInTenant(tid, id); if (!u) return err(res, 400, "One or more recipients are not available in this institution."); if (!comm.RECIPIENT_ROLES.includes(u.role)) return err(res, 400, "That user cannot receive internal messages."); recipients.push(u); }
+  for (const id of recipientIds) {
+    const u = await userInTenant(tid, id);
+    if (!u) return err(res, 400, "One or more recipients are not available in this institution.");
+    if (!comm.RECIPIENT_ROLES.includes(u.role)) return err(res, 400, "That user cannot receive internal messages.");
+    // Student and parent accounts may only write to staff (administrators and
+    // their teachers). A family account messaging an arbitrary student would
+    // be unrestricted contact with minors — the backend refuses it outright.
+    if ((req.user.role === "student" || req.user.role === "parent") && !comm.STAFF_ROLES.includes(u.role)) {
+      return err(res, 400, "You can only message teachers and administrators.");
+    }
+    recipients.push(u);
+  }
   const body = cleanStr(b.body ?? b.content, 10000); if (!body) return err(res, 400, "Message body is required.");
   const kind = recipientIds.length > 1 ? "group" : "individual";
   const result = await db.transaction(async (tx) => {

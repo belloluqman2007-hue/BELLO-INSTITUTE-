@@ -50,6 +50,7 @@
           <p class="section-kicker">Parent portal</p>
           <h1 style="margin:6px 0 6px">Book a meeting</h1>
           <p style="max-width:640px;color:#6d6878">Choose your child, pick one of their teachers and reserve a time for the parent-teacher meeting. Your booking is confirmed immediately and both you and the teacher are notified.</p>
+          <p style="margin:0 0 4px"><a href="/parent" style="font-weight:700;color:#38146a;">← Back to the parent portal</a></p>
           <div class="ptm-portal" style="margin-top:22px">${inner}</div>
         </div>
       </main>`;

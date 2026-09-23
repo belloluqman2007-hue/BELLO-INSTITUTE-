@@ -542,6 +542,114 @@ router.get("/diagnostics", asyncHandler(async (req, res) => {
   });
 }));
 
+/* ------------------------------ support tickets ------------------------ */
+/*
+ * The operator's half of the support-ticket workflow (the institution's half
+ * lives in /api/support). The queue is platform-wide; every action is audited
+ * against the tenant that owns the ticket.
+ */
+const { CATEGORIES: TICKET_CATEGORIES, PRIORITIES: TICKET_PRIORITIES, STATUSES: TICKET_STATUSES } = require("./support");
+
+router.get("/tickets", asyncHandler(async (req, res) => {
+  const where = ["1=1"]; const params = [];
+  const status = cleanStr(req.query.status, 20);
+  if (status && TICKET_STATUSES.has(status)) { where.push("t.status = ?"); params.push(status); }
+  const priority = cleanStr(req.query.priority, 20);
+  if (priority && TICKET_PRIORITIES.has(priority)) { where.push("t.priority = ?"); params.push(priority); }
+  const madrasaId = toNum(req.query.madrasaId, 0);
+  if (madrasaId) { where.push("t.madrasa_id = ?"); params.push(madrasaId); }
+  if (req.query.q) {
+    const like = `%${cleanStr(req.query.q, 120).toLowerCase()}%`;
+    where.push("(LOWER(t.subject) LIKE ? OR LOWER(COALESCE(t.body,'')) LIKE ? OR LOWER(m.name_en) LIKE ?)");
+    params.push(like, like, like);
+  }
+  const tickets = await db.all(
+    `SELECT t.*, m.name_en AS madrasa_name, m.slug AS madrasa_slug, u.full_name AS created_by_name,
+            a.full_name AS assigned_to_name
+       FROM support_tickets t
+       JOIN madaris m ON m.id = t.madrasa_id
+       LEFT JOIN users u ON u.id = t.created_by
+       LEFT JOIN users a ON a.id = t.assigned_to
+      WHERE ${where.join(" AND ")} ORDER BY CASE t.status WHEN 'open' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'awaiting_reply' THEN 3 WHEN 'resolved' THEN 4 ELSE 5 END, t.updated_at DESC, t.id DESC LIMIT 300`,
+    params
+  );
+  const counts = {};
+  for (const row of await db.all("SELECT status, COUNT(*) AS n FROM support_tickets GROUP BY status")) counts[row.status] = Number(row.n);
+  ok(res, { tickets, counts });
+}));
+
+router.get("/tickets/:id", asyncHandler(async (req, res) => {
+  const id = toNum(req.params.id, 0);
+  const ticket = await db.get(
+    `SELECT t.*, m.name_en AS madrasa_name, m.slug AS madrasa_slug, u.full_name AS created_by_name,
+            a.full_name AS assigned_to_name
+       FROM support_tickets t
+       JOIN madaris m ON m.id = t.madrasa_id
+       LEFT JOIN users u ON u.id = t.created_by
+       LEFT JOIN users a ON a.id = t.assigned_to
+      WHERE t.id = ?`, [id]
+  );
+  if (!ticket) return err(res, 404, "Ticket not found.");
+  const notes = await db.all(
+    `SELECT n.*, u.full_name AS author_name FROM support_ticket_notes n
+       LEFT JOIN users u ON u.id = n.author_user_id
+      WHERE n.ticket_id = ? ORDER BY n.id`, [id]
+  );
+  ok(res, { ticket, notes });
+}));
+
+router.patch("/tickets/:id", asyncHandler(async (req, res) => {
+  const id = toNum(req.params.id, 0);
+  const ticket = await db.get("SELECT * FROM support_tickets WHERE id = ?", [id]);
+  if (!ticket) return err(res, 404, "Ticket not found.");
+  const b = req.body || {};
+  const sets = []; const vals = [];
+  const status = cleanStr(b.status, 20);
+  if (status) {
+    if (!TICKET_STATUSES.has(status)) return err(res, 400, "Unknown ticket status.");
+    sets.push("status = ?"); vals.push(status);
+    sets.push("resolved_at = " + (["resolved", "closed"].includes(status) ? "CURRENT_TIMESTAMP" : "NULL"));
+  }
+  const priority = cleanStr(b.priority, 20);
+  if (priority) {
+    if (!TICKET_PRIORITIES.has(priority)) return err(res, 400, "Unknown ticket priority.");
+    sets.push("priority = ?"); vals.push(priority);
+  }
+  if (b.assigned_to !== undefined) {
+    const assignee = toNum(b.assigned_to, 0);
+    if (assignee && !await db.get("SELECT id FROM users WHERE id = ? AND role = 'super_admin' AND is_active = 1", [assignee])) {
+      return err(res, 400, "Tickets can only be assigned to a platform administrator.");
+    }
+    sets.push("assigned_to = ?"); vals.push(assignee || null);
+  }
+  if (!sets.length) return err(res, 400, "Nothing to update.");
+  sets.push("updated_at = CURRENT_TIMESTAMP");
+  vals.push(id);
+  await db.run(`UPDATE support_tickets SET ${sets.join(", ")} WHERE id = ?`, vals);
+  logActivity(db, { madrasaId: ticket.madrasa_id, userId: req.user.id, action: "platform.ticket.update", entity: "support_ticket", entityId: String(id), meta: { status, priority }, ip: req.ip });
+  ok(res, { ok: true });
+}));
+
+router.post("/tickets/:id/notes", asyncHandler(async (req, res) => {
+  const id = toNum(req.params.id, 0);
+  const ticket = await db.get("SELECT * FROM support_tickets WHERE id = ?", [id]);
+  if (!ticket) return err(res, 404, "Ticket not found.");
+  const note = cleanStr(req.body && req.body.note, 10000);
+  if (!note) return err(res, 400, "Note cannot be empty.");
+  const internalOnly = req.body && (req.body.internal_only === true || req.body.internal_only === "1" || req.body.internal_only === 1) ? 1 : 0;
+  await db.run(
+    "INSERT INTO support_ticket_notes (madrasa_id, ticket_id, author_user_id, author_role, note, internal_only) VALUES (?,?,?,?,?,?)",
+    [ticket.madrasa_id, ticket.id, req.user.id, req.user.role, note, internalOnly]
+  );
+  // A public (non-internal) operator reply moves the ticket to awaiting the
+  // institution's response; an internal note leaves the status untouched.
+  if (!internalOnly) {
+    await db.run("UPDATE support_tickets SET status='awaiting_reply', updated_at=CURRENT_TIMESTAMP WHERE id=?", [ticket.id]);
+  }
+  logActivity(db, { madrasaId: ticket.madrasa_id, userId: req.user.id, action: internalOnly ? "platform.ticket.internal_note" : "platform.ticket.reply", entity: "support_ticket", entityId: String(ticket.id), ip: req.ip });
+  ok(res, { ok: true });
+}));
+
 /* ------------------------------ platform settings ---------------------- */
 
 /* Keys stored as "0"/"1" but spoken about as booleans everywhere else. */

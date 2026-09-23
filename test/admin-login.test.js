@@ -285,37 +285,50 @@ test("a session that ends server-side bounces the open console back to the form"
 /*
    Every one of these used to end with the visitor staring at an unchanged
    form: no console, no error, no clue. A sign-in attempt must ALWAYS end in
-   one of exactly two visible states — the console, or a stated reason.
+   a visible outcome — the console, a stated reason, or (since the portal
+   pass) a hand-off to the account's own workspace.
 */
 
-test("a valid NON-ADMIN account (teacher) is told why the console will not open", { skip: skipUI }, async () => {
+test("a valid NON-ADMIN account (teacher) is handed to the teacher workspace", { skip: skipUI }, async () => {
   const page = await openAdminApp("/login");
   page.doc.getElementById("dlUser").value = "teacher-a";
   page.doc.getElementById("dlPass").value = "Passw0rd!123";
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await waitFor(() => page.doc.querySelector(".dash-login-error"));
+  // The routing hand-off renders an interstitial naming the destination and
+  // links on to /teacher — the account has its own workspace now. (Wait for
+  // the portal LINK, not just any card heading: the sign-in form itself also
+  // renders inside a .dash-login-card.)
+  await waitFor(() => page.doc.querySelector('.dash-login-card a[href="/teacher"]'));
   assert.ok(!page.shell(), "a teacher never gets the admin console");
-  assert.ok(page.form(), "the visitor stays on the sign-in form");
-  const err = page.doc.querySelector(".dash-login-error");
-  assert.ok(err, "the attempt does NOT fail silently — a reason is shown");
-  assert.match(err.textContent, /teacher account has no administrator dashboard/i);
-  // The credentials were correct, so a session was created: it must be ended
-  // again rather than left open for an account that cannot use this console.
-  const me = await new Client(ctx.base).req("GET", "/api/auth/me");
-  assert.equal(me.data.loggedIn, false, "the non-admin session is not left open");
+  assert.ok(!page.form(), "the visitor is not silently returned to the form");
+  const heading = page.doc.querySelector(".dash-login-card h1");
+  assert.ok(heading && /opening your workspace/i.test(heading.textContent),
+    "the attempt does NOT fail silently — the hand-off is shown");
+  const link = page.doc.querySelector('.dash-login-card a[href="/teacher"]');
+  assert.ok(link, "the destination is the teacher portal at /teacher");
+  // The credentials were correct, so a session exists — and it is exactly
+  // what the teacher portal needs, so it must stay open.
+  const c = new Client(ctx.base);
+  c.cookies = { mm_session: page.jar.value.replace(/^mm_session=/, "") };
+  const me = await c.req("GET", "/api/auth/me");
+  assert.equal(me.data.loggedIn, true, "the teacher session stays open for the portal");
+  assert.equal(me.data.role, "teacher");
   page.close();
 });
 
-test("a valid NON-ADMIN account (student) is told why the console will not open", { skip: skipUI }, async () => {
+test("a valid NON-ADMIN account (student) is handed to the student portal", { skip: skipUI }, async () => {
   const page = await openAdminApp("/login");
   page.doc.getElementById("dlUser").value = "student-a1";
   page.doc.getElementById("dlPass").value = "Passw0rd!123";
   page.form().dispatchEvent(new page.dom.window.Event("submit", { bubbles: true, cancelable: true }));
-  await waitFor(() => page.doc.querySelector(".dash-login-error"));
+  await waitFor(() => page.doc.querySelector('.dash-login-card a[href="/student"]'));
   assert.ok(!page.shell(), "a student never gets the admin console");
-  const err = page.doc.querySelector(".dash-login-error");
-  assert.ok(err && /student account has no administrator dashboard/i.test(err.textContent),
-    "the student is told why, instead of a silently re-rendered form");
+  assert.ok(!page.form(), "the form is replaced by the hand-off");
+  const heading = page.doc.querySelector(".dash-login-card h1");
+  assert.ok(heading && /opening your workspace/i.test(heading.textContent),
+    "the student is handed off, instead of a silently re-rendered form");
+  const link = page.doc.querySelector('.dash-login-card a[href="/student"]');
+  assert.ok(link, "the destination is the student portal at /student");
   page.close();
 });
 

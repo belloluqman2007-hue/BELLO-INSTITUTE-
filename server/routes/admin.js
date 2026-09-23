@@ -159,6 +159,96 @@ router.put("/permissions/users/:id", permissions.requirePermission("roles.manage
   ok(res, { ok: true, granted: Array.from(grantSet), revoked });
 }));
 
+/* ============================ ROLE TEMPLATES ============================= */
+/*
+ * Recommended staff-role templates. A staff ACCOUNT keeps its teacher role
+ * (the account type the platform already understands); applying a template
+ * replaces its permission overrides so the account behaves as, say, a
+ * librarian — with exactly the permissions that role needs and none of the
+ * teacher defaults that it does not. Administrators can then fine-tune the
+ * result in the same Roles & Permissions screen.
+ */
+const ROLE_TEMPLATES = [
+  {
+    key: "accountant", label: "Accountant",
+    description: "Fees, payments, receipts, expenses, budgets and financial reports.",
+    permissions: ["dashboard.view", "students.view", "fees.view", "fees.create", "payments.view", "payments.create", "payments.verify", "expenses.view", "expenses.create", "finance.reports"],
+  },
+  {
+    key: "librarian", label: "Librarian",
+    description: "Library catalogue, copies, borrowing, returns and library reports.",
+    permissions: ["dashboard.view", "students.view", "teachers.view", "library.view", "library.manage", "library.issue", "library.return"],
+  },
+  {
+    key: "admissions_officer", label: "Admissions Officer",
+    description: "Admissions, applications, applicant communication and student registration.",
+    permissions: ["dashboard.view", "students.view", "students.create", "admissions.view", "admissions.create", "communication.view", "communication.send"],
+  },
+  {
+    key: "academic_officer", label: "Academic Officer",
+    description: "Classes, subjects, exams, results, report cards and the academic calendar.",
+    permissions: ["dashboard.view", "students.view", "teachers.view", "classes.view", "classes.create", "classes.edit", "lessons.view", "assignments.view", "exams.view", "exams.create", "questionbank.view", "questionbank.manage", "results.enter", "results.approve", "results.publish", "report_cards.view", "report_cards.generate", "calendar.view", "calendar.manage"],
+  },
+  {
+    key: "hr_officer", label: "HR Officer",
+    description: "Staff records, leave, payroll and payslips.",
+    permissions: ["dashboard.view", "teachers.view", "teachers.create", "teachers.edit", "staff_leave.view", "staff_leave.approve", "payroll.view", "payroll.create", "payroll.process", "payroll.approve", "payslips.view"],
+  },
+  {
+    key: "receptionist", label: "Receptionist",
+    description: "Student and parent lookup, admissions intake and front-desk communication.",
+    permissions: ["dashboard.view", "students.view", "admissions.view", "admissions.create", "communication.view", "communication.send"],
+  },
+];
+
+router.get("/permissions/templates", permissions.requirePermission("roles.manage"), asyncHandler(async (req, res) => {
+  ok(res, { templates: ROLE_TEMPLATES });
+}));
+
+/** Applies a template to a TEACHER (staff) account in this institution. */
+router.post("/permissions/users/:id/template", permissions.requirePermission("roles.manage"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res); if (tid == null) return;
+  const userId = toNum(req.params.id, 0);
+  const target = await db.get("SELECT id, username, role, full_name FROM users WHERE id = ? AND madrasa_id = ?", [userId, tid]);
+  if (!target) return err(res, 404, "Not found.");
+  // Templates shape STAFF accounts. A madrasa_admin already holds everything;
+  // the only sensible operation on one is a manual override.
+  if (target.role !== "teacher") {
+    return err(res, 400, "Role templates apply to staff accounts (teachers). Adjust administrators manually.");
+  }
+  if (Number(userId) === Number(req.user.id)) {
+    return err(res, 400, "You cannot change your own permissions. Ask another administrator.");
+  }
+  const templateKey = cleanStr(req.body && req.body.template, 60);
+  const template = ROLE_TEMPLATES.find((t) => t.key === templateKey);
+  if (!template) return err(res, 400, "Unknown role template.");
+
+  // granted: exactly the template's permissions.
+  // revoked: every TEACHER default the template does not include, so e.g. a
+  // librarian cannot still export students or grade assignments.
+  const grantSet = new Set(template.permissions);
+  const teacherDefaults = permissions.roleDefaults("teacher");
+  const revoked = teacherDefaults.filter((p) => !grantSet.has(p));
+
+  const before = await db.all("SELECT permission, effect FROM user_permissions WHERE madrasa_id = ? AND user_id = ?", [tid, userId]);
+  await db.transaction(async (tx) => {
+    await tx.run("DELETE FROM user_permissions WHERE madrasa_id = ? AND user_id = ?", [tid, userId]);
+    for (const p of grantSet) {
+      await tx.run("INSERT INTO user_permissions (madrasa_id, user_id, permission, effect, granted_by) VALUES (?,?,?,'grant',?)", [tid, userId, p, req.user.id]);
+    }
+    for (const p of revoked) {
+      await tx.run("INSERT INTO user_permissions (madrasa_id, user_id, permission, effect, granted_by) VALUES (?,?,?,'revoke',?)", [tid, userId, p, req.user.id]);
+    }
+  });
+  await audit.record(req, {
+    action: "permissions.template", module: "settings", entity: "user", entityId: userId,
+    before: { overrides: before },
+    after: { template: template.key, granted: [...grantSet], revoked },
+    meta: { targetUser: target.username },
+  });
+  ok(res, { ok: true, template: template.key, granted: [...grantSet], revoked });
+}));
+
 /* ============================== AUDIT LOG =============================== */
 
 router.get("/audit", permissions.requirePermission("audit.view"), asyncHandler(async (req, res) => {

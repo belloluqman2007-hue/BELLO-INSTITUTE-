@@ -96,7 +96,8 @@
           </div>
           <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
           <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/login">Login</a></div>
-          <div class="footer-col"><h3>Platform</h3><a href="/parent/meetings" data-route="/parent/meetings">Parents: book a meeting</a><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
+          <div class="footer-col"><h3>Portals</h3><a href="/teacher">Teacher workspace</a><a href="/student">Student portal</a><a href="/parent">Parent portal</a><a href="/parent/meetings" data-route="/parent/meetings">Parents: book a meeting</a></div>
+          <div class="footer-col"><h3>Platform</h3><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
         </div>
         <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i></span></div>
       </footer>`;
@@ -309,6 +310,7 @@
           </div>
           <div class="western-footer-column"><h3>Explore</h3><a href="#academies">Schools</a><a href="#academic-areas">Programs</a><a href="#academic-areas">Subjects</a><a href="#about">About</a></div>
           <div class="western-footer-column"><h3>For academies</h3><a href="/register-academy" data-route="/register-academy">Register Your Academy</a><a href="#about">Your school website</a><a href="/login">Login</a><a href="#western-contact">Contact</a></div>
+          <div class="western-footer-column"><h3>Portals</h3><a href="/teacher">Teacher workspace</a><a href="/student">Student portal</a><a href="/parent">Parent portal</a></div>
           <div class="western-footer-column"><h3>Platform</h3><a href="#western-contact">Contact</a><a href="#western-contact">Privacy Policy</a><a href="#western-contact">Terms</a><a href="/" data-route="/">BELLO Education Platform</a></div>
         </div>
         <div class="western-container western-footer-bottom"><span>© <span id="western-year"></span> BELLO Western Academy. All rights reserved.</span><span>Powered by BELLO Education Platform</span></div>
@@ -815,6 +817,23 @@
     renderHomepage();
   }
 
+  /* Teacher / Student / Parent portals (public/js/portal*.js). Each is a
+     complete workspace that mounts into the same #app container through the
+     shared portal shell — one routing hook here, not a second application. */
+  function renderPortal(role) {
+    // Already mounted in the same role: portal.js's own hashchange listener
+    // handles in-portal navigation instead of tearing the whole shell down.
+    const existing = document.getElementById("portalRoot");
+    if (existing && existing.getAttribute("data-portal-role") === role) return;
+    document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
+    if (scrollHandler) { window.removeEventListener("scroll", scrollHandler); scrollHandler = null; }
+    if (window.BelloPortal && typeof window.BelloPortal.mount === "function") {
+      window.BelloPortal.mount(role);
+      return;
+    }
+    renderHomepage();
+  }
+
   function renderRoute() {
     const path = window.location.pathname.replace(/\/+$/, "") || "/";
     const hash = window.location.hash;
@@ -830,11 +849,18 @@
     } else if (/^\/(?:schools|s|school|m)\/[^/]+(?:\/[^/]+)?$/.test(path)) {
       const schoolParts = path.split("/");
       renderSchoolPublic(decodeURIComponent(schoolParts[2]));
-    // Parent portal — "Book a meeting" (Parent-Teacher Meetings). A real
-    // address of its own so a parent can bookmark/refresh it; the module
-    // asks for the parent's own credentials and uses the same tenant-scoped
-    // API as the rest of the platform.
-    } else if (path === "/parent" || path === "/parent/meetings" || hash === "#/parent/meetings" || hash === "#/parent") {
+    // Teacher and Student portals have real addresses of their own, exactly
+    // like /admin — they fall back to their own sign-in when the visitor is
+    // not authenticated.
+    } else if (path === "/teacher" || hash.startsWith("#/teacher/")) {
+      renderPortal("teacher");
+    } else if (path === "/student" || hash.startsWith("#/student/")) {
+      renderPortal("student");
+    // Parent portal — the family dashboard at /parent, with the meeting
+    // booking flow kept as its own bookmarkable address.
+    } else if (path === "/parent" || hash === "#/parent" || hash.startsWith("#/parent/")) {
+      renderPortal("parent");
+    } else if (path === "/parent/meetings" || hash === "#/parent/meetings") {
       renderParentMeetings();
     } else if (path === "/register-academy" || path.startsWith("/register-academy/") || hash === "#/register-academy" || hash === "#register-academy") {
       renderAcademyRegistration();

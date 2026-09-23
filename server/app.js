@@ -43,6 +43,8 @@ const timetableRouter = require("./routes/timetable").router;
 const exportsRouter = require("./routes/exports");
 const extrasRouter = require("./routes/extras");
 const backupsRouter = require("./routes/backups").router;
+const calendarRouter = require("./routes/calendar");
+const supportRouter = require("./routes/support").router;
 const quranProgressRouter = require("./routes/quran-progress");
 const academicRouter = require("./routes/academic");
 const libraryRouter = require("./routes/library");
@@ -177,6 +179,10 @@ function createApp() {
   // shell mounts the parent module there and the API enforces the session.
   app.get("/parent", schoolLinkHandler);
   app.get("/parent/meetings", schoolLinkHandler);
+  // Teacher and Student portals — real, reloadable addresses of their own so
+  // a bookmark or shared link opens the right workspace directly.
+  app.get("/teacher", schoolLinkHandler);
+  app.get("/student", schoolLinkHandler);
 
   /* ------------------------- PUBLIC API (no login) -------------------- */
   // The logged-out public site (directory, madrasa profile, online admission,
@@ -282,6 +288,12 @@ function createApp() {
   // Keep the short /api/exams address for integrations while the dashboard
   // uses the grouped /api/academic/exams address.
   api.use("/exams", academicRouter);
+  // Academic calendar & school events (shared by the admin workspace and the
+  // portals; audience targeting is enforced server-side).
+  api.use("/calendar", calendarRouter);
+  // Platform support tickets — the institution's half. The super admin's
+  // queue lives under /api/platform/tickets in platform.js.
+  api.use("/support", supportRouter);
   api.use("/exports", exportsRouter);
   // Server-rendered ID cards and certificates. This mount remains inside the
   // authenticated API/session stack, while the route module applies its own

@@ -190,6 +190,44 @@ router.get("/overview", asyncHandler(async (req, res) => {
 }));
 
 /* ---------------------------- record CRUD ------------------------------ */
+
+/**
+ * GET /api/quran-progress/me — the family's read-only view of the same
+ * records staff manage: a student sees their own progress, a parent sees each
+ * linked child's. Records are never writable from the portal, and the
+ * category gate (Islamic institutions only) applies exactly as it does for
+ * staff.
+ */
+router.get("/me", asyncHandler(async (req, res) => {
+  if (!["student", "parent"].includes(req.user.role)) {
+    return err(res, 403, "Staff should use the Qur'an progress workspace.");
+  }
+  const ctx = await getContext(req, res);
+  if (!ctx) return;
+  let studentIds = [];
+  if (req.user.role === "student") {
+    if (req.user.studentId) studentIds = [Number(req.user.studentId)];
+  } else {
+    const rows = await db.all("SELECT student_id FROM parent_links WHERE madrasa_id = ? AND user_id = ?", [ctx.tid, req.user.id]);
+    studentIds = rows.map((r) => Number(r.student_id));
+  }
+  if (!studentIds.length) return ok(res, { records: [], students: [] });
+  const marks = studentIds.map(() => "?").join(",");
+  const records = await db.all(
+    `SELECT qp.*, s.first_name, s.last_name, c.name_en AS class_en
+       FROM quran_progress qp
+       JOIN students s ON s.id = qp.student_id AND s.madrasa_id = qp.madrasa_id
+       LEFT JOIN classes c ON c.id = s.class_id
+      WHERE qp.madrasa_id = ? AND qp.student_id IN (${marks})
+      ORDER BY qp.progress_date DESC, qp.id DESC LIMIT 100`,
+    [ctx.tid].concat(studentIds)
+  );
+  const students = await db.all(
+    `SELECT s.id, s.first_name, s.last_name FROM students s WHERE s.madrasa_id = ? AND s.id IN (${marks})`,
+    [ctx.tid].concat(studentIds)
+  );
+  ok(res, { records, students });
+}));
 router.get("/", asyncHandler(async (req, res) => {
   if (!hifzStaff(req, res)) return;
   const ctx = await getContext(req, res);

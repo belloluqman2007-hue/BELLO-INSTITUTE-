@@ -189,6 +189,44 @@
           </div>
         </section>
 
+        <section class="promo-video-section" id="watch-video" aria-labelledby="promo-video-title">
+          <div class="container">
+            <div class="section-heading centered reveal">
+              <p class="section-kicker">Watch how EduSphere works</p>
+              <h2 id="promo-video-title">One school. One platform. <em>Everything connected.</em></h2>
+              <p>A three-minute tour of the real EduSphere platform — from the Super Admin console to the parent portal.</p>
+            </div>
+            <div class="promo-video-wrap reveal">
+              <div class="promo-video-frame" data-promo-frame>
+                <video class="promo-video" data-promo-video controls preload="none" playsinline
+                  poster="/assets/promo/edusphere-promo-poster.jpg"
+                  crossorigin="anonymous" controlsList="nodownload"
+                  aria-label="EduSphere platform promotional video">
+                  <track kind="subtitles" src="/assets/promo/edusphere-promo.vtt" srclang="en" label="English" default>
+                </video>
+                <div class="promo-video-ended" data-promo-ended hidden aria-hidden="true">
+                  <p class="promo-ended-title">Ready to bring your school <em>online?</em></p>
+                  <p class="promo-ended-copy">Register your institution — it takes minutes, and your public website goes live automatically.</p>
+                  <div class="promo-ended-actions">
+                    <a class="button button-primary" href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a>
+                    <a class="button button-secondary" href="/register-academy" data-route="/register-academy">Register a Western Academy</a>
+                  </div>
+                  <button type="button" class="promo-replay" data-promo-replay>Watch again</button>
+                </div>
+              </div>
+              <div class="promo-video-meta">
+                <span class="promo-chip">${icons.monitor} 3 min tour</span>
+                <span class="promo-chip">Captions available</span>
+                <a class="promo-quality-note" href="/assets/promo/edusphere-promo-1080p.mp4" target="_blank" rel="noopener">Watch in Full HD</a>
+              </div>
+              <div class="promo-video-cta">
+                <a class="button button-primary" href="#get-started" data-route="/#get-started">Get Started <span>${icons.arrow}</span></a>
+                <a class="button button-secondary" href="/register-academy" data-route="/register-academy">Register Your Institution</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="category-purpose-section platform-capabilities" aria-labelledby="capabilities-title">
           <div class="container">
             <div class="section-heading centered reveal">
@@ -248,6 +286,36 @@
       </main>
       ${footerMarkup()}`;
     initPageEvents();
+    initPromoVideo();
+  }
+
+  /* Promo video: picks the right stream for the device (720p mobile /
+     1080p desktop), wires the post-video call-to-action overlay and replay. */
+  function initPromoVideo() {
+    const frame = document.querySelector("[data-promo-frame]");
+    const video = document.querySelector("[data-promo-video]");
+    const ended = document.querySelector("[data-promo-ended]");
+    const replay = document.querySelector("[data-promo-replay]");
+    if (!frame || !video) return;
+
+    const hd = window.innerWidth >= 1280;
+    const src = document.createElement("source");
+    src.src = hd ? "/assets/promo/edusphere-promo-1080p.mp4" : "/assets/promo/edusphere-promo-720p.mp4";
+    src.type = "video/mp4";
+    video.insertBefore(src, video.firstChild);
+
+    const showEnded = () => {
+      frame.classList.add("promo-finished");
+      if (ended) { ended.hidden = false; ended.setAttribute("aria-hidden", "false"); }
+    };
+    const hideEnded = () => {
+      frame.classList.remove("promo-finished");
+      if (ended) { ended.hidden = true; ended.setAttribute("aria-hidden", "true"); }
+    };
+    video.addEventListener("ended", showEnded);
+    video.addEventListener("play", hideEnded);
+    video.addEventListener("seeking", hideEnded);
+    if (replay) replay.addEventListener("click", () => { hideEnded(); video.currentTime = 0; video.play(); });
   }
 
 

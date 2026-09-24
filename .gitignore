@@ -24,3 +24,6 @@ Thumbs.db
 .idea/
 .dev-credentials.txt
 .devdata/
+
+# Promo pipeline render outputs (regenerate via tools/promo scripts)
+tools/promo/dist/

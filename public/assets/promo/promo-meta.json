@@ -1,0 +1,79 @@
+{
+ "title": "EduSphere \u2014 Education Management Platform",
+ "tagline": "One school. One platform. Everything connected.",
+ "duration": 185.44,
+ "preview": false,
+ "missingNarration": [],
+ "scenes": [
+  {
+   "scene": 1,
+   "start": 0.0,
+   "dur": 14.9
+  },
+  {
+   "scene": 2,
+   "start": 14.9,
+   "dur": 10.31
+  },
+  {
+   "scene": 3,
+   "start": 25.21,
+   "dur": 14.07
+  },
+  {
+   "scene": 4,
+   "start": 39.28,
+   "dur": 19.94
+  },
+  {
+   "scene": 5,
+   "start": 59.22,
+   "dur": 13.58
+  },
+  {
+   "scene": 6,
+   "start": 72.8,
+   "dur": 11.34
+  },
+  {
+   "scene": 7,
+   "start": 84.14,
+   "dur": 14.99
+  },
+  {
+   "scene": 8,
+   "start": 99.13,
+   "dur": 11.73
+  },
+  {
+   "scene": 9,
+   "start": 110.86,
+   "dur": 13.47
+  },
+  {
+   "scene": 10,
+   "start": 124.33,
+   "dur": 13.7
+  },
+  {
+   "scene": 11,
+   "start": 138.03,
+   "dur": 10.6
+  },
+  {
+   "scene": 12,
+   "start": 148.63,
+   "dur": 10.16
+  },
+  {
+   "scene": 13,
+   "start": 158.79,
+   "dur": 8.32
+  },
+  {
+   "scene": 14,
+   "start": 167.11,
+   "dur": 18.33
+  }
+ ]
+}

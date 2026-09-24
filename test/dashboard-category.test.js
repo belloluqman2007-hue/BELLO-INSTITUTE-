@@ -58,7 +58,16 @@ test("Islamic admin dashboard exposes Hifz and student attendance in the shared 
   const page = await openAdmin(ctx.base, "admin-a");
   try {
     assert.ok(page.doc.body.classList.contains("dash-islamic"));
-    assert.match(page.doc.querySelector(".dash-sidebar").textContent, /Qur'an \/ Islamic Education/);
+    const sidebarText = page.doc.querySelector(".dash-sidebar").textContent;
+    // Subjects are DATA, not navigation: no individual subject (Qur'an,
+    // Tajweed, Hadith, Fiqh…) may appear as a top-level sidebar item, and the
+    // Hifz tracker is reached through the Academic section.
+    assert.doesNotMatch(sidebarText, /Qur'an \/ Islamic Education/);
+    assert.match(sidebarText, /Curriculum & Subjects/);
+    assert.match(sidebarText, /Hifz Progress Tracker/);
+    for (const subject of ["Tajweed", "Hadith", "Fiqh", "Tawheed", "Aqeedah", "Seerah", "Nahw", "Sarf"]) {
+      assert.ok(!sidebarText.includes(subject), `the sidebar must not list the ${subject} subject`);
+    }
     assert.match(page.doc.querySelector("#dashContent").textContent, /Qur'an & Hifz Progress/);
     await page.route("attendance/students");
     assert.match(page.doc.querySelector("#dashContent").textContent, /Student Attendance/);
@@ -66,6 +75,10 @@ test("Islamic admin dashboard exposes Hifz and student attendance in the shared 
     await page.route("quran/progress");
     assert.match(page.doc.querySelector("#dashContent").textContent, /Qur'an Progress/);
     assert.ok(page.doc.querySelector("#addQuranProgress"), "the Islamic tracker presents an add-progress workflow");
+    // The Academic → Curriculum & Subjects workspace lists the categories and
+    // reaches the exact same per-category management screens as before.
+    await page.route("academic/subjects");
+    assert.match(page.doc.querySelector("#dashContent").textContent, /Curriculum & Subjects/, "the subjects workspace opens from Academic");
     await page.route("subjects/Qur'an");
     page.doc.querySelector("#addCustomSubject").click();
     page.doc.querySelector("#customSubjectForm [name=name_en]").value = "Qur'an Writing";
@@ -82,9 +95,13 @@ test("Western admin dashboard uses academy vocabulary and never exposes Hifz", {
     assert.ok(page.doc.body.classList.contains("dash-western"));
     const sidebarText = page.doc.querySelector(".dash-sidebar").textContent;
     assert.match(sidebarText, /My Academy/);
-    assert.match(sidebarText, /Academic Programs/);
+    assert.match(sidebarText, /Curriculum & Subjects/);
     assert.match(sidebarText, /Academy Fees/);
     assert.doesNotMatch(sidebarText, /Qur'an \/ Islamic Education/);
+    assert.ok(!sidebarText.includes("Qur'an"), "the Western sidebar never exposes the Hifz tracker");
+    for (const subject of ["Mathematics", "Computer Science", "Business", "Social Sciences", "Languages"]) {
+      assert.ok(!sidebarText.includes(subject), `the sidebar must not list the ${subject} subject`);
+    }
     assert.match(page.doc.querySelector("#dashContent").textContent, /Academic Performance/);
     await page.route("attendance/students");
     assert.ok(page.doc.querySelector("#attendanceClass"), "the same attendance workspace works for academies");

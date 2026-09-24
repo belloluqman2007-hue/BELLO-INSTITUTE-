@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO PLATFORM — institution category configuration
+   EDUSPHERE PLATFORM — institution category configuration
    ----------------------------------------------------------------------------
    This is the single server-side source of truth for the two institution
    experiences. Core data operations stay tenant-scoped and category-neutral;

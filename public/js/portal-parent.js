@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Parent portal
+   EduSphere — Parent portal
    ----------------------------------------------------------------------------
    Mounted at /parent. A family dashboard: every page is about ONE selected
    child at a time (the switcher at the top), and the child relationship is

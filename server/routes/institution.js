@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO PLATFORM — ADMIN → MY INSTITUTION (tenant-scoped)
+   EDUSPHERE PLATFORM — ADMIN → MY INSTITUTION (tenant-scoped)
    ----------------------------------------------------------------------------
    Backs the eight screens of the administrator's "My Institution" section:
 

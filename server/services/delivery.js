@@ -171,8 +171,8 @@ function smtpSend({ host, port, user, pass, from, to, subject, html, text, timeo
       await expect([250, 251]);
       write("DATA");
       await expect([354]);
-      const boundary = `bello_${Date.now().toString(36)}`;
-      const messageId = `<${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}@bello-institute>`;
+      const boundary = `edusphere_${Date.now().toString(36)}`;
+      const messageId = `<${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}@edusphere>`;
       const body = [
         `From: ${from}`,
         `To: ${to}`,

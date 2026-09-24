@@ -1,0 +1,24 @@
+{
+  "name": "EduSphere — Education Management Platform",
+  "short_name": "EduSphere",
+  "description": "Smarter management for modern education. One platform for students, teachers, parents and school administrators.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#220b40",
+  "icons": [
+    {
+      "src": "/assets/edusphere-logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/edusphere-logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

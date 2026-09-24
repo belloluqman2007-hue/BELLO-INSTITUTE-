@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — printable documents
+   EduSphere — printable documents
    ----------------------------------------------------------------------------
    This module deliberately returns HTML, not PDF files. The browser's print
    engine is the document renderer, which keeps the feature small, portable

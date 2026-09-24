@@ -592,7 +592,7 @@ const MIGRATIONS = [
       await api.run(`ALTER TABLE madaris ADD COLUMN verified INT NOT NULL DEFAULT 0`);
 
       // Website / brand customisation — constrained to a small set of fields
-      // so every tenant site still fits the BELLO template.
+      // so every tenant site still fits the shared EduSphere template.
       await api.run(`ALTER TABLE madaris ADD COLUMN tagline VARCHAR(200) NOT NULL DEFAULT ''`);
       await api.run(`ALTER TABLE madaris ADD COLUMN hero_image_path VARCHAR(255) NOT NULL DEFAULT ''`);
       await api.run(`ALTER TABLE madaris ADD COLUMN brand_color VARCHAR(20) NOT NULL DEFAULT ''`);

@@ -1,7 +1,7 @@
 "use strict";
 
 /* ============================================================================
-   BELLO Multi Madrasa Platform — Madrasa Registration Module
+   EduSphere Education Platform — Madrasa Registration Module
    ============================================================================ */
 
 window.BelloRegister = (function () {
@@ -116,10 +116,10 @@ window.BelloRegister = (function () {
     4: BASE_PATH + "/submitted"
   };
   const STEP_TITLES = {
-    1: "Register Your Madrasa — BELLO",
-    2: "Administrator Account — Register Your Madrasa | BELLO",
-    3: "Review Your Registration — BELLO",
-    4: "Registration Submitted — BELLO"
+    1: "Register Your Madrasa — EduSphere",
+    2: "Administrator Account — Register Your Madrasa | EduSphere",
+    3: "Review Your Registration — EduSphere",
+    4: "Registration Submitted — EduSphere"
   };
   /* Draft of the madrasa information, so the administrator page survives a
      reload or a shared link. Passwords are NEVER written to storage. */
@@ -346,7 +346,7 @@ window.BelloRegister = (function () {
       else if (a.password !== a.confirmPassword) errors.adminConfirmPassword = "Passwords do not match.";
 
       if (!state.formData.termsAccepted) {
-        errors.terms = "You must agree to BELLO's Terms of Service and Privacy Policy.";
+        errors.terms = "You must agree to EduSphere's Terms of Service and Privacy Policy.";
       }
     }
 
@@ -617,9 +617,9 @@ window.BelloRegister = (function () {
     return `
       <header class="site-header is-scrolled" id="register-header">
         <div class="nav-shell">
-          <a class="brand" href="/" data-route="/" aria-label="BELLO home">
-            <span class="brand-logo"><img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO logo"></span>
-            <span class="brand-words"><strong>BELLO</strong><small>Education Platform</small></span>
+          <a class="brand" href="/" data-route="/" aria-label="EduSphere home">
+            <span class="brand-logo"><img src="/assets/edusphere-logo.png" alt="EduSphere logo"></span>
+            <span class="brand-words"><strong>EduSphere</strong><small>Education Platform</small></span>
           </a>
           <nav class="desktop-nav platform-nav" aria-label="Registration navigation">
             <a href="/" data-route="/">Home</a>
@@ -649,23 +649,19 @@ window.BelloRegister = (function () {
   const HERO_COPY = {
     1: {
       title: "Register Your Madrasa",
-      arabic: "سجِّل مدرستك الإسلامية على منصة بيلو التعليمية",
-      subtitle: "Bring your madrasa into the BELLO digital learning community. Create your institution profile and manage your madrasa from one platform."
+      subtitle: "Bring your madrasa into the EduSphere education community. Create your institution profile and manage your madrasa from one platform."
     },
     2: {
       title: "Administrator Account",
-      arabic: "إنشاء حساب مدير المدرسة",
-      subtitle: "Create the account that will manage your madrasa on BELLO — classes, admissions, teachers, results and your public madrasa page."
+      subtitle: "Create the account that will manage your madrasa on EduSphere — classes, admissions, teachers, results and your public madrasa page."
     },
     3: {
       title: "Review Your Registration",
-      arabic: "راجع بيانات التسجيل قبل الإرسال",
       subtitle: "Check every detail below. You can edit any section before submitting your madrasa for approval."
     },
     4: {
       title: "Registration Submitted",
-      arabic: "تم إرسال طلب التسجيل بنجاح",
-      subtitle: "Your madrasa registration has been received and is now awaiting review by the BELLO team."
+      subtitle: "Your madrasa registration has been received and is now awaiting review by the EduSphere team."
     }
   };
 
@@ -678,9 +674,8 @@ window.BelloRegister = (function () {
       <section class="reg-hero section-pattern">
         <div class="container">
           <div class="reg-hero-content">
-            <div class="eyebrow"><span class="eyebrow-dot"></span> Institution Onboarding · <span lang="ar" dir="rtl">تسجيل المدارس</span></div>
+            <div class="eyebrow"><span class="eyebrow-dot"></span> Institution Onboarding</div>
             <h1 id="reg-page-title">${escapeHtml(hero.title)}</h1>
-            <p class="reg-hero-ar" lang="ar" dir="rtl">${hero.arabic}</p>
             <p class="reg-subtitle">${escapeHtml(hero.subtitle)}</p>
           </div>
 
@@ -783,11 +778,11 @@ window.BelloRegister = (function () {
           </div>
         </div>
 
-        <!-- Why Register With BELLO Card -->
+        <!-- Why Register With EduSphere Card -->
         <div class="reg-card sidebar-benefit-card">
           <div class="sidebar-card-header">
             <span class="card-kicker">Multi-Madrasa Network</span>
-            <h3>Why register with BELLO?</h3>
+            <h3>Why register with EduSphere?</h3>
           </div>
           <ul class="benefit-checklist">
             <li>
@@ -822,9 +817,9 @@ window.BelloRegister = (function () {
           <h4>Need assistance?</h4>
           <p>Our onboarding team is available to assist your administration with registration.</p>
           <div class="support-links">
-            <a href="mailto:support@belloinstitute.org" class="support-item">
+            <a href="mailto:support@edusphere.app" class="support-item">
               <span class="sup-icon">${icons.mail}</span>
-              <span>support@belloinstitute.org</span>
+              <span>support@edusphere.app</span>
             </a>
             <button type="button" class="text-link status-lookup-btn" data-reg-action="open-status">
               <span>${icons.search}</span> Check existing application status
@@ -1194,7 +1189,7 @@ window.BelloRegister = (function () {
           <div class="section-badge">Section 6</div>
           <div class="section-title-wrap">
             <h2>Create Administrator Account</h2>
-            <p>This account will be used to manage your madrasa on BELLO.</p>
+            <p>This account will be used to manage your madrasa on EduSphere.</p>
           </div>
 
           <div class="admin-callout">
@@ -1298,7 +1293,7 @@ window.BelloRegister = (function () {
                 <input type="checkbox" id="f_terms" name="termsAccepted" ${state.formData.termsAccepted ? 'checked' : ''}>
                 <span class="checkmark"></span>
                 <span class="checkbox-label">
-                  I agree to BELLO's 
+                  I agree to EduSphere's 
                   <button type="button" class="text-button" data-reg-action="open-terms" data-policy="terms">Terms of Service</button>
                   and
                   <button type="button" class="text-button" data-reg-action="open-terms" data-policy="privacy">Privacy Policy</button>.
@@ -1575,7 +1570,7 @@ window.BelloRegister = (function () {
         </div>
 
         <h1 class="success-title">Registration Submitted!</h1>
-        <p class="success-greeting">Thank you for registering your madrasa with BELLO.</p>
+        <p class="success-greeting">Thank you for registering your madrasa with EduSphere.</p>
         <p class="success-notice">Your registration has been successfully submitted for review.</p>
 
         <!-- Status Badge -->
@@ -1628,7 +1623,7 @@ window.BelloRegister = (function () {
             <ol>
               <li>Our verification team will review your institution credentials (1–2 business days).</li>
               <li>You will receive an activation email at <strong>${escapeHtml(rc.adminEmail || state.formData.administrator.email)}</strong>.</li>
-              <li>Once approved, you can log in to your BELLO admin portal to add classes, students, and teachers.</li>
+              <li>Once approved, you can log in to your EduSphere admin portal to add classes, students, and teachers.</li>
             </ol>
           </div>
         </div>
@@ -1718,7 +1713,7 @@ window.BelloRegister = (function () {
                     <div class="tl-node">${res.status === 'Approved' ? icons.check : icons.clock}</div>
                     <div class="tl-content">
                       <strong>Document &amp; Profile Verification</strong>
-                      <small>${res.status === 'Approved' ? 'Verified by BELLO Quality Team' : 'Under review by our institutional team'}</small>
+                      <small>${res.status === 'Approved' ? 'Verified by the EduSphere team' : 'Under review by our institutional team'}</small>
                     </div>
                   </div>
 
@@ -1759,17 +1754,17 @@ window.BelloRegister = (function () {
       <div class="modal-backdrop" data-reg-action="close-terms-backdrop">
         <div class="modal-dialog terms-modal">
           <div class="modal-header">
-            <h3>BELLO Terms of Service &amp; Privacy Policy</h3>
+            <h3>EduSphere Terms of Service &amp; Privacy Policy</h3>
             <button type="button" class="modal-close-btn" data-reg-action="close-terms" aria-label="Close dialog">
               ${icons.close}
             </button>
           </div>
           <div class="modal-body terms-copy">
             <h4>1. Institutional Partnership</h4>
-            <p>By submitting your madrasa registration to the BELLO platform, you certify that you are an authorized representative of the institution and that the submitted information is accurate.</p>
+            <p>By submitting your madrasa registration to the EduSphere platform, you certify that you are an authorized representative of the institution and that the submitted information is accurate.</p>
             
             <h4>2. Data Privacy &amp; Student Protection</h4>
-            <p>BELLO strictly safeguards Islamic educational institution records, teacher information, and student academic evaluations in accordance with modern digital data protection standards.</p>
+            <p>EduSphere strictly safeguards Islamic educational institution records, teacher information, and student academic evaluations in accordance with modern digital data protection standards.</p>
 
             <h4>3. Community Standards</h4>
             <p>All registered institutions commit to fostering inclusive, authentic, and high-quality Islamic learning environments aligned with core Islamic ethics.</p>
@@ -2053,7 +2048,7 @@ window.BelloRegister = (function () {
     const cont = document.getElementById("toast-container");
     if (!cont) return;
     const t = document.createElement("div");
-    t.className = "bello-toast";
+    t.className = "edusphere-toast";
     t.innerHTML = `<span>${icons.check}</span> ${escapeHtml(msg)}`;
     cont.appendChild(t);
     setTimeout(() => {

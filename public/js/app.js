@@ -1,6 +1,6 @@
 "use strict";
 
-/* BELLO public education platform application & client router */
+/* EduSphere public education platform application & client router */
 (function () {
   const app = document.getElementById("app");
   if (!app) return;
@@ -42,9 +42,9 @@
 
   function brandMarkup() {
     return `
-      <a class="brand" href="/" data-route="/" aria-label="BELLO home">
-        <span class="brand-logo"><img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO logo"></span>
-        <span class="brand-words"><strong>BELLO</strong><small>Education Platform</small></span>
+      <a class="brand" href="/" data-route="/" aria-label="EduSphere home">
+        <span class="brand-logo"><img src="/assets/edusphere-logo.png" alt="EduSphere logo"></span>
+        <span class="brand-words"><strong>EduSphere</strong><small>Education Platform</small></span>
       </a>`;
   }
 
@@ -61,12 +61,12 @@
             ${navLink("Home", "/", active === "home")}
             ${navLink("Islamic Schools", "/islamic-schools", active === "islamic")}
             ${navLink("Western Academies", "/western-schools", active === "western")}
-            <a href="/#how-bello" data-route="/#how-bello">How BELLO Works</a>
+            <a href="/#how-it-works" data-route="/#how-it-works">How EduSphere Works</a>
           </nav>
           <div class="nav-actions">
-            <a class="login-link" href="/login">Login</a>
+            <a class="login-link" href="/login">Sign In</a>
             <a class="login-link" href="/#institution-future" data-route="/#institution-future">For institutions</a>
-            <a class="button button-small" href="/islamic-schools" data-route="/islamic-schools">Explore schools <span>${icons.arrow}</span></a>
+            <a class="button button-small" href="#get-started" data-route="/#get-started">Get Started <span>${icons.arrow}</span></a>
           </div>
           <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu">
             <span class="open-icon">${icons.menu}</span><span class="close-icon">${icons.close}</span>
@@ -76,10 +76,10 @@
           ${navLink("Home", "/", active === "home")}
           ${navLink("Islamic Schools", "/islamic-schools", active === "islamic")}
           ${navLink("Western Academies", "/western-schools", active === "western")}
-          <a href="/#how-bello" data-route="/#how-bello">How BELLO Works</a>
+          <a href="/#how-it-works" data-route="/#how-it-works">How EduSphere Works</a>
           <a href="/#institution-future" data-route="/#institution-future">For institutions</a>
-          <a href="/login">Login</a>
-          <a class="button" href="/islamic-schools" data-route="/islamic-schools">Explore schools <span>${icons.arrow}</span></a>
+          <a href="/login">Sign In</a>
+          <a class="button" href="#get-started" data-route="/#get-started">Get Started <span>${icons.arrow}</span></a>
         </nav>
       </header>`;
   }
@@ -90,26 +90,24 @@
         <div class="container footer-grid">
           <div class="footer-brand">
             ${brandMarkup()}
-            <p>A connected education platform helping families discover the right school and helping independent institutions grow with confidence.</p>
-            <p class="footer-ar" lang="ar" dir="rtl">منصة تعليمية متصلة تساعد الأسر على اكتشاف المدرسة المناسبة.</p>
-            <div class="socials"><a href="#footer" aria-label="BELLO on Instagram">${icons.instagram}</a><a href="#footer" aria-label="BELLO on LinkedIn">${icons.linkedin}</a><a href="#footer" aria-label="BELLO on Facebook">${icons.facebook}</a></div>
+            <p>EduSphere helps educational institutions manage their operations, academics, communication and digital presence — on one worldwide education management platform.</p>
+            <div class="socials"><a href="#footer" aria-label="EduSphere on Instagram">${icons.instagram}</a><a href="#footer" aria-label="EduSphere on LinkedIn">${icons.linkedin}</a><a href="#footer" aria-label="EduSphere on Facebook">${icons.facebook}</a></div>
           </div>
-          <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-bello" data-route="/#how-bello">How BELLO works</a></div>
-          <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/login">Login</a></div>
+          <div class="footer-col"><h3>Explore</h3><a href="/islamic-schools" data-route="/islamic-schools">Islamic Schools</a><a href="/western-schools" data-route="/western-schools">Western Academies</a><a href="/#how-it-works" data-route="/#how-it-works">How EduSphere works</a></div>
+          <div class="footer-col"><h3>For institutions</h3><a href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School</a><a href="/register-academy" data-route="/register-academy">Register a Western Academy</a><a href="/login">Sign In</a></div>
           <div class="footer-col"><h3>Portals</h3><a href="/teacher">Teacher workspace</a><a href="/student">Student portal</a><a href="/parent">Parent portal</a><a href="/parent/meetings" data-route="/parent/meetings">Parents: book a meeting</a></div>
           <div class="footer-col"><h3>Platform</h3><a href="/#institution-future" data-route="/#institution-future">Independent school sites</a><a href="#footer">Contact</a><a href="#footer">Privacy &amp; Terms</a></div>
         </div>
-        <div class="container footer-bottom"><span>© <span id="year"></span> BELLO Education Platform. All rights reserved.</span><span>Discover <i></i> Connect <i></i> Grow <i></i></span></div>
+        <div class="container footer-bottom"><span>© <span id="year"></span> EduSphere Education Platform. All rights reserved.</span><span>Manage <i></i> Teach <i></i> Learn <i></i> Grow <i></i></span></div>
       </footer>`;
   }
 
   function schoolChoiceCard(kind) {
     const islamic = kind === "islamic";
     const title = islamic ? "Islamic School" : "Western Academy";
-    const arabicTitle = islamic ? "مدرسة إسلامية" : "أكاديمية غربية";
     const description = islamic
       ? "Discover madrasas, Arabic schools, Qur'an schools, and Islamic learning institutions."
-      : "Discover modern academic schools offering quality education and a wide range of subjects.";
+      : "Discover modern academic schools offering quality education and a wide range of programmes.";
     const href = islamic ? "/islamic-schools" : "/western-schools";
     const image = islamic ? "/assets/islamic-school-learning.jpg" : "/assets/western-academy-learning.jpg";
     const alt = islamic ? "Students learning together in an Islamic school" : "Students collaborating in a modern academy";
@@ -125,18 +123,36 @@
         <div class="choice-content">
           <div class="choice-icon">${islamic ? icons.book : icons.school}</div>
           <h3>${title}</h3>
-          <p class="choice-ar" lang="ar" dir="rtl">${arabicTitle}</p>
           <p>${description}</p>
           <a class="button choice-button" href="${href}" data-route="${href}">${button} <span>${icons.arrow}</span></a>
         </div>
       </article>`;
   }
 
+  /* What EduSphere helps institutions manage — the platform capability grid
+     shown on the global homepage. International and category-neutral. */
+  const platformCapabilities = [
+    ["Students", "Admissions, profiles, attendance and progress for every learner.", "users"],
+    ["Teachers", "Staff accounts, teaching assignments and professional records.", "graduation"],
+    ["Classes", "Classes, levels, student groups and timetables.", "school"],
+    ["Attendance", "Daily registers for students and teachers, with reports.", "check"],
+    ["Academic Activities", "Lessons, assignments, examinations, results and report cards.", "book"],
+    ["Admissions", "Online applications, requirements and review workflows.", "pen"],
+    ["Communication", "Announcements, messages, notifications and parent communication.", "globe"],
+    ["Finance", "Fees, payments, expenses, budgets and financial reports.", "calculator"],
+    ["Payroll", "Salary structures, pay periods, payslips, advances and loans.", "briefcase"],
+    ["Library", "Book catalogue, loans, returns, overdue tracking and fines.", "compass"],
+    ["Reports", "Academic, financial and operational reporting in one place.", "chart"],
+    ["Public School Websites", "A professional, independently branded website for every institution.", "building"],
+    ["Student Portal", "A personal workspace where every student learns and tracks progress.", "monitor"],
+    ["Parent Portal", "Results, payments, messages and meetings for every family.", "shieldCheck"],
+  ];
+
   function renderHomepage() {
     document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) themeMeta.content = "#220b40";
-    document.title = "BELLO — Education Platform";
+    document.title = "EduSphere — Education Management Platform";
     app.innerHTML = `
       ${headerMarkup("home")}
       <main id="main-content" class="platform-home">
@@ -144,40 +160,43 @@
           <div class="hero-orb hero-orb-one"></div><div class="hero-orb hero-orb-two"></div>
           <div class="container">
             <div class="platform-hero-intro reveal">
-              <p class="eyebrow"><span class="eyebrow-dot"></span>One connected education platform</p>
-              <h1 id="hero-title">Welcome to <em>BELLO</em></h1>
-              <p class="hero-arabic" lang="ar" dir="rtl">منصة بيلو للتعليم المتصل</p>
-              <p class="platform-hero-copy">A smarter way to discover, connect, and manage education.</p>
-            </div>
-            <div class="choice-heading reveal">
-              <span class="choice-heading-line"></span>
-              <div class="choice-heading-text">
-                <h2>What type of school are you looking for?</h2>
-                <p class="choice-heading-ar" lang="ar" dir="rtl">ما نوع المؤسسة التعليمية التي تبحث عنها؟</p>
+              <img class="hero-logo" src="/assets/edusphere-logo.png" alt="EduSphere logo" width="96" height="96">
+              <p class="eyebrow"><span class="eyebrow-dot"></span>EduSphere — Education Management Platform</p>
+              <h1 id="hero-title">Smarter Management for <em>Modern Education</em></h1>
+              <p class="platform-hero-copy">EduSphere helps schools and educational institutions manage their operations, academics, communication and digital presence in one platform — so every institution can focus on teaching, and every family stays connected.</p>
+              <div class="hero-actions">
+                <a class="button button-primary" href="#get-started" data-route="/#get-started">Get Started <span>${icons.arrow}</span></a>
+                <a class="button button-secondary" href="/login">Sign In</a>
               </div>
-              <span class="choice-heading-line"></span>
             </div>
-            <div class="education-choice-grid">
-              ${schoolChoiceCard("islamic")}
-              ${schoolChoiceCard("western")}
-            </div>
-            <p class="hero-reassurance platform-reassurance reveal"><span class="mini-check">${icons.check}</span><span>Choose a path to begin exploring a growing network of independent institutions.</span></p>
+            <p class="hero-reassurance platform-reassurance reveal"><span class="mini-check">${icons.check}</span><span>One secure platform for institution administrators, teachers, students and parents.</span></p>
           </div>
         </section>
 
-        <section class="platform-intro-section" id="how-bello" aria-labelledby="how-title">
+        <section class="platform-intro-section" id="how-it-works" aria-labelledby="how-title">
           <div class="container platform-intro-grid">
             <div class="platform-intro-copy reveal">
-              <p class="section-kicker">Simple by design</p>
-              <h2 id="how-title">One platform. <em>Many schools.</em></h2>
-              <p>BELLO makes it easy to start with the education that matters to you, then connect directly with the institutions that serve your family.</p>
-              <a class="text-link platform-text-link" href="/islamic-schools" data-route="/islamic-schools">Explore the platform <span>${icons.arrow}</span></a>
+              <p class="section-kicker">One platform for modern education</p>
+              <h2 id="how-title">Everything your institution <em>runs on, in one place.</em></h2>
+              <p>EduSphere brings the whole school together — administration, academics, finance and communication — while giving every institution its own independently branded public website.</p>
+              <a class="text-link platform-text-link" href="#get-started" data-route="/#get-started">Get started today <span>${icons.arrow}</span></a>
             </div>
-            <ol class="journey-steps reveal" aria-label="How the BELLO education journey works">
-              <li><span class="journey-number">01</span><div><strong>Choose an education type</strong><small>Islamic School or Western Academy</small></div></li>
-              <li><span class="journey-number">02</span><div><strong>Explore the public directory</strong><small>Discover institutions and their learning paths</small></div></li>
-              <li><span class="journey-number">03</span><div><strong>Connect with a school</strong><small>Visit the institution and begin your journey</small></div></li>
+            <ol class="journey-steps reveal" aria-label="How the EduSphere education platform works">
+              <li><span class="journey-number">01</span><div><strong>Create your institution</strong><small>Register your school or academy and get your own branded public website</small></div></li>
+              <li><span class="journey-number">02</span><div><strong>Manage everything in one place</strong><small>Students, teachers, classes, attendance, academics, finance and communication</small></div></li>
+              <li><span class="journey-number">03</span><div><strong>Connect your community</strong><small>Parents, students and teachers sign in and go straight to their workspaces</small></div></li>
             </ol>
+          </div>
+        </section>
+
+        <section class="category-purpose-section platform-capabilities" aria-labelledby="capabilities-title">
+          <div class="container">
+            <div class="section-heading centered reveal">
+              <p class="section-kicker">Built for educational institutions</p>
+              <h2 id="capabilities-title">One platform. <em>Every part of the school.</em></h2>
+              <p>From the front office to the classroom to the family at home, EduSphere keeps the whole institution connected.</p>
+            </div>
+            <div class="category-feature-grid platform-capability-grid">${platformCapabilities.map(([title, copy, icon]) => `<article class="category-feature-card reveal"><span class="category-feature-icon">${icons[icon]}</span><h3>${title}</h3><p>${copy}</p></article>`).join("")}</div>
           </div>
         </section>
 
@@ -187,25 +206,43 @@
               <div class="future-copy">
                 <p class="section-kicker light-kicker">Built for independent institutions</p>
                 <h2 id="institution-title">Every school can grow with its <em>own identity.</em></h2>
-                <p>BELLO is the technology behind the experience—not the identity of the school. Each institution can have its own public presence, information, courses, people, admissions and announcements.</p>
+                <p>EduSphere is the technology behind the experience — not the identity of the school. Each institution gets its own website, logo, colours, content, news, events, gallery and admissions.</p>
               </div>
-              <div class="identity-path" aria-label="Future BELLO platform architecture">
-                <div class="identity-node identity-node--bello"><span>${icons.spark}</span><strong>BELLO</strong><small>Platform</small></div>
+              <div class="identity-path" aria-label="The EduSphere platform architecture">
+                <div class="identity-node identity-node--edusphere"><span>${icons.spark}</span><strong>EduSphere</strong><small>Platform</small></div>
                 <i class="identity-connector" aria-hidden="true">${icons.arrow}</i>
-                <div class="identity-node"><span>${icons.compass}</span><strong>Education type</strong><small>Directory</small></div>
+                <div class="identity-node"><span>${icons.compass}</span><strong>Institution</strong><small>Tenant</small></div>
                 <i class="identity-connector" aria-hidden="true">${icons.arrow}</i>
-                <div class="identity-node identity-node--school"><span>${icons.globe}</span><strong>School website</strong><small>school.bello.ng</small></div>
+                <div class="identity-node identity-node--school"><span>${icons.globe}</span><strong>School website</strong><small>yourschool.edusphere.site</small></div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="platform-choice-section" id="get-started" aria-labelledby="get-started-title">
+          <div class="container">
+            <div class="choice-heading reveal">
+              <span class="choice-heading-line"></span>
+              <div class="choice-heading-text">
+                <h2 id="get-started-title">Get started with your institution</h2>
+                <p>EduSphere supports faith-led schools and modern academic academies alike — each with its own branding, content and community.</p>
+              </div>
+              <span class="choice-heading-line"></span>
+            </div>
+            <div class="education-choice-grid">
+              ${schoolChoiceCard("islamic")}
+              ${schoolChoiceCard("western")}
+            </div>
+            <div class="cta-actions platform-choice-actions reveal"><a class="button button-primary" href="/register-madrasa" data-route="/register-madrasa">Register an Islamic School <span>${icons.arrow}</span></a><a class="button button-secondary" href="/register-academy" data-route="/register-academy">Register a Western Academy</a></div>
           </div>
         </section>
 
         <section class="platform-cta-section" aria-labelledby="start-title">
           <div class="container platform-cta-content reveal">
             <p class="section-kicker">Made for the next generation of schools</p>
-            <h2 id="start-title">Find the right place to <em>learn and grow.</em></h2>
-            <p>Start by choosing the kind of education you want to explore.</p>
-            <div class="cta-actions"><a class="button button-primary" href="/islamic-schools" data-route="/islamic-schools">Islamic Schools <span>${icons.arrow}</span></a><a class="button button-secondary" href="/western-schools" data-route="/western-schools">Western Academies <span>${icons.arrow}</span></a></div>
+            <h2 id="start-title">Ready to bring your school <em>online?</em></h2>
+            <p>Join EduSphere and give your institution a professional digital home — plus the tools to manage it all.</p>
+            <div class="cta-actions"><a class="button button-primary" href="#get-started" data-route="/#get-started">Get Started <span>${icons.arrow}</span></a><a class="button button-secondary" href="/login">Sign In</a></div>
           </div>
         </section>
       </main>
@@ -219,15 +256,15 @@
   const westernAcademies = [
     {
       name: "Northbridge Academy", mark: "N", tone: "northbridge", location: "Lekki, Lagos", state: "Lagos", city: "Lekki", type: "Independent School", level: "Secondary", verified: true,
-      description: "A future-focused secondary school where strong academics meet creativity, technology and leadership.", programs: ["STEAM", "Arts", "Leadership"], subjects: ["Mathematics", "Sciences", "Computer Science"]
+      description: "A future-focused secondary school where strong academics meet creativity, technology and leadership.", programs: ["STEAM", "Arts", "Leadership"]
     },
     {
       name: "Crestfield College", mark: "C", tone: "crestfield", location: "Ibadan, Oyo", state: "Oyo", city: "Ibadan", type: "College / Sixth Form", level: "College / Sixth Form", verified: true,
-      description: "Helping ambitious learners prepare for university, professional study and life beyond the classroom.", programs: ["A-Level", "Business", "Sciences"], subjects: ["Business", "English", "Sciences"]
+      description: "Helping ambitious learners prepare for university, professional study and life beyond the classroom.", programs: ["A-Level", "Business", "Sciences"]
     },
     {
       name: "Brighton Gate School", mark: "B", tone: "brighton", location: "Wuse, Abuja", state: "FCT", city: "Abuja", type: "Private School", level: "Primary", verified: false,
-      description: "A warm, curious learning community built around confident foundations and whole-child development.", programs: ["Primary", "Digital Skills", "Creative Arts"], subjects: ["English", "Technology", "Arts"]
+      description: "A warm, curious learning community built around confident foundations and whole-child development.", programs: ["Primary", "Digital Skills", "Creative Arts"]
     }
   ];
 
@@ -240,18 +277,6 @@
     ["Career Preparation", "Connect with programmes that turn ambition into practical next steps and opportunities.", "rocket"]
   ];
 
-  const westernSubjects = [
-    ["Mathematics", "Numbers, reasoning & problem-solving", "calculator", "blue"],
-    ["English", "Communication & critical reading", "pen", "sky"],
-    ["Sciences", "Curiosity, discovery & experimentation", "flask", "violet"],
-    ["Computer Science", "Coding, logic & digital creation", "code", "navy"],
-    ["Technology", "Practical skills for a changing world", "monitor", "teal"],
-    ["Business", "Enterprise, economics & leadership", "briefcase", "amber"],
-    ["Arts", "Creative expression & visual thinking", "palette", "coral"],
-    ["Social Sciences", "People, society & global perspectives", "chart", "indigo"],
-    ["Languages", "New voices & cultural connection", "languages", "mint"]
-  ];
-
   const westernLevels = [
     ["Primary", "A confident beginning for curious young learners.", "01", "school"],
     ["Secondary", "Academic depth, discovery and direction.", "02", "graduation"],
@@ -262,9 +287,9 @@
 
   function westernBrandMarkup() {
     return `
-      <a class="western-brand" href="#western-top" aria-label="BELLO Western Academy home">
-        <span class="western-brand-icon" aria-hidden="true"><span>B</span></span>
-        <span class="western-brand-name"><strong>BELLO</strong><small>Education Platform</small></span>
+      <a class="western-brand" href="#western-top" aria-label="EduSphere Western Academies home">
+        <span class="western-brand-icon" aria-hidden="true"><img src="/assets/edusphere-logo.png" alt="EduSphere logo"></span>
+        <span class="western-brand-name"><strong>EduSphere</strong><small>Education Platform</small></span>
         <span class="western-brand-divider" aria-hidden="true"></span>
         <span class="western-brand-section">Western Academy</span>
       </a>`;
@@ -278,8 +303,7 @@
           <nav class="western-desktop-nav" aria-label="Western Academy navigation">
             <a class="active" href="#western-top" aria-current="page">Home</a>
             <a href="#academies">Schools</a>
-            <a href="#academic-areas">Programs</a>
-            <a href="#academic-areas">Subjects</a>
+            <a href="#education-levels">Programs</a>
             <a href="#about">About</a>
             <a href="#western-contact">Contact</a>
           </nav>
@@ -292,7 +316,7 @@
           </button>
         </div>
         <nav class="western-mobile-nav" id="western-mobile-menu" aria-label="Western Academy mobile navigation" aria-hidden="true">
-          <a href="#western-top">Home</a><a href="#academies">Schools</a><a href="#academic-areas">Programs</a><a href="#academic-areas">Subjects</a><a href="#about">About</a><a href="#western-contact">Contact</a>
+          <a href="#western-top">Home</a><a href="#academies">Schools</a><a href="#education-levels">Programs</a><a href="#about">About</a><a href="#western-contact">Contact</a>
           <a class="western-mobile-login" href="/login">Login</a>
           <a class="western-register-button" href="/register-academy" data-route="/register-academy">Register Your Academy <span>${icons.arrow}</span></a>
         </nav>
@@ -306,14 +330,14 @@
           <div class="western-footer-intro">
             ${westernBrandMarkup()}
             <p>Helping families discover modern academic education, and giving every academy a confident online home.</p>
-            <div class="western-footer-socials"><a href="#western-contact" aria-label="BELLO Western Academy on LinkedIn">${icons.linkedin}</a><a href="#western-contact" aria-label="BELLO Western Academy on Instagram">${icons.instagram}</a><a href="#western-contact" aria-label="BELLO Western Academy on Facebook">${icons.facebook}</a></div>
+            <div class="western-footer-socials"><a href="#western-contact" aria-label="EduSphere Western Academies on LinkedIn">${icons.linkedin}</a><a href="#western-contact" aria-label="EduSphere Western Academies on Instagram">${icons.instagram}</a><a href="#western-contact" aria-label="EduSphere Western Academies on Facebook">${icons.facebook}</a></div>
           </div>
-          <div class="western-footer-column"><h3>Explore</h3><a href="#academies">Schools</a><a href="#academic-areas">Programs</a><a href="#academic-areas">Subjects</a><a href="#about">About</a></div>
+          <div class="western-footer-column"><h3>Explore</h3><a href="#academies">Schools</a><a href="#education-levels">Programs</a><a href="#about">About</a></div>
           <div class="western-footer-column"><h3>For academies</h3><a href="/register-academy" data-route="/register-academy">Register Your Academy</a><a href="#about">Your school website</a><a href="/login">Login</a><a href="#western-contact">Contact</a></div>
           <div class="western-footer-column"><h3>Portals</h3><a href="/teacher">Teacher workspace</a><a href="/student">Student portal</a><a href="/parent">Parent portal</a></div>
-          <div class="western-footer-column"><h3>Platform</h3><a href="#western-contact">Contact</a><a href="#western-contact">Privacy Policy</a><a href="#western-contact">Terms</a><a href="/" data-route="/">BELLO Education Platform</a></div>
+          <div class="western-footer-column"><h3>Platform</h3><a href="#western-contact">Contact</a><a href="#western-contact">Privacy Policy</a><a href="#western-contact">Terms</a><a href="/" data-route="/">EduSphere Education Platform</a></div>
         </div>
-        <div class="western-container western-footer-bottom"><span>© <span id="western-year"></span> BELLO Western Academy. All rights reserved.</span><span>Powered by BELLO Education Platform</span></div>
+        <div class="western-container western-footer-bottom"><span>© <span id="western-year"></span> EduSphere — Western Academies. All rights reserved.</span><span>Powered by EduSphere Education Platform</span></div>
       </footer>`;
   }
 
@@ -326,7 +350,7 @@
   }
 
   function westernAcademyCard(academy) {
-    const searchTerms = [academy.name, academy.location, academy.type, academy.level, ...academy.programs, ...academy.subjects].join(" ").toLowerCase();
+    const searchTerms = [academy.name, academy.location, academy.type, academy.level, ...academy.programs].join(" ").toLowerCase();
     return `
       <article class="academy-card reveal" data-academy-card data-search="${searchTerms}" data-state="${academy.state}" data-city="${academy.city}" data-type="${academy.type}" data-level="${academy.level}" data-programs="${academy.programs.join("|")}">
         <div class="academy-card-top">
@@ -342,7 +366,7 @@
 
   function renderWesternAcademy() {
     document.body.classList.add("western-experience");
-    document.title = "Western Academy — BELLO";
+    document.title = "Western Academies — EduSphere";
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) themeMeta.content = "#0A2342";
     app.innerHTML = `
@@ -351,7 +375,7 @@
         <section class="western-hero" aria-labelledby="western-hero-title">
           <div class="western-hero-grid western-container">
             <div class="western-hero-copy reveal">
-              <p class="western-eyebrow"><span></span>BELLO Education Platform <i></i> Western Academy</p>
+              <p class="western-eyebrow"><span></span>EduSphere Education Platform <i></i> Western Academies</p>
               <h1 id="western-hero-title">Discover the Right Academy <em>for Your Future</em></h1>
               <p class="western-hero-text">Explore quality academic institutions, discover educational programs, and connect with schools that help students build a successful future.</p>
               <div class="western-hero-actions"><a class="western-button western-button--sky" href="#academies">Explore Schools <span>${icons.arrow}</span></a><a class="western-button western-button--ghost" href="/register-academy" data-route="/register-academy">Register Your Academy</a></div>
@@ -374,13 +398,6 @@
           </div>
         </section>
 
-        <section class="western-section western-subjects" id="academic-areas" aria-labelledby="academic-areas-title">
-          <div class="western-container">
-            <div class="western-section-heading western-heading-row reveal"><div><p class="western-kicker">Explore academic areas</p><h2 id="academic-areas-title">Pathways for <em>every curious mind.</em></h2></div><p>Start with the subjects and programs that move your learner forward.</p></div>
-            <div class="western-subject-grid">${westernIconCard(westernSubjects, "western-subject-card")}</div>
-          </div>
-        </section>
-
         <section class="western-section western-featured" id="academies" aria-labelledby="featured-academies-title">
           <div class="western-container">
             <div class="western-section-heading western-heading-row reveal"><div><p class="western-kicker">Discover your next school</p><h2 id="featured-academies-title">Featured Academies</h2></div><a class="western-inline-link" href="#find-academy">Find an Academy <span>${icons.arrow}</span></a></div>
@@ -398,7 +415,6 @@
                   <label><span>School name</span><span class="western-input-wrap">${icons.search}<input id="academy-name-search" type="search" placeholder="e.g. Northbridge Academy" autocomplete="off"></span></label>
                   <label><span>Location</span><span class="western-input-wrap">${icons.pin}<input id="academy-location-search" type="search" placeholder="City or area" autocomplete="off"></span></label>
                   <label><span>Program</span><span class="western-select-wrap"><select id="academy-program-search"><option value="">Any program</option><option>STEAM</option><option>Arts</option><option>Leadership</option><option>A-Level</option><option>Business</option><option>Sciences</option><option>Primary</option><option>Digital Skills</option></select></span></label>
-                  <label><span>Subject</span><span class="western-select-wrap"><select id="academy-subject-search"><option value="">Any subject</option>${westernSubjects.map(([subject]) => `<option>${subject}</option>`).join("")}</select></span></label>
                 </div>
                 <div class="western-filter-row"><span class="western-filter-title">${icons.filter} Filters</span><label><span class="sr-only">State</span><select id="academy-state-filter"><option value="">State</option><option>Lagos</option><option>Oyo</option><option>FCT</option></select></label><label><span class="sr-only">City</span><select id="academy-city-filter"><option value="">City</option><option>Lekki</option><option>Ibadan</option><option>Abuja</option></select></label><label><span class="sr-only">School Type</span><select id="academy-type-filter"><option value="">School Type</option><option>Independent School</option><option>College / Sixth Form</option><option>Private School</option></select></label><label><span class="sr-only">Education Level</span><select id="academy-level-filter"><option value="">Education Level</option><option>Primary</option><option>Secondary</option><option>College / Sixth Form</option></select></label><label><span class="sr-only">Programs</span><select id="academy-program-filter"><option value="">Programs</option><option>STEAM</option><option>A-Level</option><option>Primary</option><option>Digital Skills</option></select></label></div>
                 <div class="western-search-actions"><button class="western-button western-button--sky" type="submit">Search Academies ${icons.search}</button><button class="western-clear-search" type="button" id="academy-search-reset">Clear filters</button><p id="academy-search-result" aria-live="polite">Showing 3 featured academies</p></div>
@@ -407,7 +423,7 @@
           </div>
         </section>
 
-        <section class="western-section western-levels" aria-labelledby="education-levels-title">
+        <section class="western-section western-levels" id="education-levels" aria-labelledby="education-levels-title">
           <div class="western-container">
             <div class="western-section-heading centered reveal"><p class="western-kicker">Explore by stage</p><h2 id="education-levels-title">Education Levels</h2><p>Find a school at the stage that is right for your learner now.</p></div>
             <div class="western-level-grid">${westernLevels.map(([title, copy, num, icon]) => `<a class="western-level-card reveal" href="#find-academy"><span class="western-level-number">${num}</span><span class="western-level-icon">${icons[icon]}</span><h3>${title}</h3><p>${copy}</p><span class="western-level-arrow">${icons.arrow}</span></a>`).join("")}</div>
@@ -416,13 +432,13 @@
 
         <section class="western-identity-section" id="about" aria-labelledby="academy-identity-title">
           <div class="western-container western-identity-grid">
-            <div class="western-identity-copy reveal"><p class="western-kicker western-kicker--light">For independent academies</p><h2 id="academy-identity-title">Your academy. <em>Your online identity.</em></h2><p>BELLO provides the technology behind your public presence while your academy stays unmistakably yours.</p><ul><li>${icons.check}<span>Use your logo, school name and colors</span></li><li>${icons.check}<span>Share programs, subjects, teachers, classes and admissions</span></li><li>${icons.check}<span>Publish your gallery, news, contact details and more</span></li></ul></div>
-            <div class="academy-site-preview reveal reveal-delay" aria-label="Example independent academy public website"><div class="academy-browser-top"><span><i></i><i></i><i></i></span><b>northbridge.bello.ng</b><span>${icons.globe}</span></div><div class="academy-preview-page"><div class="academy-preview-nav"><strong><i>N</i> NORTHBRIDGE</strong><span>About&nbsp;&nbsp; Programs&nbsp;&nbsp; Admissions</span></div><div class="academy-preview-hero"><small>WELCOME TO NORTHBRIDGE ACADEMY</small><h3>Learn with purpose.<br><em>Lead with confidence.</em></h3><button type="button">Explore our school</button></div><div class="academy-preview-stats"><span><b>18</b> Subjects</span><span><b>9</b> Programs</span><span><b>1</b> Unique identity</span></div></div></div>
+            <div class="western-identity-copy reveal"><p class="western-kicker western-kicker--light">For independent academies</p><h2 id="academy-identity-title">Your academy. <em>Your online identity.</em></h2><p>EduSphere provides the technology behind your public presence while your academy stays unmistakably yours.</p><ul><li>${icons.check}<span>Use your logo, school name and colors</span></li><li>${icons.check}<span>Share programs, teachers, classes and admissions</span></li><li>${icons.check}<span>Publish your gallery, news, contact details and more</span></li></ul></div>
+            <div class="academy-site-preview reveal reveal-delay" aria-label="Example independent academy public website"><div class="academy-browser-top"><span><i></i><i></i><i></i></span><b>northbridge.edusphere.site</b><span>${icons.globe}</span></div><div class="academy-preview-page"><div class="academy-preview-nav"><strong><i>N</i> NORTHBRIDGE</strong><span>About&nbsp;&nbsp; Programs&nbsp;&nbsp; Admissions</span></div><div class="academy-preview-hero"><small>WELCOME TO NORTHBRIDGE ACADEMY</small><h3>Learn with purpose.<br><em>Lead with confidence.</em></h3><button type="button">Explore our school</button></div><div class="academy-preview-stats"><span><b>24</b> Classrooms</span><span><b>9</b> Programs</span><span><b>1</b> Unique identity</span></div></div></div>
           </div>
         </section>
 
         <section class="western-registration-section" id="academy-registration" aria-labelledby="academy-registration-title">
-          <div class="western-container"><div class="western-registration-card reveal"><div><p class="western-kicker">For academies</p><h2 id="academy-registration-title">Bring Your Academy Online</h2><p>BELLO gives schools the tools they need to build their online presence, manage their institution, and connect with students and parents.</p></div><a class="western-button western-button--navy" href="/register-academy" data-route="/register-academy">Register Your Academy <span>${icons.arrow}</span></a></div></div>
+          <div class="western-container"><div class="western-registration-card reveal"><div><p class="western-kicker">For academies</p><h2 id="academy-registration-title">Bring Your Academy Online</h2><p>EduSphere gives schools the tools they need to build their online presence, manage their institution, and connect with students and parents.</p></div><a class="western-button western-button--navy" href="/register-academy" data-route="/register-academy">Register Your Academy <span>${icons.arrow}</span></a></div></div>
         </section>
       </main>
       ${westernFooterMarkup()}`;
@@ -449,14 +465,14 @@
     const cards = Array.from(document.querySelectorAll("[data-academy-card]"));
     const result = document.getElementById("academy-search-result");
     const input = (id) => document.getElementById(id);
-    const values = ["academy-name-search", "academy-location-search", "academy-program-search", "academy-subject-search", "academy-state-filter", "academy-city-filter", "academy-type-filter", "academy-level-filter", "academy-program-filter"].map(input).filter(Boolean);
+    const values = ["academy-name-search", "academy-location-search", "academy-program-search", "academy-state-filter", "academy-city-filter", "academy-type-filter", "academy-level-filter", "academy-program-filter"].map(input).filter(Boolean);
     const value = (id) => String((input(id) || {}).value || "").trim().toLowerCase();
     const applySearch = () => {
-      const name = value("academy-name-search"); const location = value("academy-location-search"); const program = value("academy-program-search"); const subject = value("academy-subject-search");
+      const name = value("academy-name-search"); const location = value("academy-location-search"); const program = value("academy-program-search");
       const state = value("academy-state-filter"); const city = value("academy-city-filter"); const type = value("academy-type-filter"); const level = value("academy-level-filter"); const programs = value("academy-program-filter");
       let visible = 0;
       cards.forEach((card) => {
-        const matches = (!name || card.dataset.search.includes(name)) && (!location || card.dataset.search.includes(location)) && (!program || card.dataset.programs.toLowerCase().includes(program)) && (!subject || card.dataset.search.includes(subject)) && (!state || card.dataset.state.toLowerCase() === state) && (!city || card.dataset.city.toLowerCase() === city) && (!type || card.dataset.type.toLowerCase() === type) && (!level || card.dataset.level.toLowerCase() === level) && (!programs || card.dataset.programs.toLowerCase().includes(programs));
+        const matches = (!name || card.dataset.search.includes(name)) && (!location || card.dataset.search.includes(location)) && (!program || card.dataset.programs.toLowerCase().includes(program)) && (!state || card.dataset.state.toLowerCase() === state) && (!city || card.dataset.city.toLowerCase() === city) && (!type || card.dataset.type.toLowerCase() === type) && (!level || card.dataset.level.toLowerCase() === level) && (!programs || card.dataset.programs.toLowerCase().includes(programs));
         card.hidden = !matches;
         if (matches) visible += 1;
       });
@@ -474,53 +490,45 @@
       active: "islamic",
       shortName: "Islamic Schools",
       title: "Islamic education, ready to discover.",
-      copy: "A dedicated BELLO destination for madrasas, Arabic schools, Qur'an schools, and Islamic learning institutions.",
+      copy: "A dedicated EduSphere destination for madrasas, Arabic schools, Qur'an schools, and Islamic learning institutions.",
       image: "/assets/islamic-school-learning.jpg",
       imageAlt: "Students studying the Qur'an and Arabic books together",
-      eyebrow: "BELLO / Islamic Schools",
+      eyebrow: "EduSphere / Islamic Schools",
       theme: "islamic",
       audienceTitle: "A home for every Islamic learning path.",
-      audienceCopy: "We are preparing a thoughtful public directory that makes it easier for learners and families to discover the institutions and subjects that meet their needs.",
+      audienceCopy: "We are preparing a thoughtful public directory that makes it easier for learners and families to discover the institutions and programmes that meet their needs.",
       types: ["Madrasa", "Arabic School", "Qur'an School", "Islamic Learning Centre"],
       typeIcon: "book",
       listingTitle: "The Islamic school directory is taking shape.",
-      listingCopy: "Search, location, subjects, featured institutions and school registration will live here as the BELLO Islamic Schools network grows.",
-      registerTitle: "Bring your Islamic school to BELLO.",
+      listingCopy: "Search, location, featured institutions and school registration will live here as the EduSphere Islamic Schools network grows.",
+      registerTitle: "Bring your Islamic school to EduSphere.",
       registerCopy: "Create your institution profile today and join the foundation of a connected Islamic education community.",
       registerLabel: "Register an Islamic School",
       registerHref: "/register-madrasa",
       registerRoute: "/register-madrasa",
-      featureCards: [["Find institutions", "Discover schools in the communities that matter to you.", "search"], ["Explore subjects", "See the learning paths and programmes each school offers.", "book"], ["Connect with confidence", "Get to know an institution before taking the next step.", "users"]],
-      ar: {
-        eyebrow: "المدارس الإسلامية",
-        title: "تعليمٌ إسلاميٌّ جاهزٌ للاكتشاف",
-        quote: "«طلبُ العلمِ فريضةٌ على كلِّ مسلم»",
-        audience: "بيتٌ لكلِّ مسارٍ من مسارات التعلُّم الإسلامي",
-        types: ["مدرسة", "مدرسة عربية", "مدرسة قرآنية", "مركز تعليم إسلامي"],
-        register: "سجِّل مدرستك الإسلامية على بيلو",
-      },
+      featureCards: [["Find institutions", "Discover schools in the communities that matter to you.", "search"], ["Explore programmes", "See the learning paths each school offers.", "book"], ["Connect with confidence", "Get to know an institution before taking the next step.", "users"]],
     },
     western: {
       active: "western",
       shortName: "Western Academies",
       title: "Modern education, ready to discover.",
-      copy: "A dedicated BELLO destination for independent academic schools, programmes and learning communities.",
+      copy: "A dedicated EduSphere destination for independent academic schools, programmes and learning communities.",
       image: "/assets/western-academy-learning.jpg",
       imageAlt: "Students and a teacher collaborating in a modern academy",
-      eyebrow: "BELLO / Western Academies",
+      eyebrow: "EduSphere / Western Academies",
       theme: "western",
       audienceTitle: "A home for every academic journey.",
-      audienceCopy: "We are preparing a clear public directory that will help families find modern schools and discover the classes, programmes and subjects that suit their goals.",
+      audienceCopy: "We are preparing a clear public directory that will help families find modern schools and discover the classes and programmes that suit their goals.",
       types: ["Primary School", "Secondary School", "College", "Other Academy"],
       typeIcon: "school",
       listingTitle: "The Western Academy directory is taking shape.",
-      listingCopy: "Search, location, subjects, featured schools and academy registration will live here as the BELLO Western Academies network grows.",
-      registerTitle: "Bring your academy to BELLO.",
+      listingCopy: "Search, location, featured schools and academy registration will live here as the EduSphere Western Academies network grows.",
+      registerTitle: "Bring your academy to EduSphere.",
       registerCopy: "Create your academy profile today, publish your programs and education levels, and manage your school from one dashboard.",
       registerLabel: "Register a Western Academy",
       registerHref: "/register-academy",
       registerRoute: "/register-academy",
-      featureCards: [["Find schools", "Discover academic institutions in the places that work for your family.", "search"], ["Explore programmes", "See the subjects, classes and learning opportunities on offer.", "school"], ["Plan with clarity", "Get the information you need before connecting with a school.", "compass"]],
+      featureCards: [["Find schools", "Discover academic institutions in the places that work for your family.", "search"], ["Explore programmes", "See the classes and learning opportunities on offer.", "school"], ["Plan with clarity", "Get the information you need before connecting with a school.", "compass"]],
     }
   };
 
@@ -531,7 +539,7 @@
 
   function categoryTypeCards(data) {
     return data.types.map((type, index) => `
-      <article class="institution-type-card reveal"><span>${String(index + 1).padStart(2, "0")}</span><div class="institution-type-icon">${icons[data.typeIcon]}</div><h3>${type}</h3>${data.ar && data.ar.types[index] ? `<p class="type-ar" lang="ar" dir="rtl">${data.ar.types[index]}</p>` : ""}<p>Built to be discoverable through BELLO.</p></article>`).join("");
+      <article class="institution-type-card reveal"><span>${String(index + 1).padStart(2, "0")}</span><div class="institution-type-icon">${icons[data.typeIcon]}</div><h3>${type}</h3><p>Built to be discoverable through EduSphere.</p></article>`).join("");
   }
 
   function renderCategory(kind) {
@@ -541,7 +549,7 @@
     if (themeMeta) themeMeta.content = kind === "islamic" ? "#200A3D" : "#0A2342";
     const data = categoryData[kind];
     if (!data) return renderHomepage();
-    document.title = `BELLO — ${data.shortName}`;
+    document.title = `EduSphere — ${data.shortName}`;
     app.innerHTML = `
       ${headerMarkup(data.active)}
       <main id="main-content" class="category-page category-page--${data.theme}">
@@ -549,18 +557,16 @@
           <div class="hero-orb hero-orb-one"></div><div class="hero-orb hero-orb-two"></div>
           <div class="container category-hero-grid">
             <div class="category-hero-copy reveal">
-              <p class="eyebrow"><span class="eyebrow-dot"></span>${data.eyebrow}${data.ar && data.ar.eyebrow ? ` · <span lang="ar" dir="rtl">${data.ar.eyebrow}</span>` : ""}</p>
-              <a class="breadcrumb" href="/" data-route="/">BELLO <span>/</span> ${data.shortName}</a>
+              <p class="eyebrow"><span class="eyebrow-dot"></span>${data.eyebrow}</p>
+              <a class="breadcrumb" href="/" data-route="/">EduSphere <span>/</span> ${data.shortName}</a>
               <h1 id="category-title">${data.title}</h1>
-              ${data.ar && data.ar.title ? `<p class="category-title-ar" lang="ar" dir="rtl">${data.ar.title}</p>` : ""}
-              <p>${data.copy}</p>
-              ${data.ar && data.ar.quote ? `<p class="category-quote-ar" lang="ar" dir="rtl">${data.ar.quote}</p>` : ""}
-              <div class="hero-actions"><a class="button button-primary" href="#directory-preview">Explore the directory <span>${icons.arrow}</span></a><a class="button button-secondary" href="/" data-route="/">Choose another path</a></div>
+                            <p>${data.copy}</p>
+                            <div class="hero-actions"><a class="button button-primary" href="#directory-preview">Explore the directory <span>${icons.arrow}</span></a><a class="button button-secondary" href="/" data-route="/">Choose another path</a></div>
             </div>
             <div class="category-hero-image reveal reveal-delay">
               <img src="${data.image}" alt="${data.imageAlt}">
               <span class="category-hero-image-shade"></span>
-              <span class="category-image-badge">${icons.spark} A growing BELLO community</span>
+              <span class="category-image-badge">${icons.spark} A growing EduSphere community</span>
             </div>
           </div>
         </section>
@@ -570,8 +576,7 @@
             <div class="section-heading centered reveal">
               <p class="section-kicker">Public directory, in progress</p>
               <h2 id="purpose-title">${data.audienceTitle}</h2>
-              ${data.ar && data.ar.audience ? `<p class="section-title-ar" lang="ar" dir="rtl">${data.ar.audience}</p>` : ""}
-              <p>${data.audienceCopy}</p>
+                            <p>${data.audienceCopy}</p>
             </div>
             <div class="category-feature-grid">${categoryFeatureCards(data)}</div>
           </div>
@@ -588,13 +593,13 @@
           <div class="container directory-preview-card reveal">
             <div class="directory-preview-icon">${icons.search}</div>
             <div><p class="section-kicker">Coming next</p><h2 id="directory-title">${data.listingTitle}</h2><p>${data.listingCopy}</p></div>
-            <a class="text-link directory-home-link" href="/" data-route="/">Return to BELLO <span>${icons.arrow}</span></a>
+            <a class="text-link directory-home-link" href="/" data-route="/">Return to EduSphere <span>${icons.arrow}</span></a>
           </div>
         </section>
 
         <section class="category-register-section" id="${kind === "western" ? "western-registration" : "register-islamic-school"}" aria-labelledby="register-title">
           <div class="container category-register-card reveal">
-            <div><p class="section-kicker light-kicker">For school leaders</p><h2 id="register-title">${data.registerTitle}</h2>${data.ar && data.ar.register ? `<p class="register-title-ar" lang="ar" dir="rtl">${data.ar.register}</p>` : ""}<p>${data.registerCopy}</p></div>
+            <div><p class="section-kicker light-kicker">For school leaders</p><h2 id="register-title">${data.registerTitle}</h2><p>${data.registerCopy}</p></div>
             <a class="button button-gold" href="${data.registerHref}"${data.registerRoute.startsWith("/") ? ` data-route="${data.registerRoute}"` : ""}>${data.registerLabel} ${data.registerRoute.startsWith("/") ? `<span>${icons.arrow}</span>` : ""}</a>
           </div>
         </section>
@@ -676,7 +681,7 @@
     document.body.classList.add("western-experience");
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) themeMeta.content = "#0A2342";
-    document.title = "Register Your Academy — BELLO Western Academy";
+    document.title = "Register Your Academy — EduSphere";
     if (window.BelloAcademyRegister && typeof window.BelloAcademyRegister.mount === "function") {
       window.BelloAcademyRegister.mount();
     } else {
@@ -711,7 +716,7 @@
         <a class="school-site-brand" href="#home" aria-label="${name} home">${logo}<span><strong>${name}</strong>${m.mottoEn ? `<small>${safe(m.mottoEn)}</small>` : ""}</span></a>
         <button class="school-menu-toggle" type="button" aria-expanded="false" aria-controls="school-menu" aria-label="Open institution menu">${icons.menu}</button>
         <nav class="school-site-menu" id="school-menu" aria-label="Institution website navigation">
-          <a href="#home">Home</a><a href="#about">About</a><a href="#programs">Programs</a><a href="#teachers">Teachers</a><a href="#admissions">Admissions</a><a href="#gallery">Gallery</a><a href="#news-events">News &amp; Events</a><a href="#contact">Contact</a>
+          <a href="#home">Home</a><a href="#about">About</a><a href="#programs">Programs</a><a href="#teachers">Teachers</a><a href="#admissions">Admissions</a><a href="#gallery">Gallery</a><a href="#news-events">News &amp; Events</a><a href="#contact">Contact</a><a href="/login">Login</a>
           ${m.canApply ? `<a class="school-site-apply" href="#admissions">Apply Now <span>${icons.arrow}</span></a>` : ""}
         </nav>
       </div>
@@ -726,7 +731,7 @@
       <div><h3>Explore</h3><a href="#about">About</a><a href="#programs">Programs</a><a href="#teachers">Teachers</a><a href="#gallery">Gallery</a></div>
       <div><h3>Connect</h3><a href="#admissions">Admissions</a><a href="#news-events">News &amp; Events</a><a href="#contact">Contact</a>${m.contact && m.contact.socials && Object.entries(m.contact.socials).filter(([, value]) => value).map(([key, value]) => `<a href="${safe(value)}" target="_blank" rel="noopener">${safe(key.charAt(0).toUpperCase() + key.slice(1))}</a>`).join("")}</div>
       <div class="school-footer-contact"><h3>Contact</h3>${m.address ? `<p>${safe(m.address)}${m.city ? `<br>${safe(m.city)}${m.state ? `, ${safe(m.state)}` : ""}` : ""}</p>` : ""}${m.phone ? `<a href="tel:${safe(m.phone)}">${safe(m.phone)}</a>` : ""}${m.email ? `<a href="mailto:${safe(m.email)}">${safe(m.email)}</a>` : ""}</div>
-    </div><div class="container school-footer-bottom"><span>© ${new Date().getFullYear()} ${name}. All rights reserved.</span><span><a href="#privacy">Privacy Policy</a> · <a href="#terms">Terms &amp; Conditions</a></span></div></footer>`;
+    </div><div class="container school-footer-bottom"><span>© ${new Date().getFullYear()} ${name}. All rights reserved.</span><span><a href="#privacy">Privacy Policy</a> · <a href="#terms">Terms &amp; Conditions</a> · <a href="/" data-route="/">Powered by EduSphere</a></span></div></footer>`;
   }
 
   async function renderSchoolPublic(slug) {
@@ -759,18 +764,30 @@
       const admissionIntro = admissions.process || publicPageCopy(data.pages || {}, "admissions", "Admissions", "Begin your application with our admissions team.").body;
       const navMarkup = `<nav class="school-page-nav" aria-label="${safe(m.nameEn)} website navigation"><div class="container school-page-nav-inner"><a href="#home">Home</a><a href="#about">About</a><a href="#programs">Programs</a><a href="#teachers">Teachers</a><a href="#admissions">Admissions</a><a href="#gallery">Gallery</a><a href="#news-events">News &amp; Events</a><a href="#contact">Contact</a></div></nav>`;
       const contactForm = contact.formEnabled ? `<form id="schoolContactForm" class="school-form"><div class="school-form-grid"><label>Name *<input name="name" required></label><label>Email *<input name="email" type="email" required></label><label>Phone<input name="phone"></label><label>Subject<input name="subject"></label><label class="full">Message *<textarea name="message" required></textarea></label><label class="school-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label></div><button class="button button-primary" type="submit">Send message <span>${icons.arrow}</span></button><p id="schoolContactOutput" class="school-form-result" aria-live="polite"></p></form>` : `<p class="school-empty">Please contact the institution directly using the details below.</p>`;
-      document.title = `${safe(m.seo && m.seo.title ? m.seo.title : m.nameEn || "Institution")}`;
+      const seoTitle = `${m.seo && m.seo.title ? m.seo.title : (m.nameEn || "Institution")}${m.mottoEn ? ` — ${m.mottoEn}` : ""}`;
+      document.title = seoTitle;
+      const seoDescription = String((m.seo && m.seo.description) || m.shortDescription || m.descriptionEn || `Welcome to ${m.nameEn || "our institution"}.`).slice(0, 300);
+      const setMeta = (selector, attr, value) => { const el = document.querySelector(selector); if (el) el.setAttribute(attr, value); };
+      setMeta('meta[name="description"]', "content", seoDescription);
+      setMeta('meta[property="og:title"]', "content", seoTitle);
+      setMeta('meta[property="og:description"]', "content", seoDescription);
+      setMeta('meta[property="og:image"]', "content", m.logoPath || m.heroImagePath || "/assets/edusphere-logo.png");
+      const fav = document.querySelector('link[rel="icon"]');
+      if (fav) fav.setAttribute("href", m.faviconPath || m.logoPath || "/assets/edusphere-logo.png");
+      const canonical = document.querySelector('link[rel="canonical"]');
+      if (canonical && data.publicWebsite && data.publicWebsite.url) canonical.setAttribute("href", data.publicWebsite.url);
       app.innerHTML = `<div class="school-site-root${look.website_theme === "dark" ? " school-theme-dark" : ""}" style="${styleVars}">${schoolHeaderMarkup(m)}<main id="main-content" class="school-public${look.website_theme === "dark" ? " school-theme-dark" : ""}" style="${styleVars}">${navMarkup}
         <section class="school-hero" id="home">${m.heroImagePath ? `<img src="${safe(m.heroImagePath)}" alt="" class="school-hero-image">` : ""}<div class="school-hero-overlay"></div><div class="container school-hero-inner"><p class="school-kicker">${safe(m.city)}${m.state ? `, ${safe(m.state)}` : ""}</p>${m.logoPath ? `<img src="${safe(m.logoPath)}" class="school-logo" alt="${safe(m.nameEn)} logo">` : ""}<h1>${safe(m.nameEn || "Welcome")}</h1>${m.nameAr ? `<p class="school-ar" lang="ar" dir="rtl">${safe(m.nameAr)}</p>` : ""}${m.mottoEn ? `<p class="school-motto">${safe(m.mottoEn)}</p>` : ""}<p class="school-lead">${safe(m.shortDescription || m.descriptionEn || m.tagline || "Welcome to our institution.")}</p>${admissions.status === "closed" || info.admissionStatus === "closed" ? `<p class="school-badge-closed">Admissions are currently closed</p>` : ""}<div class="school-actions">${m.canApply && admissions.status !== "closed" && info.admissionStatus !== "closed" ? `<a class="button button-gold" href="#admissions">Apply Now <span>${icons.arrow}</span></a>` : ""}<a class="button school-outline" href="#about">Learn More</a></div></div></section>
         <section class="school-welcome school-section" id="about"><div class="container school-two-col"><div><p class="section-kicker">Welcome to ${safe(m.nameEn || "our institution")}</p><h2>${safe(profile.history ? "Our story" : "About our institution")}</h2><p class="school-copy">${safe(m.descriptionEn || m.shortDescription || "Our institution is committed to purposeful learning and strong character.")}</p>${profile.history ? `<p class="school-copy">${safe(profile.history)}</p>` : ""}${m.foundedYear ? `<p class="school-founded">Established ${safe(m.foundedYear)}</p>` : ""}</div><aside class="school-principal-card">${profile.headName ? `<p class="section-kicker">${safe(profile.headTitle || "Principal / Director")}</p><h3>${safe(profile.headName)}</h3>` : `<p class="section-kicker">Our commitment</p><h3>Learning with purpose. Growing with confidence.</h3>`}${profile.mission ? `<p>${safe(profile.mission)}</p>` : ""}</aside></div></section>
         ${profile.mission || profile.vision || profile.coreValues || profile.philosophy ? `<section class="school-section school-section-muted"><div class="container school-values-grid">${profile.mission ? `<article><h3>Mission</h3><p>${safe(profile.mission)}</p></article>` : ""}${profile.vision ? `<article><h3>Vision</h3><p>${safe(profile.vision)}</p></article>` : ""}${profile.coreValues ? `<article><h3>Core values</h3><p>${safe(profile.coreValues)}</p></article>` : ""}${profile.philosophy ? `<article><h3>Educational philosophy</h3><p>${safe(profile.philosophy)}</p></article>` : ""}</div></section>` : ""}
         ${streams.length ? `<section class="school-section school-section-muted"><div class="container"><p class="section-kicker">Educational offering</p><h2>One institution, distinct learning pathways</h2><div class="school-streams">${streams.map((stream) => `<article class="school-stream ${stream.accent}"><h3>${safe(stream.title)}</h3><p>${safe(stream.body)}</p></article>`).join("")}</div></div></section>` : ""}
-        <section class="school-section" id="programs"><div class="container"><p class="section-kicker">What we teach</p><h2>Programs &amp; courses</h2>${programMarkup}${data.subjects && data.subjects.length ? `<div class="school-tag-list">${data.subjects.map((subject) => `<span>${safe(subject.name_en || subject.name_ar)}</span>`).join("")}</div>` : ""}</div></section>
+        <section class="school-section" id="programs"><div class="container"><p class="section-kicker">What we offer</p><h2>Programs &amp; courses</h2>${programMarkup}</div></section>
         <section class="school-section school-section-muted" id="teachers"><div class="container"><p class="section-kicker">Meet our educators</p><h2>Teachers</h2><p class="school-copy">Only approved public profiles are shown. Private staff and HR information is never displayed.</p>${teacherMarkup}</div></section>
         ${achievementsMarkup ? `<section class="school-section" id="achievements"><div class="container"><p class="section-kicker">Celebrating progress</p><h2>Achievements</h2>${achievementsMarkup}</div></section>` : ""}
         <section class="school-section school-section-muted" id="admissions"><div class="container school-two-col"><div><p class="section-kicker">Join our community</p><h2>Admissions</h2><p class="school-copy">${safe(admissionIntro)}</p>${admissions.session ? `<p class="school-admission-meta"><strong>Current session:</strong> ${safe(admissions.session)}</p>` : ""}${admissions.startDate || admissions.closingDate ? `<p class="school-admission-meta">${admissions.startDate ? `Opens ${safe(admissions.startDate)}` : ""}${admissions.closingDate ? ` · Closes ${safe(admissions.closingDate)}` : ""}</p>` : ""}${admissions.requirements ? `<h3>Requirements</h3><p class="school-copy">${safe(admissions.requirements)}</p>` : ""}${availablePrograms.length ? `<h3>Available programs</h3><div class="school-tag-list">${availablePrograms.map((item) => `<span>${safe(item)}</span>`).join("")}</div>` : ""}</div>${m.canApply && admissions.status !== "closed" && info.admissionStatus !== "closed" ? `<form id="publicApplicationForm" class="school-form"><div class="school-form-grid"><label>Student first name *<input name="first_name" required></label><label>Last name<input name="last_name"></label><label>Parent / guardian *<input name="parent_name" required></label><label>Phone *<input name="parent_phone" required></label><label>Email<input name="parent_email" type="email"></label><label>Preferred program<input name="program"></label><label class="full">Message<textarea name="message"></textarea></label><label class="school-honeypot" aria-hidden="true">Website<input name="website" tabindex="-1"></label></div><button class="button button-primary" type="submit">Apply Now <span>${icons.arrow}</span></button><p id="publicApplicationOutput" class="school-form-result" aria-live="polite"></p></form>` : `<div class="school-contact-card"><h3>${admissions.status === "closed" ? "Admissions are closed" : "Start your application"}</h3><p>Contact the institution for application guidance and important dates.</p>${m.email ? `<a class="school-text-link" href="mailto:${safe(m.email)}">Contact admissions</a>` : ""}</div>`}</div></section>
         <section class="school-section" id="gallery"><div class="container"><p class="section-kicker">Campus life</p><h2>Gallery</h2>${galleryMarkup}</div></section>
         <section class="school-section school-section-muted" id="news-events"><div class="container"><p class="section-kicker">Stay informed</p><h2>News &amp; Events</h2><div class="school-news-grid">${newsMarkup}</div><div class="school-event-grid"><h3>Upcoming events</h3>${eventMarkup}</div></div></section>
+        <section class="school-section school-app-section" id="school-app"><div class="container school-app-card"><div><p class="section-kicker">Stay connected with our school</p><h2>Open the School App</h2><p class="school-copy">Students, parents and teachers can sign in to this school's workspace from any phone, tablet or computer. The school app runs in your browser — add it to your home screen for quick, app-like access.</p></div><div class="school-app-actions"><a class="button button-primary" href="/login">Open School App <span>${icons.arrow}</span></a><a class="button school-outline" href="#contact">Contact the school</a></div></div></section>
         <section class="school-section" id="contact"><div class="container school-two-col"><div><p class="section-kicker">Get in touch</p><h2>Contact ${safe(m.nameEn || "us")}</h2><div class="school-contact-card">${m.address ? `<p><strong>Address</strong><br>${safe(m.address)}${m.city ? `<br>${safe(m.city)}${m.state ? `, ${safe(m.state)}` : ""}` : ""}</p>` : ""}${m.phone ? `<p><strong>Phone</strong><br><a href="tel:${safe(m.phone)}">${safe(m.phone)}</a></p>` : ""}${m.email ? `<p><strong>Email</strong><br><a href="mailto:${safe(m.email)}">${safe(m.email)}</a></p>` : ""}${m.whatsapp ? `<p><strong>WhatsApp</strong><br>${safe(m.whatsapp)}</p>` : ""}${info.openingTime && info.closingTime ? `<p><strong>Opening hours</strong><br>${safe(info.openingTime)}–${safe(info.closingTime)}${info.schoolDays ? `<br>${safe(info.schoolDays)}` : ""}</p>` : ""}${m.mapsLink ? `<a class="school-text-link" href="${safe(m.mapsLink)}" target="_blank" rel="noopener">Open Google Maps</a>` : ""}</div></div>${contactForm}</div></section>
       </main>${schoolFooterMarkup(m)}</div>`;
       const menu = document.querySelector(".school-menu-toggle"); const nav = document.querySelector(".school-site-menu");
@@ -780,9 +797,10 @@
       if (application) application.addEventListener("submit", async (event) => { event.preventDefault(); const output = document.getElementById("publicApplicationOutput"); output.textContent = "Submitting…"; try { const result = await window.API.public.post(`/schools/${encodeURIComponent(slug)}/apply`, Object.fromEntries(new FormData(application))); output.textContent = `Application received. Keep this reference: ${result.reference}`; application.reset(); } catch (error) { output.textContent = error.message || "We could not submit the application."; } });
       const contactFormElement = document.getElementById("schoolContactForm");
       if (contactFormElement) contactFormElement.addEventListener("submit", async (event) => { event.preventDefault(); const output = document.getElementById("schoolContactOutput"); output.textContent = "Sending…"; try { await window.API.public.post(`/schools/${encodeURIComponent(slug)}/contact`, Object.fromEntries(new FormData(contactFormElement))); output.textContent = "Your message has been sent."; contactFormElement.reset(); } catch (error) { output.textContent = error.message || "We could not send your message."; } });
+      initPageEvents();
     } catch (err) {
       const message = err && err.status === 404 ? "Institution not found" : (err.message || "This institution website is unavailable");
-      app.innerHTML = `<main id="main-content" class="school-public"><div class="container school-not-found"><p class="section-kicker">Public website</p><h1>${safe(message)}</h1><p>This institution may be unpublished or the address may be incorrect.</p><a href="/" data-route="/" class="button button-primary">Return to BELLO</a></div></main>`;
+      app.innerHTML = `<main id="main-content" class="school-public"><div class="container school-not-found"><p class="section-kicker">Public website</p><h1>${safe(message)}</h1><p>This institution may be unpublished or the address may be incorrect.</p><a href="/" data-route="/" class="button button-primary">Return to EduSphere</a></div></main>`;
       initPageEvents();
     }
   }
@@ -796,7 +814,7 @@
     if (document.getElementById("dash-app")) return;
     document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
     if (scrollHandler) { window.removeEventListener("scroll", scrollHandler); scrollHandler = null; }
-    document.title = "Admin — BELLO";
+    document.title = "EduSphere";
     document.getElementById("app").innerHTML = '<div id="dash-app"></div>';
     if (window.BelloDashboard && typeof window.BelloDashboard.boot === "function") {
       window.BelloDashboard.boot();

@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Teacher workspace
+   EduSphere — Teacher workspace
    ----------------------------------------------------------------------------
    The teacher's complete professional workspace, mounted at /teacher. It
    renders inside the shared portal shell (portal.js) and talks only to the

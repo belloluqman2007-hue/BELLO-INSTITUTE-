@@ -447,7 +447,7 @@ router.get("/print", asyncHandler(async (req, res) => {
 <table><thead><tr><th>Day</th>${grid.periods.map((p) => `<th>P${p.period}<div class="time">${esc(p.start)}–${esc(p.end)}</div></th>`).join("")}</tr></thead>
 <tbody>${body}</tbody></table>
 <div class="noprint"><button onclick="window.print()">Print timetable</button></div>
-<div class="foot">Generated ${esc(new Date().toLocaleString())} • Bello Institute Multi-Madrasa Platform</div>
+<div class="foot">Generated ${esc(new Date().toLocaleString())} • EduSphere Education Platform</div>
 </body></html>`);
 }));
 

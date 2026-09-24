@@ -116,7 +116,7 @@ const SECTIONS = [
 ];
 
 const INSTITUTION = {
-  name: "Bello Test Institution",
+  name: "Test Institution",
   country: "Nigeria",
   state: "Ogun",
   city: "Ijebu-Ode",

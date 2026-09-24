@@ -1,8 +1,8 @@
 "use strict";
 /* ============================================================================
-   BELLO — Institution Admin Dashboard (Islamic & Western)
+   EduSphere — Institution Admin Dashboard (Islamic & Western)
    ----------------------------------------------------------------------------
-   Mounted at #/app/... . Completely separate from the public BELLO site
+   Mounted at #/app/... . Completely separate from the public EduSphere site
    (public/js/app.js) — different container, different stylesheet
    (dashboard.css), different router. Two admin experiences share this one
    engine; every visual and copy difference is driven by `state.category`
@@ -93,7 +93,6 @@
 
   function sidebarSchema() {
     const t = category();
-    const subjectItems = (t.subjectCatalogue || []).map((subject) => [subject, `subjects/${subject}`]);
     const schema = [
       { key: "dashboard", label: "Dashboard", icon: "dashboard", route: "dashboard" },
       {
@@ -124,14 +123,25 @@
         key: "classes", label: "Classes", icon: "classes",
         items: [["All Classes", "classes/all"], ["Add Class", "classes/add"], ["Class Timetable", "classes/timetable"], ["Class Students", "classes/students"], ["Class Teachers", "classes/teachers"]],
       },
-      { key: "subjects", label: t.subjectsLabel, icon: "book", items: subjectItems },
       {
         key: "attendance", label: "Attendance", icon: "calendar",
         items: [["Student Attendance", "attendance/students"], ["Teacher Attendance", "attendance/teachers"], ["Attendance Reports", "attendance/reports"]],
       },
       {
         key: "academic", label: "Academic", icon: "academic",
-        items: [["Lessons", "academic/lessons"], ["Assignments", "academic/assignments"], ["Examinations", "academic/examinations"], ["Question Bank", "academic/question-bank"], ["Results", "academic/results"], ["Report Cards", "academic/report-cards"], ["Academic Sessions", "academic/sessions"], ["Terms", "academic/terms"], ["Calendar & Events", "academic/calendar"]],
+        items: [
+          ["Lessons", "academic/lessons"],
+          ["Assignments", "academic/assignments"],
+          ["Examinations", "academic/examinations"],
+          ["Question Bank", "academic/question-bank"],
+          ["Results", "academic/results"],
+          ["Report Cards", "academic/report-cards"],
+          ["Curriculum & Subjects", "academic/subjects"],
+          ["Academic Sessions", "academic/sessions"],
+          ["Terms", "academic/terms"],
+          ["Calendar & Events", "academic/calendar"],
+          ...(t.hifzEnabledByDefault ? [["Hifz Progress Tracker", "quran/progress"]] : []),
+        ],
       },
       {
         key: "admissions", label: "Admissions", icon: "admissions",
@@ -194,15 +204,6 @@
       },
     ];
 
-    // This module is part of the Islamic product, but is never included in
-    // the Western schema. The Hifz settings screen lets an Islamic school opt
-    // out without affecting the shared academic engine.
-    if (t.hifzEnabledByDefault) {
-      schema.splice(7, 0, {
-        key: "quran", label: "Qur'an / Islamic Education", icon: "book",
-        items: [["Qur'an Progress", "quran/progress"], ["Memorization", "quran/memorization"], ["Revision", "quran/revision"], ["Tajweed", "quran/tajweed"], ["Islamic Academic Reports", "quran/reports"]],
-      });
-    }
     return schema;
   }
 
@@ -373,8 +374,8 @@
         <div class="dash-login-page">
           <div class="dash-login-card">
             <div class="brand-row">
-              <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
-              <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(who)} workspace</div></div>
+              <img src="/assets/edusphere-logo.png" alt="EduSphere">
+              <div><strong style="font-weight:800;font-size:1.05rem;">EduSphere</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(who)} workspace</div></div>
             </div>
             <h1>Opening your workspace…</h1>
             <p class="sub">You are signed in with a ${esc(who)} account, so this sign-in is handing you to the ${esc(who)} portal.</p>
@@ -506,9 +507,9 @@
 
   function renderLogin(root, error, session, username) {
     applyTheme(null);
-    // One unified BELLO sign-in for EVERY account type. The server decides
+    // One unified EduSphere sign-in for EVERY account type. The server decides
     // who the user is and routes them — the form never asks for a role.
-    document.title = "Sign in — BELLO";
+    document.title = "Sign in — EduSphere";
     const path = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
     // Shown ONLY when /api/auth/me reports a live session: the visitor is
     // told who is signed in and must explicitly choose to continue — the
@@ -531,11 +532,11 @@
       <div class="dash-login-page">
         <div class="dash-login-card">
           <div class="brand-row">
-            <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
-            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">One login · every account</div></div>
+            <img src="/assets/edusphere-logo.png" alt="EduSphere">
+            <div><strong style="font-weight:800;font-size:1.05rem;">EduSphere</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">One login · every account</div></div>
           </div>
-          <h1>Sign in to BELLO</h1>
-          <p class="sub">Administrators, teachers, students and parents all sign in here — BELLO takes you straight to the right workspace.</p>
+          <h1>Sign in to EduSphere</h1>
+          <p class="sub">Administrators, teachers, students and parents all sign in here — EduSphere takes you straight to the right workspace.</p>
           ${notice}
           ${error ? `<div class="dash-login-error" role="alert" aria-live="assertive">${esc(error)}</div>` : ""}
           <form id="dashLoginForm" novalidate>
@@ -673,8 +674,8 @@
       <div class="dash-login-page">
         <div class="dash-login-card">
           <div class="brand-row">
-            <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
-            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(kicker)}</div></div>
+            <img src="/assets/edusphere-logo.png" alt="EduSphere">
+            <div><strong style="font-weight:800;font-size:1.05rem;">EduSphere</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(kicker)}</div></div>
           </div>
           <h1>${esc(title)}</h1>
           <p class="sub">${esc(sub)}</p>
@@ -685,11 +686,11 @@
   }
 
   function renderForgotPassword(root) {
-    document.title = "Reset your password — BELLO";
+    document.title = "Reset your password — EduSphere";
     root.innerHTML = authCardShell(
       "Account recovery",
       "Forgot your password?",
-      "Enter the email address or username of your BELLO account and we will create a reset link for it.",
+      "Enter the email address or username of your EduSphere account and we will create a reset link for it.",
       `<div id="fpArea">
         <form id="fpForm" novalidate>
           <div class="dash-login-field">
@@ -736,7 +737,7 @@
   }
 
   function renderResetPassword(root) {
-    document.title = "Choose a new password — BELLO";
+    document.title = "Choose a new password — EduSphere";
     const token = new URLSearchParams(window.location.search || "").get("token") || "";
     if (!token) {
       root.innerHTML = authCardShell(
@@ -830,9 +831,11 @@
     const map = {
       dashboard: "Dashboard", institution: t.myInstitutionLabel, students: "Students",
       teachers: "Teachers", classes: "Classes", subjects: t.subjectsLabel, attendance: "Attendance",
-      academic: "Academic", quran: "Qur'an / Islamic Education", admissions: "Admissions", documents: "Documents",
+      academic: "Academic", admissions: "Admissions", documents: "Documents",
       communication: "Communication", finance: "Finance", payroll: "Payroll", hr: "Staff Leave", website: "Website", settings: "Settings",
     };
+    if (route === "academic/subjects") return "Curriculum & Subjects";
+    if (route.startsWith("quran/")) return "Hifz Progress Tracker";
     return map[top] || "Dashboard";
   }
 
@@ -853,9 +856,9 @@
         <div class="dash-shell">
           <aside class="dash-sidebar" id="dashSidebar">
             <div class="dash-brand">
-              <span class="dash-brand-logo"><img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO"></span>
+              <span class="dash-brand-logo"><img src="${state.superAdmin ? "/assets/edusphere-logo.png" : esc(m.logo_path || "/assets/edusphere-logo.png")}" alt="${state.superAdmin ? "EduSphere" : esc(m.name_en || "EduSphere")} logo"></span>
               <span class="dash-brand-words">
-                <strong>${state.superAdmin ? "BELLO" : esc(m.name_en || "BELLO")}</strong>
+                <strong>${state.superAdmin ? "EduSphere" : esc(m.name_en || "EduSphere")}</strong>
                 <small>${state.superAdmin ? "Super Admin" : esc(category().adminLabel)}</small>
               </span>
             </div>
@@ -1038,10 +1041,8 @@
     documents: ["documents.view", "documents.generate"],
     teachers: ["teachers.view"],
     classes: ["classes.view"],
-    subjects: ["classes.view"],
     attendance: ["dashboard.view"],
-    academic: ["lessons.view", "assignments.view", "exams.view", "results.enter", "report_cards.view"],
-    quran: ["lessons.view", "results.enter"],
+    academic: ["lessons.view", "assignments.view", "exams.view", "results.enter", "report_cards.view", "classes.view"],
     admissions: ["admissions.view"],
     library: ["library.view"],
     communication: ["communication.view"],
@@ -1226,6 +1227,7 @@
       if (route === "academic/results") return await pageResultsWorkbook(content);
       if (route === "academic/report-cards") return await pageReportCards(content);
       if (route === "academic/sessions" || route === "academic/terms") return await pageSessionsManager(content, route);
+      if (route === "academic/subjects") return await pageSubjectsOverview(content);
       if (route === "academic/question-bank") return await pageQuestionBank(content);
       if (route === "academic/calendar") return await pageCalendarEvents(content);
 
@@ -1607,13 +1609,13 @@
   async function pageAppearance(content) {
     const m = (state.profile && state.profile.madrasa) || {};
     content.innerHTML = `
-      <div class="dash-page-head"><div><div class="dash-crumb">Website</div><h2>Website Appearance</h2><p>Logo, cover image, brand color and tagline for your public site — kept inside the BELLO template.</p></div></div>
+      <div class="dash-page-head"><div><div class="dash-crumb">Website</div><h2>Website Appearance</h2><p>Logo, cover image, brand color and tagline for your public site — kept inside the shared EduSphere template.</p></div></div>
       <div class="dash-grid-2">
         <div class="dash-card"><div class="dash-card-pad">
           <div class="dash-field" style="margin-bottom:16px;">
             <label>Logo</label>
             <div style="display:flex;align-items:center;gap:14px;">
-              <img src="${esc(m.logo_path || "/assets/bello-multi-madrasa-platform-logo.png")}" style="width:64px;height:64px;border-radius:14px;object-fit:cover;border:1px solid var(--d-line);">
+              ${m.logo_path ? `<img src="${esc(m.logo_path)}" style="width:64px;height:64px;border-radius:14px;object-fit:cover;border:1px solid var(--d-line);">` : `<span style="display:grid;width:64px;height:64px;place-items:center;border-radius:14px;border:1px solid var(--d-line);background:var(--d-card,#fff);color:var(--d-ink,#241532);font-weight:800;font-size:1.2rem;">${esc(String(m.name_en || "I").trim().charAt(0).toUpperCase())}</span>`}
               <input type="file" id="logoInput" accept="image/png,image/jpeg,image/webp">
             </div>
           </div>
@@ -1896,7 +1898,7 @@
     };
     content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Students</div><h2>All Students</h2><p>One secure directory for Islamic, Western and dual-track learners.</p></div><div class="dash-actions"><button id="printStudents" class="dash-btn dash-btn-ghost">${I.external} Print</button><a id="exportStudents" class="dash-btn dash-btn-ghost" href="${window.API.url("/exports/students.csv")}" target="_blank" rel="noopener">${I.download} Export</a><button class="dash-btn dash-btn-primary" data-nav-route="students/add" data-needs="students.create">${I.plus} Add Student</button></div></div>
       <div class="dash-stats-grid student-stat-grid">${statCard("users", stats.total || 0, "Total students")}${statCard("check", stats.active || 0, "Active students")}${statCard("plus", stats.newStudents || 0, "New in last 30 days", true)}${statCard("academic", stats.graduated || 0, "Graduated")}${statCard("close", stats.withdrawn || 0, "Withdrawn")}</div>
-      <div class="dash-card student-filter-card"><div class="dash-card-pad"><div class="student-filter-head"><div><strong>Find a student</strong><small>Search by name, student ID, admission number or guardian</small></div><button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" id="toggleStudentFilters">Advanced filters</button></div><div class="student-filter-grid"><div class="dash-field student-search-field"><label>Search</label><input id="studentSearch" type="search" placeholder="e.g. Bello, STU0001 or guardian phone"></div><div class="dash-field"><label>Class / level</label><select id="studentClass"><option value="">All classes</option>${options(base.classes)}</select></div><div class="dash-field"><label>Academic session</label><select id="studentSession"><option value="">All sessions</option>${options(base.sessions, null, (x) => x.label)}</select></div><div class="dash-field"><label>Status</label><select id="studentStatus"><option value="">All statuses</option>${Object.entries(studentStatusLabels).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></div></div><div id="studentAdvancedFilters" class="student-advanced-filters" hidden><div class="dash-field"><label>Program</label><input id="studentProgram" placeholder="Program name"></div><div class="dash-field"><label>Gender</label><select id="studentGender"><option value="">All genders</option><option value="M">Male</option><option value="F">Female</option><option value="Other">Other / not specified</option></select></div><div class="dash-field"><label>Education track</label><select id="studentTrack"><option value="">Islamic + Western</option><option value="islamic">Islamic only</option><option value="western">Western only</option><option value="both">Both tracks</option></select></div><div class="dash-field"><label>Sort by</label><select id="studentSort"><option value="admission">Admission number</option><option value="name">Name</option><option value="newest">Newest added</option><option value="class">Class</option><option value="status">Status</option></select></div><div class="dash-field"><label>Direction</label><select id="studentDirection"><option value="asc">Ascending</option><option value="desc">Descending</option></select></div></div></div></div>
+      <div class="dash-card student-filter-card"><div class="dash-card-pad"><div class="student-filter-head"><div><strong>Find a student</strong><small>Search by name, student ID, admission number or guardian</small></div><button type="button" class="dash-btn dash-btn-ghost dash-btn-sm" id="toggleStudentFilters">Advanced filters</button></div><div class="student-filter-grid"><div class="dash-field student-search-field"><label>Search</label><input id="studentSearch" type="search" placeholder="e.g. Amina, STU0001 or guardian phone"></div><div class="dash-field"><label>Class / level</label><select id="studentClass"><option value="">All classes</option>${options(base.classes)}</select></div><div class="dash-field"><label>Academic session</label><select id="studentSession"><option value="">All sessions</option>${options(base.sessions, null, (x) => x.label)}</select></div><div class="dash-field"><label>Status</label><select id="studentStatus"><option value="">All statuses</option>${Object.entries(studentStatusLabels).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></div></div><div id="studentAdvancedFilters" class="student-advanced-filters" hidden><div class="dash-field"><label>Program</label><input id="studentProgram" placeholder="Program name"></div><div class="dash-field"><label>Gender</label><select id="studentGender"><option value="">All genders</option><option value="M">Male</option><option value="F">Female</option><option value="Other">Other / not specified</option></select></div><div class="dash-field"><label>Education track</label><select id="studentTrack"><option value="">Islamic + Western</option><option value="islamic">Islamic only</option><option value="western">Western only</option><option value="both">Both tracks</option></select></div><div class="dash-field"><label>Sort by</label><select id="studentSort"><option value="admission">Admission number</option><option value="name">Name</option><option value="newest">Newest added</option><option value="class">Class</option><option value="status">Status</option></select></div><div class="dash-field"><label>Direction</label><select id="studentDirection"><option value="asc">Ascending</option><option value="desc">Descending</option></select></div></div></div></div>
       <div id="studentBulkBar" class="student-bulk-bar" hidden><strong><span data-selected-count>0</span> selected</strong><div class="dash-actions"><select id="bulkStudentAction"><option value="">Bulk action</option><option value="active">Restore / activate</option><option value="inactive">Archive as inactive</option><option value="suspended">Suspend</option><option value="graduated">Mark graduated</option><option value="withdrawn">Mark withdrawn</option></select><button class="dash-btn dash-btn-primary dash-btn-sm" id="applyBulkStudent">Apply</button><button class="dash-btn dash-btn-ghost dash-btn-sm" id="clearStudentSelection">Clear</button></div></div>
       <div id="studentTableCard" class="dash-card"><div class="student-loading" id="studentLoading" hidden>Loading student records…</div><div class="dash-table-wrap"><table class="dash-table student-directory-table"><thead><tr><th><input id="selectAllStudents" type="checkbox" aria-label="Select all students"></th><th>Student</th><th>ID / admission no.</th><th>Class / section</th><th>Session</th><th>Program</th><th>Status</th><th></th></tr></thead><tbody id="studentRows"></tbody></table></div><div class="student-pagination"><span id="studentResultCount">—</span><span id="studentPageLabel">Page 1</span><button id="studentPrev" class="dash-btn dash-btn-ghost dash-btn-sm">Previous</button><button id="studentNext" class="dash-btn dash-btn-ghost dash-btn-sm">Next</button></div></div>`;
     const inputs = ["studentSearch", "studentClass", "studentSession", "studentProgram", "studentGender", "studentTrack", "studentStatus", "studentSort", "studentDirection"].map((id) => content.querySelector(`#${id}`));
@@ -1943,7 +1945,7 @@
     return String(value || "")
       .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
       .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-      .replace(/\{\{\s*student_name\s*\}\}/gi, "Amina Bello")
+      .replace(/\{\{\s*student_name\s*\}\}/gi, "Amina Yusuf")
       .replace(/\{\{\s*class\s*\}\}/gi, "Class 6")
       .replace(/\{\{\s*session\s*\}\}/gi, "2026/2027")
       .replace(/\{\{\s*date\s*\}\}/gi, todayIso())
@@ -2177,6 +2179,45 @@
   async function pageClassTeacherRoster(content) {
     const data = await window.API.get("/teachers"); const classes = data.classes || [];
     content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Classes</div><h2>Class Teachers</h2><p>Teaching assignments by class and subject.</p></div><button class="dash-btn dash-btn-primary" data-nav-route="teachers/add" data-needs="teachers.create">${I.plus} Add Teacher</button></div><div class="dash-card"><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Class</th><th>Assigned Teachers</th></tr></thead><tbody>${classes.length ? classes.map((c) => { const assigned = (data.teachers || []).flatMap((t) => (t.assignments || []).filter((a) => Number(a.classId) === Number(c.id) || !a.classId).map((a) => `${t.full_name}${a.subject ? ` — ${a.subject.name_en}` : ""}`)); return `<tr><td>${esc(c.name_en)}</td><td>${esc(assigned.join(", ") || "No teachers assigned")}</td></tr>`; }).join("") : emptyRow(2, "No classes have been created.")}</tbody></table></div></div>`; bindRouteButtons(content);
+  }
+
+  /* Academic → Curriculum & Subjects.
+     Subjects are DATA, not navigation: this single entry point inside the
+     Academic workspace lists every subject category (Islamic and Western
+     alike) and opens the exact same per-category management screens the old
+     per-subject sidebar items used to reach. Nothing about the underlying
+     subject/class/teacher data model changes. */
+  async function pageSubjectsOverview(content) {
+    const t = category();
+    const data = await window.API.get("/subjects?includeArchived=true").catch(() => ({ subjects: [] }));
+    const subjects = data.subjects || [];
+    const catalogue = t.subjectCatalogue || [];
+    const categories = [...new Set([...catalogue, "Other Subjects", ...subjects.map((s) => s.category).filter(Boolean)])];
+    const byCategory = new Map(categories.map((c) => [c, subjects.filter((s) => s.category === c)]));
+    const totalClasses = subjects.reduce((n, s) => n + Number(s.class_count || 0), 0);
+    const totalTeachers = subjects.reduce((n, s) => n + Number(s.teacher_count || 0), 0);
+    content.innerHTML = `
+      <div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>Curriculum &amp; Subjects</h2><p>Subjects are academic records shared by classes, teachers, the timetable, lessons, assignments, examinations, results and report cards — managed here, not from the navigation menu.</p></div></div>
+      <div class="dash-stats">
+        ${statCard("book", subjects.length, "Subject record(s)")}
+        ${statCard("classes", categories.filter((c) => (byCategory.get(c) || []).length).length, "Categories in use")}
+        ${statCard("classes", totalClasses, "Class-subject links", true)}
+        ${statCard("teacher", totalTeachers, "Teacher assignments", true)}
+      </div>
+      <div class="dash-grid-3" id="subjectCategoryGrid">
+        ${categories.map((c) => {
+          const rows = byCategory.get(c) || [];
+          return `<div class="dash-card"><div class="dash-card-head"><h3>${esc(c)}</h3><span class="hint">${rows.length} subject(s)</span></div>
+            <div class="dash-card-pad">
+              ${rows.length ? `<p class="hint" style="margin:0 0 10px">${rows.slice(0, 5).map((s) => esc(s.name_en)).join(" · ")}${rows.length > 5 ? " …" : ""}</p>` : `<p class="hint" style="margin:0 0 10px">No subjects in this category yet.</p>`}
+              <button class="dash-btn dash-btn-primary dash-btn-sm" data-category-route="${esc(c)}">${I.edit} Manage category</button>
+            </div></div>`;
+        }).join("")}
+      </div>
+      <div class="dash-card" style="margin-top:18px"><div class="dash-card-pad"><p class="hint" style="margin:0">Need a subject that is not in a category? Open any category and use <strong>Add subject</strong> — custom subjects are supported everywhere, including results and report cards.</p></div></div>`;
+    content.querySelectorAll("[data-category-route]").forEach((button) => {
+      button.addEventListener("click", () => go(`subjects/${encodeURIComponent(button.dataset.categoryRoute)}`));
+    });
   }
 
   async function pageSubjectDetail(content, categoryName, detailId) {
@@ -2470,7 +2511,7 @@
   async function pageAdmissionRequirements(content) { return pageWebsiteContent(content, "website/admissions"); }
   async function pageAdmissionSettings(content) {
     const [site, profile] = await Promise.all([window.API.get("/madrasa/public-site"), window.API.get("/madrasa/profile")]); const s = site.settings || {}; const slug = profile.madrasa.slug;
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Admissions</div><h2>Admission Settings</h2><p>Control which parts of your online admission journey are visible to the public.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="admissionSettingsForm"><label class="dash-toggle"><input name="public_listing" type="checkbox" ${s.public_listing ? "checked" : ""}><span>Show this institution in the BELLO directory</span></label><label class="dash-toggle"><input name="public_admissions" type="checkbox" ${s.public_admissions ? "checked" : ""}><span>Accept online applications</span></label><label class="dash-toggle"><input name="public_results" type="checkbox" ${s.public_results ? "checked" : ""}><span>Enable public result checking for published results</span></label><div class="dash-form-grid" style="margin-top:16px"><div class="dash-field"><label>Founded year</label><input name="founded_year" pattern="[0-9]{4}" value="${esc(s.founded_year || "")}"></div><div class="dash-field"><label>Public website URL</label><input name="website" type="url" value="${esc(s.website || "")}"></div><div class="dash-field" style="grid-column:1/-1"><label>Public introduction</label><textarea name="description_en">${esc(s.description_en || "")}</textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save admission settings</button></form><p class="dash-info-line" style="margin-top:16px">Your public application link: <a href="/schools/${esc(slug)}" target="_blank" rel="noopener">/schools/${esc(slug)}</a></p></div></div>`;
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Admissions</div><h2>Admission Settings</h2><p>Control which parts of your online admission journey are visible to the public.</p></div></div><div class="dash-card"><div class="dash-card-pad"><form id="admissionSettingsForm"><label class="dash-toggle"><input name="public_listing" type="checkbox" ${s.public_listing ? "checked" : ""}><span>Show this institution in the EduSphere directory</span></label><label class="dash-toggle"><input name="public_admissions" type="checkbox" ${s.public_admissions ? "checked" : ""}><span>Accept online applications</span></label><label class="dash-toggle"><input name="public_results" type="checkbox" ${s.public_results ? "checked" : ""}><span>Enable public result checking for published results</span></label><div class="dash-form-grid" style="margin-top:16px"><div class="dash-field"><label>Founded year</label><input name="founded_year" pattern="[0-9]{4}" value="${esc(s.founded_year || "")}"></div><div class="dash-field"><label>Public website URL</label><input name="website" type="url" value="${esc(s.website || "")}"></div><div class="dash-field" style="grid-column:1/-1"><label>Public introduction</label><textarea name="description_en">${esc(s.description_en || "")}</textarea></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:16px">${I.check} Save admission settings</button></form><p class="dash-info-line" style="margin-top:16px">Your public application link: <a href="/schools/${esc(slug)}" target="_blank" rel="noopener">/schools/${esc(slug)}</a></p></div></div>`;
     content.querySelector("#admissionSettingsForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.put("/madrasa/public-site", { public_listing: fd.get("public_listing") === "on", public_admissions: fd.get("public_admissions") === "on", public_results: fd.get("public_results") === "on", founded_year: fd.get("founded_year"), website: fd.get("website"), description_en: fd.get("description_en") }); toast("Admission settings saved.", "success"); } catch (err) { toast(err.message || "Could not save admission settings.", "error"); } });
   }
 
@@ -3050,7 +3091,7 @@
     const planMax = Math.max(1, ...((data && data.byPlan) || []).map((p) => Number(p.n) || 0));
 
     content.innerHTML = `
-      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Platform Overview</h2><p>Every institution on BELLO, at a glance.</p></div>
+      <div class="dash-page-head"><div><div class="dash-crumb">Platform</div><h2>Platform Overview</h2><p>Every institution on EduSphere, at a glance.</p></div>
         <button class="dash-btn dash-btn-primary" data-nav-route="platform/madaris">${I.plus} Add Madrasa / Academy</button></div>
 
       ${pendingRegs ? `<div class="dash-alert" role="status">
@@ -3887,7 +3928,7 @@
      ==================================================================== */
   async function pageSupportTickets(content, route) {
     const isNew = route === "support/new";
-    content.innerHTML = supportHead("Platform Support", isNew ? "Raise a support ticket" : "Support tickets", "Your institution's tickets with the BELLO platform team.", `
+    content.innerHTML = supportHead("Platform Support", isNew ? "Raise a support ticket" : "Support tickets", "Your institution's tickets with the EduSphere platform team.", `
       <a class="dash-btn dash-btn-primary" href="#/app/${encodeURIComponent("support/new")}">${I.plus} New ticket</a>`);
     if (isNew) {
       const form = document.createElement("div");

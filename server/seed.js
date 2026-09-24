@@ -159,7 +159,7 @@ function writeDevCredentials(username, password) {
     const path = require("path");
     fs.writeFileSync(
       path.join(process.cwd(), ".dev-credentials.txt"),
-      "BELLO — local development super admin (generated " + new Date().toISOString() + ")\n" +
+      "EduSphere — local development super admin (generated " + new Date().toISOString() + ")\n" +
       "Sign in at /login\n\n" +
       "  username: " + username + "\n" +
       "  password: " + password + "\n\n" +
@@ -300,7 +300,7 @@ async function createDemoMadrasa(slug, names, city, planCode, prefix) {
   const demoStudents = [
     ["Adeyemi", "Kunle", "أديمي كوني", "M", "2012-04-11", 0, "Parent of Kunle", "Parent1234!"],
     ["Ogunlana", "Sola", "أوغونلانا سولا", "F", "2011-11-02", 0, "Parent of Sola", "Parent1234!"],
-    ["Bello", "Ibrahim", "بيلو إبراهيم", "M", "2013-06-19", 2, "Parent of Ibrahim", "Parent1234!"],
+    ["Adebayo", "Ibrahim", "أديبايو إبراهيم", "M", "2013-06-19", 2, "Parent of Ibrahim", "Parent1234!"],
     ["Olalekan", "Folake", "أولاليكان فوليك", "F", "2012-01-25", 3, "Parent of Folake", "Parent1234!"],
   ];
   const studentIds = [];

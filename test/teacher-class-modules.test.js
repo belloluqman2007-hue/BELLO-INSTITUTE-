@@ -79,7 +79,7 @@ test("teachers module creates full staff profiles, assignments, status history a
 test("teacher applications can be reviewed and converted to real teacher accounts", async () => {
   const app = await admin.api("POST", "/api/teachers/applications", {
     first_name: "Maryam",
-    last_name: "Bello",
+    last_name: "Yusuf",
     email: "maryam.bello@test.example",
     phone: "+2348099900002",
     position_applied: "English Teacher",

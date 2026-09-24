@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO PLATFORM — MY INSTITUTION (admin section) shared definitions
+   EDUSPHERE PLATFORM — MY INSTITUTION (admin section) shared definitions
    ----------------------------------------------------------------------------
    One server-side source of truth for the eight "My Institution" screens:
 

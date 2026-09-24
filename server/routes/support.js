@@ -3,7 +3,7 @@
    Platform support tickets — institution side
    ----------------------------------------------------------------------------
    An institution administrator raises a ticket with the platform operator
-   (BELLO). This is the tenant's half: create, list and reply to tickets that
+   (EduSphere). This is the tenant's half: create, list and reply to tickets that
    belong to YOUR institution only. The operator's queue lives in
    /api/platform/tickets (super admin).
 

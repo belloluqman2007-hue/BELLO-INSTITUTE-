@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO Admin — Teachers & Classes modules
+   EduSphere Admin — Teachers & Classes modules
    ----------------------------------------------------------------------------
    This file deliberately plugs into the existing dashboard shell. It borrows
    the shell's icons, buttons, cards, tables, forms, toasts and modal helpers;

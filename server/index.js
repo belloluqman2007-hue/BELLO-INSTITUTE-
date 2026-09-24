@@ -88,7 +88,7 @@ const persistence = require("./services/persistence");
     // lets the kernel hold them until the event loop can accept.
     const server = app.listen(config.PORT, "0.0.0.0", config.LISTEN_BACKLOG, () => {
       console.log("==============================================");
-      console.log("  Multi-Madrasa Management Platform");
+      console.log("  EduSphere — Education Management Platform");
       console.log(`  env:    ${config.NODE_ENV}`);
       console.log(`  driver: ${config.DATABASE_DRIVER}${config.DATABASE_DRIVER === "sqlite" ? " (" + config.DB_CONFIG.file + ")" : ""}`);
       console.log(`  port:   ${config.PORT}`);

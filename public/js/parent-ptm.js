@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Parent portal: "Book a meeting"
+   EduSphere — Parent portal: "Book a meeting"
    ----------------------------------------------------------------------------
    The parent-facing half of the Parent-Teacher Meeting module. It is mounted
    by the public SPA router (public/js/app.js) at /parent and /parent/meetings,
@@ -283,7 +283,7 @@
   window.BelloParentMeetings = {
     mount() {
       document.body.classList.remove("western-experience", "western-menu-open", "islamic-experience");
-      document.title = "Book a meeting — BELLO";
+      document.title = "Book a meeting — EduSphere";
       boot();
     },
   };

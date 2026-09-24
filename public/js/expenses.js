@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — School Expense & Budget Workspace (Admin & Staff)
+   EduSphere — School Expense & Budget Workspace (Admin & Staff)
    ----------------------------------------------------------------------------
    Interactive frontend module for school expense management:
      • Expense Categories: hierarchical tree view, add/edit modal, type badges

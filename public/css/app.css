@@ -1,4 +1,4 @@
-/* BELLO — public multi-madrasa platform homepage */
+/* EduSphere — public education platform homepage */
 :root {
   color-scheme: light;
   --forest-950: #17062d;
@@ -225,7 +225,7 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } .reveal { opacity: 1; transform: none; } }
 
 /* ============================================================================
-   BELLO Madrasa Registration Page Styles
+   EduSphere Madrasa Registration Page Styles
    ============================================================================ */
 
 /* Registration Main & Hero */
@@ -2005,7 +2005,7 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
   gap: 8px;
 }
 
-.bello-toast {
+.edusphere-toast {
   background: var(--forest-900);
   color: #fff;
   padding: 12px 18px;
@@ -2019,13 +2019,13 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
   animation: toastIn 0.3s ease;
 }
 
-.bello-toast svg {
+.edusphere-toast svg {
   width: 16px;
   height: 16px;
   color: var(--gold);
 }
 
-.bello-toast.fade-out {
+.edusphere-toast.fade-out {
   opacity: 0;
   transform: translateY(10px);
   transition: opacity 0.3s, transform 0.3s;
@@ -2131,7 +2131,7 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
 }
 
 /* ============================================================================
-   BELLO Education Platform — public home & category directory foundation
+   EduSphere Education Platform — public home & category directory foundation
    ============================================================================ */
 .platform-nav { gap: 22px; }
 .platform-nav a { white-space: nowrap; }
@@ -2232,7 +2232,7 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
 .identity-node { position: relative; z-index: 1; display: grid; width: min(30%, 148px); min-height: 142px; align-content: center; justify-items: center; padding: 14px 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 20px; background: rgba(255,255,255,.09); text-align: center; backdrop-filter: blur(5px); }
 .identity-node > span { display: grid; width: 34px; height: 34px; place-items: center; margin-bottom: 10px; border-radius: 11px; background: rgba(255,255,255,.13); color: #f0cb6b; }.identity-node > span svg { width: 17px; height: 17px; }
 .identity-node strong { font-size: .79rem; letter-spacing: -.02em; }.identity-node small { margin-top: 3px; color: #d1cbdc; font-size: .61rem; font-weight: 650; line-height: 1.25; }
-.identity-node--bello { border-color: rgba(228,190,92,.53); background: rgba(216,173,66,.13); }.identity-node--school { border-color: rgba(158, 134, 190, .38); background: rgba(99, 67, 145, .22); }
+.identity-node--edusphere { border-color: rgba(228,190,92,.53); background: rgba(216,173,66,.13); }.identity-node--school { border-color: rgba(158, 134, 190, .38); background: rgba(99, 67, 145, .22); }
 .identity-connector { position: relative; z-index: 2; display: grid; width: 26px; height: 26px; flex: 0 0 auto; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 50%; background: var(--forest-850); color: #f0cb6b; }.identity-connector svg { width: 12px; height: 12px; }
 
 .platform-cta-section { padding: 102px 0; background: var(--surface); text-align: center; }
@@ -2264,7 +2264,7 @@ h1 em, h2 em { color: var(--gold-600); font-family: Georgia, "Times New Roman", 
 }
 
 /* ============================================================================
-   BELLO WESTERN ACADEMY — standalone public education experience
+   EDUSPHERE WESTERN ACADEMIES — standalone public education experience
    The Western directory deliberately uses a navy / sky academic identity rather
    than inheriting the Islamic schools palette above.
    ========================================================================== */
@@ -2304,6 +2304,7 @@ body.western-menu-open { overflow: hidden; }
 .western-brand { display: inline-flex; min-width: 276px; align-items: center; gap: 9px; color: var(--wa-navy-900); }
 .western-brand-icon { display: grid; width: 40px; height: 40px; place-items: center; overflow: hidden; border-radius: 12px; background: linear-gradient(145deg, var(--wa-navy-800), #1669a5); color: #fff; box-shadow: 0 7px 17px rgba(12,52,91,.22); }
 .western-brand-icon span { font-size: 1.17rem; font-weight: 900; letter-spacing: -.08em; transform: translateX(-.5px); }
+.western-brand-icon img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 .western-brand-name { display: grid; line-height: 1; }
 .western-brand-name strong { font-size: 1.05rem; font-weight: 900; letter-spacing: -.055em; }
 .western-brand-name small { margin-top: 4px; color: #64768d; font-size: .49rem; font-weight: 800; letter-spacing: .105em; text-transform: uppercase; white-space: nowrap; }
@@ -2398,7 +2399,7 @@ body.western-menu-open { overflow: hidden; }
    Palette: deep royal-purple #200A3D (brand), violet #38146A,
    Gold #C8952C (accents), Soft Gold #F0D999, Warm Ivory #FAF7EF (page bg),
    White #FFFFFF, Deep Charcoal #221C2B, Muted Purple-Gray #726D7B.
-   Scoped to body.islamic-experience so the BELLO homepage and Western
+   Scoped to body.islamic-experience so the EduSphere homepage and Western
    Academy experience keep their own colour schemes.
    ========================================================================= */
 body.islamic-experience {
@@ -2582,7 +2583,7 @@ body.islamic-experience .modal-icon { background: #e8e2f0; color: var(--forest-8
 
 
 /* ============================================================================
-   BELLO WESTERN ACADEMY — registration experience (/register-academy)
+   EDUSPHERE WESTERN ACADEMIES — registration experience (/register-academy)
    ----------------------------------------------------------------------------
    Scoped entirely to `wa-` classes inside body.western-experience so the
    academy onboarding flow keeps the navy / sky academic identity instead of
@@ -3262,7 +3263,7 @@ body.islamic-experience .socials a { border-color: #ddd3b8; }
 /* ============================================================================
    Individual institution websites — isolated identity layer
    ----------------------------------------------------------------------------
-   This layer intentionally does not reuse the BELLO platform navigation or
+   This layer intentionally does not reuse the EduSphere platform navigation or
    footer. Each /schools/:slug page is its own institution-branded website.
    ========================================================================== */
 .school-public { --school-brand:#200a3d; --school-secondary:#c8952c; --school-ink:#25202c; --school-paper:#fff; --school-btn-radius:12px; background:var(--school-paper); color:var(--school-ink); font-family:var(--school-font, Inter, ui-sans-serif, system-ui, sans-serif); }
@@ -3356,3 +3357,42 @@ body.islamic-experience .socials a { border-color: #ddd3b8; }
 @media (max-width: 1050px) { .school-site-menu a { padding-left:6px; padding-right:6px; font-size:.72rem; } .school-site-menu .school-site-apply { margin-left:3px; } }
 @media (max-width: 820px) { .school-menu-toggle { display:block; } .school-site-menu { display:none; position:absolute; left:16px; right:16px; top:70px; padding:12px; background:#fff; border:1px solid rgba(34,18,51,.12); border-radius:14px; box-shadow:0 16px 34px rgba(30,15,44,.15); } .school-site-menu.is-open { display:grid; gap:2px; } .school-site-menu a,.school-site-menu .school-site-apply { display:block; width:auto; margin:0; } /* CONTRAST: on mobile the menu becomes a WHITE dropdown panel, but the dark theme still painted its links near-white (1.09:1). Restore dark ink inside the panel; the Apply button keeps its own brand background. */ .school-theme-dark .school-site-menu { background:#171423; border-color:rgba(255,255,255,.16); } .school-theme-dark .school-site-menu a { color:#f7f4fb; } .school-site-footer-grid { grid-template-columns:repeat(2,1fr); } .school-event-card { width:calc(50% - 10px); } }
 @media (max-width: 560px) { .school-site-header-inner { min-height:66px; } .school-site-brand strong,.school-site-brand small { max-width:190px; } .school-public .school-hero-inner { padding-top:65px; padding-bottom:65px; } .school-site-footer-grid { grid-template-columns:1fr; gap:22px; } .school-footer-bottom { display:grid; } .school-event-card { width:100%; margin-right:0; } .school-teacher-card { grid-template-columns:58px 1fr; } .school-teacher-card img,.school-teacher-avatar { width:58px; height:58px; } }
+
+/* ============================== EduSphere global platform additions ===== */
+/* Hero: the official EduSphere logo, always shown at its natural aspect
+   ratio (never stretched) — sized for desktop, scaled on mobile. */
+.hero-logo { width: 88px; height: 88px; max-width: 100%; object-fit: contain; border-radius: 20px; background: #fff; box-shadow: 0 10px 30px rgba(34,11,64,.14); margin-bottom: 22px; }
+.platform-hero-intro { text-align: left; }
+.platform-hero-intro .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.platform-hero-intro .hero-actions .button { min-width: 168px; }
+
+/* Capability grid reuses .category-feature-card on the homepage. */
+.platform-capabilities { padding: 92px 0; background: #fff; }
+.platform-capability-grid { grid-template-columns: repeat(3, 1fr); }
+.platform-capability-grid .category-feature-card { min-height: 0; }
+
+/* The "get started" institution-choice section on the homepage. */
+.platform-choice-section { padding: 40px 0 96px; }
+.platform-choice-section .choice-heading { margin: 34px auto 26px; }
+.platform-choice-actions { justify-content: center; margin-top: 34px; }
+
+/* School public website — "Open School App" section (honest web app). */
+.school-app-section { padding-top: 0; }
+.school-app-card { display: flex; align-items: center; justify-content: space-between; gap: 34px; padding: 42px 46px; border: 1px solid color-mix(in srgb, var(--school-brand, #220b40) 18%, #ece7f2); border-radius: 20px; background: color-mix(in srgb, var(--school-brand, #220b40) 4%, #fff); }
+.school-app-card h2 { margin: 8px 0 10px; color: var(--school-ink, #241532); }
+.school-app-card .school-copy { max-width: 620px; margin: 0; }
+.school-app-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 12px; }
+
+@media (max-width: 900px) {
+  .platform-capability-grid { grid-template-columns: repeat(2, 1fr); }
+  .school-app-card { flex-direction: column; align-items: flex-start; padding: 30px 24px; }
+}
+@media (max-width: 640px) {
+  .hero-logo { width: 64px; height: 64px; border-radius: 15px; }
+  .platform-hero-intro .hero-actions { display: grid; grid-template-columns: 1fr; }
+  .platform-hero-intro .hero-actions .button { width: 100%; min-width: 0; }
+  .platform-capability-grid { grid-template-columns: 1fr; }
+  .platform-choice-actions { display: grid; grid-template-columns: 1fr; }
+  .school-app-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
+  .school-app-actions .button { width: 100%; }
+}

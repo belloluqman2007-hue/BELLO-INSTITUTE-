@@ -136,7 +136,7 @@ function createApp() {
         [String(req.params.slug).toLowerCase()]
       );
       if (!school) {
-        return res.status(404).type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Institution not found</title><style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#faf8fc;color:#241532}main{max-width:560px;padding:40px;text-align:center}a{display:inline-block;margin-top:18px;padding:12px 18px;background:#200a3d;color:#fff;border-radius:8px;text-decoration:none}</style></head><body><main><p>Public website</p><h1>Institution not found</h1><p>This institution may be unpublished or the address may be incorrect.</p><a href="/">Return to BELLO</a></main></body></html>`);
+        return res.status(404).type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Institution not found</title><style>body{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#faf8fc;color:#241532}main{max-width:560px;padding:40px;text-align:center}a{display:inline-block;margin-top:18px;padding:12px 18px;background:#200a3d;color:#fff;border-radius:8px;text-decoration:none}</style></head><body><main><p>Public website</p><h1>Institution not found</h1><p>This institution may be unpublished or the address may be incorrect.</p><a href="/">Return to EduSphere</a></main></body></html>`);
       }
     }
     return res.sendFile(path.join(__dirname, "..", "public", "index.html"));

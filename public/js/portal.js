@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Portal core (Teacher · Student · Parent)
+   EduSphere — Portal core (Teacher · Student · Parent)
    ----------------------------------------------------------------------------
    One shared shell for the three non-admin workspaces. It reuses the admin
    dashboard's design system (dashboard.css, dash-* classes) so the whole
@@ -212,7 +212,7 @@
     if (!ROLES[role]) return;
     state.role = role;
     state.module = modules[role] || null;
-    document.title = `${ROLES[role].label} — BELLO`;
+    document.title = `${ROLES[role].label} — EduSphere`;
     await boot();
   }
 
@@ -250,7 +250,7 @@
     state.me = me;
     // Institution identity for the shell header.
     state.institution = {
-      nameEn: me.institutionName || "BELLO",
+      nameEn: me.institutionName || "EduSphere",
       category: me.category === "western" ? "western" : "islamic",
     };
     if (me.madrasaId) {
@@ -300,11 +300,11 @@
       <div class="dash-login-page">
         <div class="dash-login-card">
           <div class="brand-row">
-            <img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO">
-            <div><strong style="font-weight:800;font-size:1.05rem;">BELLO</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(roleCfg.label)}</div></div>
+            <img src="/assets/edusphere-logo.png" alt="EduSphere">
+            <div><strong style="font-weight:800;font-size:1.05rem;">EduSphere</strong><div style="font-size:.72rem;color:#726d7b;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">${esc(roleCfg.label)}</div></div>
           </div>
           <h1>Sign in to your ${esc(state.role)} portal</h1>
-          <p class="sub">Use the ${esc(state.role)} account your institution gave you — or any BELLO account, and you will be handed to the right workspace.</p>
+          <p class="sub">Use the ${esc(state.role)} account your institution gave you — or any EduSphere account, and you will be handed to the right workspace.</p>
           ${notice}
           ${message ? `<div class="dash-login-error" role="alert" aria-live="assertive">${esc(message)}</div>` : ""}
           <form id="portalLoginForm" novalidate>
@@ -411,9 +411,9 @@
         <div class="dash-shell">
           <aside class="dash-sidebar" id="portalSidebar">
             <div class="dash-brand">
-              <span class="dash-brand-logo"><img src="/assets/bello-multi-madrasa-platform-logo.png" alt="BELLO"></span>
+              <span class="dash-brand-logo"><img src="${esc((state.institution && state.institution.logoPath) || "/assets/edusphere-logo.png")}" alt="${esc((state.institution && state.institution.nameEn) || "EduSphere")} logo"></span>
               <span class="dash-brand-words">
-                <strong>${esc(state.institution ? state.institution.nameEn : "BELLO")}</strong>
+                <strong>${esc(state.institution ? state.institution.nameEn : "EduSphere")}</strong>
                 <small>${esc(roleCfg.label)}</small>
               </span>
             </div>

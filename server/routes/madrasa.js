@@ -76,7 +76,7 @@ router.put("/profile", adminOrSupport, requireStaffPermission("institution.setti
     address: [b.address, 255], city: [b.city, 80], state_name: [b.state_name, 80],
     phone: [b.phone, 60], email: [b.email, 120],
     // Website/brand fields — kept inside a small, safe field set so every
-    // tenant site still fits the shared BELLO template.
+    // tenant site still fits the shared EduSphere template.
     tagline: [b.tagline, 200], whatsapp: [b.whatsapp, 60],
     facebook: [b.facebook, 200], instagram: [b.instagram, 200], maps_link: [b.maps_link, 255],
     admin_full_name: [b.admin_full_name, 160], admin_position: [b.admin_position, 80],

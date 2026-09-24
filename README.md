@@ -1,10 +1,12 @@
-# Multi-Madrasa Management Platform
+# EduSphere — Education Management Platform
 
-A completely independent, multi-tenant SaaS platform for managing Islamic
-madaris in Ijebu-Ode, Ogun State, Nigeria — students, teachers, classes,
-subjects, academic sessions & terms, results with printable report cards,
-attendance, fees, and announcements. Bilingual (English + العربية), with
-proper RTL rendering, mobile-first.
+A multi-tenant SaaS platform for managing educational institutions anywhere in
+the world — students, teachers, classes, attendance, subjects, academic
+sessions & terms, results with printable report cards, admissions, finance,
+payroll, library and communication. Every institution also gets its own
+independently branded public website, plus student, parent and teacher
+portals. The global platform speaks international English; each school may
+keep its own Arabic/bilingual identity on its own public website.
 
 > **Independence statement:** this project is a fresh codebase. It contains
 > **no** reference to the old single-school result system — no old database,

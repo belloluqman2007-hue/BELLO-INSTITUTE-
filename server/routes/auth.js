@@ -383,13 +383,13 @@ router.post("/forgot-password", async (req, res) => {
           const link = `${config.PUBLIC_URL}/reset-password?token=${token}`;
           await require("../services/delivery").sendEmail(
             user.email,
-            "Reset your BELLO password",
+            "Reset your EduSphere password",
             `<p>Hello ${user.full_name || user.username},</p>` +
-              `<p>Somebody asked to reset the password of your BELLO account <strong>${user.username}</strong>.</p>` +
+              `<p>Somebody asked to reset the password of your EduSphere account <strong>${user.username}</strong>.</p>` +
               `<p>Open this link within ${config.PASSWORD_RESET_EXPIRY_MINUTES} minutes to choose a new password:</p>` +
               `<p><a href="${link}">${link}</a></p>` +
               `<p>If you did not ask for this, you can ignore this message — the link expires on its own and the password stays unchanged.</p>`,
-            `Reset your BELLO password: ${link}`
+            `Reset your EduSphere password: ${link}`
           );
         } catch (e) { /* delivery failure must not change the response */ }
       }

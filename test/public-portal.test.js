@@ -68,7 +68,7 @@ test("a suspended madrasa disappears from the public site", async () => {
 
 test("the platform-wide switch turns the whole public directory off", async () => {
   await sa.api("PUT", "/api/platform/settings", {
-    public_directory_enabled: "0", public_site_title: "Bello Institute", public_site_tagline: "One platform, many madaris",
+    public_directory_enabled: "0", public_site_title: "EduSphere", public_site_tagline: "One platform, many schools",
   });
   const a = anon();
   const site = await a.req("GET", "/api/public/site");
@@ -76,7 +76,7 @@ test("the platform-wide switch turns the whole public directory off", async () =
   assert.equal(site.data.directoryEnabled, false);
   assert.equal(site.data.madaris.length, 0);
   assert.equal((await a.req("GET", "/api/public/madaris")).data.madaris.length, 0);
-  assert.equal(site.data.site.title, "Bello Institute", "the branding is still served");
+  assert.equal(site.data.site.title, "EduSphere", "the branding is still served");
 
   const settings = await sa.api("GET", "/api/platform/settings");
   assert.equal(settings.data.settings.public_directory_enabled, false, "booleans come back as booleans");

@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Student portal
+   EduSphere — Student portal
    ----------------------------------------------------------------------------
    Mounted at /student. Renders inside the shared portal shell (portal.js) and
    talks only to endpoints that are student-scoped on the server:

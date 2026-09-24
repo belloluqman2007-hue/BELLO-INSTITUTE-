@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Staff Leave workspace (admin + staff self-service)
+   EduSphere — Staff Leave workspace (admin + staff self-service)
    ----------------------------------------------------------------------------
    Self-contained module for the "Staff Leave" sidebar section: the leave type
    catalogue, leave requests with approve/reject, the monthly leave calendar,

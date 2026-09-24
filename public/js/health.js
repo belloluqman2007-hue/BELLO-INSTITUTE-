@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Student Health & Medical module (admin workspace)
+   EduSphere — Student Health & Medical module (admin workspace)
    ----------------------------------------------------------------------------
    Shared by BOTH institution categories (Islamic School and Western Academy):
    the same engine, routes and screens — health vocabulary is category-neutral

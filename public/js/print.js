@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — print helper for server-rendered print pages
+   EduSphere — print helper for server-rendered print pages
    ----------------------------------------------------------------------------
    The platform CSP is script-src 'self', so print pages (fee receipts,
    payslips) must NOT use inline scripts or inline onclick handlers. This

@@ -54,7 +54,7 @@ async function publicSettings() {
       if (v === undefined || v === null) return true;
       return !(v === "0" || v === 0 || v === false || v === "false");
     })(),
-    title: out.public_site_title || "Bello Institute",
+    title: out.public_site_title || "EduSphere",
     tagline: out.public_site_tagline || "Multi-Madrasa Management Platform",
     intro: out.public_site_intro || "",
     contactEmail: out.public_contact_email || "",
@@ -255,9 +255,8 @@ router.get(["/madaris/:slug", "/schools/:slug", "/institutions/:slug"], publicLi
   if (Number(m.website_published) === 0) {
     return err(res, 404, "This institution's website is currently unpublished.");
   }
-  const [classes, subjects, notices, summaryCount, pageRows] = await Promise.all([
+  const [classes, notices, summaryCount, pageRows] = await Promise.all([
     db.all("SELECT id, name_en, name_ar FROM classes WHERE madrasa_id = ? AND is_active = 1 ORDER BY sort_order, id", [m.id]),
-    db.all("SELECT name_en, name_ar FROM subjects WHERE madrasa_id = ? AND is_active = 1 ORDER BY name_en", [m.id]),
     db.all(
       `SELECT a.id, a.title, a.body, a.created_at, a.publish_until,
               a.category, a.event_date, a.event_location, a.author_name, a.image_path
@@ -346,7 +345,6 @@ router.get(["/madaris/:slug", "/schools/:slug", "/institutions/:slug"], publicLi
   ok(res, {
     madrasa: cardOut(m, req),
     classes,
-    subjects,
     notices,
     news: notices.filter((n) => String(n.category || "").toLowerCase() !== "event"),
     events: notices.filter((n) => String(n.category || "").toLowerCase() === "event" || n.event_date),

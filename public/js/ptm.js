@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Parent-Teacher Meetings (admin workspace)
+   EduSphere — Parent-Teacher Meetings (admin workspace)
    ----------------------------------------------------------------------------
    Renders the "Parent-Teacher Meetings" item of the existing Communication
    group. It mounts into the dashboard's own #dashContent node and borrows the

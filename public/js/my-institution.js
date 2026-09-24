@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — ADMIN → MY INSTITUTION
+   EduSphere — ADMIN → MY INSTITUTION
    ----------------------------------------------------------------------------
    The eight screens of the administrator's institution section:
 
@@ -786,7 +786,7 @@
           <div class="dash-card-head"><h3>Visibility</h3></div>
           <div class="dash-card-pad">
             ${toggleRow("website_published", "Publish the public website", published, "When off, visitors see an \u201cunpublished\u201d notice instead of your pages.")}
-            ${toggleRow("public_listing", "List this institution in the BELLO directory", listed)}
+            ${toggleRow("public_listing", "List this institution in the EduSphere directory", listed)}
             ${toggleRow("public_admissions", "Accept online admission applications", isOn(m.public_admissions))}
             ${toggleRow("public_results", "Allow families to check published results online", isOn(m.public_results))}
           </div>
@@ -1806,7 +1806,7 @@
         <div class="dash-card" data-mi-panel="siteTab" hidden>
           <div class="dash-card-pad">
             ${toggleRow("website_published", "Website is published", Number(m.website_published) !== 0)}
-            ${toggleRow("public_listing", "Listed in the BELLO directory", isOn(m.public_listing))}
+            ${toggleRow("public_listing", "Listed in the EduSphere directory", isOn(m.public_listing))}
             <hr class="dash-rule">
             <div class="dash-form-grid">
               ${textField("seo_title", "Default SEO title", val(m.seo_title), { maxlength: 160 })}
@@ -1828,7 +1828,6 @@
             ${toggleRow("public_results", "Allow online result checking for published results", isOn(m.public_results))}
             ${toggleRow("public_admissions", "Accept online admission applications", isOn(m.public_admissions))}
             ${toggleRow("privacy_show_counts", "Show student, teacher and class counts publicly", settings.privacy_show_counts !== "0")}
-            ${toggleRow("privacy_show_subjects", "Show the subject catalogue publicly", settings.privacy_show_subjects !== "0")}
             ${toggleRow("privacy_show_staff", "Show teacher names on the public website", settings.privacy_show_staff === "1")}
             <div class="dash-actions" style="margin-top:14px;">
               <button class="dash-btn dash-btn-ghost dash-btn-sm" type="button" data-mi-route="settings/roles">${icon("shield")} Roles &amp; permissions</button>
@@ -1850,7 +1849,7 @@
     // Keys stored in the per-tenant settings table rather than on the madrasa row.
     const SETTING_KEYS = ["admission_prefix", "attendance_required_days", "notification_email", "sms_sender_id",
       "whatsapp_number", "notify_admissions", "notify_results", "notify_email", "notify_sms", "notify_whatsapp",
-      "privacy_show_counts", "privacy_show_subjects", "privacy_show_staff"];
+      "privacy_show_counts", "privacy_show_staff"];
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();

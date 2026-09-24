@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Qur'an / Hifz progress module
+   EduSphere — Qur'an / Hifz progress module
    ----------------------------------------------------------------------------
    This is deliberately a small category-specific module, not a fork of the
    education platform. It uses the same authenticated tenant context, students

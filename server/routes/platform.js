@@ -655,7 +655,7 @@ router.post("/tickets/:id/notes", asyncHandler(async (req, res) => {
 /* Keys stored as "0"/"1" but spoken about as booleans everywhere else. */
 const BOOL_KEYS = new Set(["public_directory_enabled"]);
 const PLATFORM_SETTING_DEFAULTS = {
-  public_site_title: "Bello Institute",
+  public_site_title: "EduSphere",
   public_site_tagline: "Multi-Madrasa Management Platform",
   public_site_intro: "",
   public_contact_email: "",

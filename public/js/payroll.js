@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   BELLO — Payroll workspace (admin)
+   EduSphere — Payroll workspace (admin)
    ----------------------------------------------------------------------------
    Self-contained module for the Payroll sidebar section: salary structures,
    pay periods, payslips and salary advances. It renders into the dashboard's

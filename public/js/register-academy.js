@@ -1,7 +1,7 @@
 "use strict";
 
 /* ============================================================================
-   BELLO Education Platform — Western Academy Registration Module
+   EduSphere Education Platform — Western Academy Registration Module
    ----------------------------------------------------------------------------
    The Western directory has its own registration experience. It deliberately
    does NOT reuse the Madrasa (Islamic) registration screen:
@@ -139,10 +139,10 @@ window.BelloAcademyRegister = (function () {
     4: BASE_PATH + "/submitted"
   };
   const STEP_TITLES = {
-    1: "Register Your Academy — BELLO Western Academy",
-    2: "Administrator Account — Register Your Academy | BELLO",
-    3: "Review Your Registration — BELLO Western Academy",
-    4: "Registration Submitted — BELLO Western Academy"
+    1: "Register Your Academy — EduSphere",
+    2: "Administrator Account — Register Your Academy | EduSphere",
+    3: "Review Your Registration — EduSphere",
+    4: "Registration Submitted — EduSphere"
   };
   const DRAFT_KEY = "bello.academy-registration.draft";
 
@@ -341,7 +341,7 @@ window.BelloAcademyRegister = (function () {
       if (!a.confirmPassword) errors.adminConfirmPassword = "Confirm password is required.";
       else if (a.password !== a.confirmPassword) errors.adminConfirmPassword = "Passwords do not match.";
       if (!state.formData.termsAccepted) {
-        errors.terms = "You must agree to BELLO's Terms of Service and Privacy Policy.";
+        errors.terms = "You must agree to EduSphere's Terms of Service and Privacy Policy.";
       }
     }
 
@@ -611,9 +611,9 @@ window.BelloAcademyRegister = (function () {
     return `
       <header class="western-header" id="academy-reg-top">
         <div class="western-nav-shell">
-          <a class="western-brand" href="/western-schools" data-route="/western-schools" aria-label="BELLO Western Academy home">
+          <a class="western-brand" href="/western-schools" data-route="/western-schools" aria-label="EduSphere Western Academies home">
             <span class="western-brand-icon" aria-hidden="true"><span>B</span></span>
-            <span class="western-brand-name"><strong>BELLO</strong><small>Education Platform</small></span>
+            <span class="western-brand-name"><strong>EduSphere</strong><small>Education Platform</small></span>
             <span class="western-brand-divider" aria-hidden="true"></span>
             <span class="western-brand-section">Western Academy</span>
           </a>
@@ -645,11 +645,11 @@ window.BelloAcademyRegister = (function () {
   const HERO_COPY = {
     1: {
       title: "Register Your <em>Academy</em>",
-      subtitle: "Bring your school into the BELLO Western Academy directory. Create your academy profile, publish your programs, and manage students, teachers and classes from one place."
+      subtitle: "Bring your school into the EduSphere Western Academies directory. Create your academy profile, publish your programs, and manage students, teachers and classes from one place."
     },
     2: {
       title: "Administrator <em>Account</em>",
-      subtitle: "Create the account that will manage your academy on BELLO — classes, admissions, teachers, results and your public academy website."
+      subtitle: "Create the account that will manage your academy on EduSphere — classes, admissions, teachers, results and your public academy website."
     },
     3: {
       title: "Review Your <em>Registration</em>",
@@ -657,7 +657,7 @@ window.BelloAcademyRegister = (function () {
     },
     4: {
       title: "Registration <em>Submitted</em>",
-      subtitle: "Your academy registration has been received and is now awaiting review by the BELLO team."
+      subtitle: "Your academy registration has been received and is now awaiting review by the EduSphere team."
     }
   };
 
@@ -676,7 +676,7 @@ window.BelloAcademyRegister = (function () {
       <section class="wa-reg-hero">
         <div class="western-container">
           <div class="wa-reg-hero-copy">
-            <p class="western-eyebrow"><span></span>BELLO Education Platform <i></i> Academy Onboarding</p>
+            <p class="western-eyebrow"><span></span>EduSphere Education Platform <i></i> Academy Onboarding</p>
             <h1 id="academy-reg-title">${hero.title}</h1>
             <p class="wa-reg-hero-text">${escapeHtml(hero.subtitle)}</p>
           </div>
@@ -744,7 +744,7 @@ window.BelloAcademyRegister = (function () {
 
         <div class="wa-side-card wa-side-benefits">
           <span class="wa-side-kicker">Western Academy Network</span>
-          <h3>Why register with BELLO?</h3>
+          <h3>Why register with EduSphere?</h3>
           <ul>
             <li><span>${icons.check}</span><span><strong>Be discovered</strong> by families searching for academies</span></li>
             <li><span>${icons.check}</span><span><strong>Publish your programs</strong>, subjects and education levels</span></li>
@@ -758,7 +758,7 @@ window.BelloAcademyRegister = (function () {
         <div class="wa-side-card wa-side-help">
           <h4>Need assistance?</h4>
           <p>Our onboarding team can help your academy complete registration.</p>
-          <a href="mailto:support@belloinstitute.org" class="wa-side-link">${icons.mail} support@belloinstitute.org</a>
+          <a href="mailto:support@edusphere.app" class="wa-side-link">${icons.mail} support@edusphere.app</a>
           <button type="button" class="wa-side-link as-button" data-wa-action="open-status">${icons.search} Check existing application status</button>
         </div>
       </aside>`;
@@ -1003,7 +1003,7 @@ window.BelloAcademyRegister = (function () {
 
         <section class="wa-reg-card">
           <span class="wa-section-badge">Section 6</span>
-          <div class="wa-section-title"><h2>Create Administrator Account</h2><p>This account will manage your academy on BELLO.</p></div>
+          <div class="wa-section-title"><h2>Create Administrator Account</h2><p>This account will manage your academy on EduSphere.</p></div>
 
           <div class="wa-callout">
             <span>${icons.shieldCheck}</span>
@@ -1070,7 +1070,7 @@ window.BelloAcademyRegister = (function () {
             <div class="wa-field col-12 wa-terms ${err.terms ? "has-error" : ""}">
               <label class="wa-checkbox" for="a_terms">
                 <input type="checkbox" id="a_terms" ${state.formData.termsAccepted ? "checked" : ""}>
-                <span>I agree to BELLO's
+                <span>I agree to EduSphere's
                   <button type="button" class="wa-text-button" data-wa-action="open-terms">Terms of Service</button> and
                   <button type="button" class="wa-text-button" data-wa-action="open-terms">Privacy Policy</button>.
                 </span>
@@ -1212,7 +1212,7 @@ window.BelloAcademyRegister = (function () {
       <div class="wa-success-card">
         <div class="wa-success-graphic"><span class="wa-success-ring"></span><span class="wa-success-badge">${icons.check}</span></div>
         <h1>Registration Submitted!</h1>
-        <p class="wa-success-lead">Thank you for registering your academy with BELLO.</p>
+        <p class="wa-success-lead">Thank you for registering your academy with EduSphere.</p>
         <p class="wa-success-note">Your academy registration has been successfully submitted for review.</p>
 
         <div class="wa-status-pill"><span class="wa-status-dot"></span><strong>Registration Status: Pending Review</strong></div>
@@ -1241,7 +1241,7 @@ window.BelloAcademyRegister = (function () {
             <ol>
               <li>Our verification team reviews your academy credentials (1–2 business days).</li>
               <li>You will receive an activation email at <strong>${escapeHtml(email)}</strong>.</li>
-              <li>Once approved, log in to your BELLO academy dashboard to add classes, students and teachers.</li>
+              <li>Once approved, log in to your EduSphere academy dashboard to add classes, students and teachers.</li>
             </ol>
           </div>
         </div>
@@ -1291,7 +1291,7 @@ window.BelloAcademyRegister = (function () {
                 </div>
                 <ol class="wa-timeline">
                   <li class="is-complete"><span>${icons.check}</span><div><strong>Submission Received</strong><small>${res.submittedAt ? new Date(res.submittedAt).toLocaleDateString() : "Received"}</small></div></li>
-                  <li class="${res.status === "Approved" ? "is-complete" : "is-current"}"><span>${res.status === "Approved" ? icons.check : icons.clock}</span><div><strong>Academy Verification</strong><small>${res.status === "Approved" ? "Verified by the BELLO team" : "Under review by our academy team"}</small></div></li>
+                  <li class="${res.status === "Approved" ? "is-complete" : "is-current"}"><span>${res.status === "Approved" ? icons.check : icons.clock}</span><div><strong>Academy Verification</strong><small>${res.status === "Approved" ? "Verified by the EduSphere team" : "Under review by our academy team"}</small></div></li>
                   <li class="${res.status === "Approved" ? "is-complete" : ""}"><span>${res.status === "Approved" ? icons.check : "3"}</span><div><strong>Admin Account Provisioning</strong><small>${res.status === "Approved" ? "Account active" : "Scheduled upon verification"}</small></div></li>
                   <li class="${res.status === "Approved" ? "is-complete" : ""}"><span>${res.status === "Approved" ? icons.check : "4"}</span><div><strong>Academy Activation</strong><small>${res.status === "Approved" ? "Ready for students & parents" : "Directory listing unlocked"}</small></div></li>
                 </ol>
@@ -1308,14 +1308,14 @@ window.BelloAcademyRegister = (function () {
       <div class="wa-modal-backdrop" data-wa-action="close-terms-backdrop">
         <div class="wa-modal" role="dialog" aria-modal="true" aria-label="Terms of service">
           <div class="wa-modal-head">
-            <h3>BELLO Terms of Service &amp; Privacy Policy</h3>
+            <h3>EduSphere Terms of Service &amp; Privacy Policy</h3>
             <button type="button" class="wa-modal-close" data-wa-action="close-terms" aria-label="Close dialog">${icons.close}</button>
           </div>
           <div class="wa-modal-body wa-terms-copy">
             <h4>1. Academy Partnership</h4>
-            <p>By submitting your academy registration to the BELLO platform, you certify that you are an authorized representative of the school and that the information submitted is accurate.</p>
+            <p>By submitting your academy registration to the EduSphere platform, you certify that you are an authorized representative of the school and that the information submitted is accurate.</p>
             <h4>2. Data Privacy &amp; Student Protection</h4>
-            <p>BELLO safeguards school records, staff information and student academic data in line with modern digital data protection standards.</p>
+            <p>EduSphere safeguards school records, staff information and student academic data in line with modern digital data protection standards.</p>
             <h4>3. Academic Standards</h4>
             <p>Registered academies commit to providing a safe, inclusive and high-quality learning environment for every student.</p>
           </div>
@@ -1328,8 +1328,8 @@ window.BelloAcademyRegister = (function () {
     return `
       <footer class="western-footer" id="academy-reg-contact">
         <div class="western-container western-footer-bottom">
-          <span>© <span id="academy-reg-year"></span> BELLO Western Academy. All rights reserved.</span>
-          <span>Powered by BELLO Education Platform</span>
+          <span>© <span id="academy-reg-year"></span> EduSphere — Western Academies. All rights reserved.</span>
+          <span>Powered by EduSphere Education Platform</span>
         </div>
       </footer>`;
   }

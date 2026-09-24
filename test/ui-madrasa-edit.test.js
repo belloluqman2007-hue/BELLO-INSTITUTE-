@@ -112,40 +112,53 @@ before(async () => {
   assert.equal(sa.window.App.me.role, "super_admin");
 });
 
-test("the homepage renders bilingual copy (English + العربية) with no client errors", { skip }, async () => {
+test("the homepage carries EduSphere branding, international English only, with no client errors", { skip }, async () => {
   await sa.go("");
 
   const heading = sa.$("#hero-title");
   assert.ok(heading, "the hero rendered instead of staying blank");
-  assert.match(heading.textContent, /BELLO/, "the hero welcomes visitors to BELLO");
+  assert.match(heading.textContent, /Smarter Management for Modern Education/, "the hero states the EduSphere value proposition");
+  assert.equal(sa.doc.title, "EduSphere — Education Management Platform", "the homepage title is the EduSphere platform name");
 
-  const heroArabic = sa.$(".hero-arabic");
-  assert.ok(heroArabic, "the Arabic welcome line is present");
-  assert.equal(heroArabic.getAttribute("lang"), "ar");
-  assert.equal(heroArabic.getAttribute("dir"), "rtl");
-  assert.match(heroArabic.textContent, /منصة/, "the welcome line is real Arabic copy");
+  // The GLOBAL platform is internationally neutral: no Arabic branding anywhere.
+  assert.ok(!sa.$(".hero-arabic"), "the hero carries no Arabic line");
+  assert.equal(sa.$$(".choice-ar").length, 0, "the school-choice cards carry no Arabic subtitles");
+  assert.ok(!sa.$(".footer-ar"), "the footer carries no Arabic line");
+  assert.equal(sa.doc.querySelectorAll('#main-content [lang="ar"]').length, 0, "no Arabic is rendered on the global homepage");
 
-  const choiceArabic = sa.$$(".choice-ar");
-  assert.equal(choiceArabic.length, 2, "both school-choice cards carry an Arabic subtitle");
-  assert.match(choiceArabic[0].textContent, /إسلامية/, "the Islamic card is labelled in Arabic");
+  // The official EduSphere logo is the single global brand mark.
+  const logo = sa.$(".hero-logo");
+  assert.ok(logo, "the hero shows the official EduSphere logo");
+  assert.match(logo.getAttribute("src"), /\/assets\/edusphere-logo\.png$/, "the hero logo is the official uploaded EduSphere logo");
+  assert.match(sa.$(".brand-logo img").getAttribute("src"), /\/assets\/edusphere-logo\.png$/, "the header brand uses the official EduSphere logo");
 
-  assert.ok(sa.$(".footer-ar"), "the footer carries the Arabic mission line");
+  // Hero actions follow the EduSphere marketing spec.
+  const actions = sa.$$(".platform-hero-intro .hero-actions a");
+  assert.ok(actions.length >= 2, "the hero offers Get Started and Sign In");
+  assert.match(actions[0].textContent, /Get Started/, "the primary hero action is Get Started");
+  assert.match(actions[1].textContent, /Sign In/, "the secondary hero action is Sign In");
+
+  // The homepage explains the platform capabilities it manages.
+  const body = sa.doc.querySelector("#main-content").textContent;
+  for (const capability of ["Students", "Teachers", "Classes", "Attendance", "Finance", "Payroll", "Library", "Parent Portal"]) {
+    assert.ok(body.includes(capability), `the homepage communicates the ${capability} capability`);
+  }
+
   assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
 });
 
-test("the Islamic Schools page renders its Arabic identity and the royal-purple theme", { skip }, async () => {
+test("the Islamic Schools page renders its identity and the royal-purple theme", { skip }, async () => {
   await sa.go("islamic-schools");
 
   const title = sa.$("#category-title");
   assert.ok(title, "the category page rendered");
   assert.equal(title.textContent.trim(), "Islamic education, ready to discover.");
 
-  const titleAr = sa.$(".category-title-ar");
-  assert.ok(titleAr, "the page heading is mirrored in Arabic");
-  assert.match(titleAr.textContent, /إسلامي/, "the Arabic title is real Arabic copy");
-
-  assert.ok(sa.$(".category-quote-ar"), "the Arabic knowledge quote is displayed");
-  assert.equal(sa.$$(".type-ar").length, 4, "every institution-type card is labelled in Arabic");
+  // The global platform is internationally neutral: category marketing pages
+  // carry no Arabic branding (school-specific Arabic stays on school sites).
+  assert.ok(!sa.$(".category-title-ar"), "the page heading is not mirrored in Arabic");
+  assert.ok(!sa.$(".category-quote-ar"), "no Arabic quote is displayed");
+  assert.equal(sa.$$(".type-ar").length, 0, "no institution-type card is labelled in Arabic");
   assert.equal(sa.themeColor(), "#200A3D", "the Islamic experience uses the specified deep royal-purple brand colour");
   assert.deepEqual(sa.pageErrors, [], "no client-side error was raised: " + sa.pageErrors.join(" | "));
 });

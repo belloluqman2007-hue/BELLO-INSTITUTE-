@@ -87,7 +87,8 @@ test("the unified sign-in card has every required control and no role chooser", 
     if (bad === "role") assert.ok(!/<select[^>]*name=["']role/i.test(html), "no role select input");
     else assert.ok(!new RegExp(bad, "i").test(html), `no "${bad}" chooser on the card`);
   }
-  assert.match(page.doc.querySelector(".dash-login-card h1").textContent, /sign in to bello/i);
+  assert.match(page.doc.querySelector(".dash-login-card h1").textContent, /sign in to edusphere/i);
+  assert.match(page.doc.querySelector(".dash-login-card .brand-row img").getAttribute("src"), /edusphere-logo\.png$/, "the unified sign-in card carries the official EduSphere logo");
   // The card addresses every account type equally.
   assert.match(page.doc.querySelector(".dash-login-card .sub").textContent, /administrator|teacher|student|parent/i);
   page.close();

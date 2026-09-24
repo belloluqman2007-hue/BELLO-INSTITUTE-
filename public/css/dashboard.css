@@ -1,8 +1,8 @@
 /* ============================================================================
-   BELLO — Institution Admin Dashboards (Islamic & Western)
+   EduSphere — Institution Admin Dashboards (Islamic & Western)
    ----------------------------------------------------------------------------
    Loaded ONLY on dashboard routes (#/app/...). Never applied to the main
-   BELLO public site, which keeps its own palette in app.css untouched.
+   EduSphere public site, which keeps its own palette in app.css untouched.
 
    Three independent visual identities, switched by one class on <body>:
      body.dash-islamic  → deep royal purple / violet / gold / cream

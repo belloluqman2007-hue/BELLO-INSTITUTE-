@@ -3396,3 +3396,93 @@ body.islamic-experience .socials a { border-color: #ddd3b8; }
   .school-app-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
   .school-app-actions .button { width: 100%; }
 }
+
+/* -------------------------------------------------------------- */
+/* Homepage "Watch How EduSphere Works" promo video               */
+.promo-video-section {
+  padding: 92px 0;
+  background: linear-gradient(180deg, #170a2e 0%, #220b40 55%, #170a2e 100%);
+  color: #fff;
+}
+.promo-video-section .section-heading h2 { color: #fff; }
+.promo-video-section .section-heading p { color: rgba(255, 255, 255, .78); }
+.promo-video-section .section-heading em { color: #e9c25a; font-style: normal; }
+.promo-video-wrap { max-width: 980px; margin: 0 auto; }
+.promo-video-frame {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(233, 194, 90, .35);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .04);
+  background: #0c0418;
+  aspect-ratio: 16 / 9;
+}
+.promo-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #0c0418;
+}
+.promo-video-ended {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px;
+  background: linear-gradient(180deg, rgba(23, 10, 46, .94), rgba(34, 11, 64, .96));
+}
+.promo-video-ended[hidden] { display: none; }
+.promo-ended-title { font-size: clamp(1.4rem, 2.6vw, 2rem); font-weight: 800; margin: 0; }
+.promo-ended-title em { color: #e9c25a; font-style: normal; }
+.promo-ended-copy { margin: 0; color: rgba(255, 255, 255, .78); max-width: 46ch; }
+.promo-ended-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 6px; }
+.promo-replay {
+  background: none;
+  border: 0;
+  color: rgba(255, 255, 255, .72);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.promo-replay:hover, .promo-replay:focus-visible { color: #fff; }
+.promo-video-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.promo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .82rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .16);
+  color: rgba(255, 255, 255, .85);
+}
+.promo-chip svg { width: 14px; height: 14px; stroke: #e9c25a; fill: none; stroke-width: 2; }
+.promo-quality-note { font-size: .82rem; color: #e9c25a; text-decoration: none; font-weight: 700; margin-left: 6px; }
+.promo-quality-note:hover { text-decoration: underline; }
+.promo-video-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 26px;
+}
+@media (max-width: 640px) {
+  .promo-video-section { padding: 64px 0; }
+  .promo-video-frame { border-radius: 16px; }
+  .promo-ended-actions .button { width: 100%; }
+}

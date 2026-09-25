@@ -312,7 +312,7 @@
         <td>${c.fmtDate(t.published_at)}</td>
         <td><div class="module-actions">
           <button class="dash-btn dash-btn-ghost dash-btn-sm" data-term-view="${c.esc(t.term_id)}">Subjects</button>
-          <a class="dash-btn dash-btn-ghost dash-btn-sm" href="${c.api.portalReportUrl(t.term_id)}" target="_blank">Report card</a>
+          <a class="dash-btn dash-btn-ghost dash-btn-sm" href="${c.api.portalReportUrl(t.term_id)}" target="_blank">Report sheet</a>
         </div></td></tr>`).join("")}</tbody></table></div>`;
     const viewTerm = async (termId) => {
       detail.innerHTML = `<div class="dash-card-head"><h3>Subject results</h3></div><div class="dash-card-pad">${c.loading()}</div>`;

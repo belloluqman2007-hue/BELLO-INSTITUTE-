@@ -81,3 +81,36 @@ Legend: ✅ present before this pass · 🆕 added in this pass · ♻️ extend
   /students/:id/portal-account` and `/parent-account` keep `requireRole("madrasa_admin")`,
   the same rule every other student write endpoint in that router uses. Teachers, students
   and parents get 403; a cross-tenant student id gets 404.
+
+## Added or completed in the report-sheet pass (2026-09-25)
+
+| # | User | Feature | Backend | API | Frontend | Permissions | Tests | Status |
+|---|------|---------|---------|-----|----------|-------------|-------|--------|
+| 42 | Admin/Teacher | **Professional A4 report sheet engine** — one renderer (classic/modern/compact, auto landscape for wide tables, RTL + Arabic preserved, school branding, watermark, grading legend, next-term dates, signature blocks, "Powered by EduSphere" toggle) used by the staff workspace, bulk generation, both portals and the public result checker | 🆕 `services/report-sheet.js` wrapping the existing grading engine (no duplicate calculations) | ♻️ `GET /results/report-card/:studentId/:termId`, 🆕 `GET /results/report-sheet/:studentId/:termId` | ♻️ Report Cards page ("Report sheet" action) | ♻️ `report_cards.view` + teacher class scope | 🆕 report-sheet | ✅ |
+| 43 | Admin | **Configurable report template** — layout, orientation, brand colour, result columns, CA/Exam labels, section visibility (position, attendance, behaviour, comments, promotion, class stats, photo, next term, legend, reference, watermark, credit line), behaviour categories, signature blocks; professional defaults so a new institution needs no setup; sample-data preview before saving | ♻️ `settings` key `report_template` (no new table) | 🆕 `GET/PUT /results/report-template`, 🆕 `GET /results/report-template/preview` | 🆕 Report Cards → Report template modal (edit + preview) | 🆕 `report_cards.templates` (admin-only by default, audited) | 🆕 report-sheet | ✅ |
+| 44 | Admin/Teacher | **Result completeness check** — subjects assigned to a class vs results actually entered; per student and per class; missing vs awaiting-approval distinguished; visible warning in the UI and **on the printed sheet** so an incomplete report is never presented as final | 🆕 `classCompleteness` (reads existing `class_subjects`/`results`) | 🆕 `GET /results/report-completeness` | 🆕 completeness column + class-wide banner on the Report Cards page | ♻️ `report_cards.view` | 🆕 report-sheet | ✅ |
+| 45 | Admin/Teacher | **Behaviour/conduct ratings** — configurable categories, 1–5 ratings stored on the existing `term_summaries` row (migration 038 adds `behaviour_ratings`), rendered with a rating legend; unrated categories show an honest empty state | ♻️ `term_summaries` + 2 columns | ♻️ `PUT /results/summary/:studentId` accepts `behaviour` | ♻️ Comments modal gains a ratings grid | ♻️ `results.edit` | 🆕 report-sheet | ✅ |
+| 46 | Admin/Teacher | **Bulk class generation** — every student with results in one document, one page each, correct student-to-sheet mapping, ordered by position; batched queries (shared preload + grouped results/attendance) so a class never becomes per-student N+1 lookups | ♻️ same builder, batched | ♻️ `GET /results/report-cards/bulk` (+ `/report-sheets/bulk` alias), audited | 🆕 "All report sheets" action | ♻️ `report_cards.generate` + teacher class scope | 🆕 report-sheet | ✅ |
+| 47 | Admin | **Extended promotion decisions** — the engine's four computed statuses are unchanged; an administrator may additionally record promoted-on-trial / withdrawn / completed on the same summary row | ♻️ `term_summaries` | ♻️ `PUT /results/summary/:studentId` | ♻️ Comments modal decision list | ♻️ `results.edit` | 🆕 report-sheet | ✅ |
+| 48 | Student/Parent | **Published-only portal reports** — the student/parent report endpoints now enforce `published_at` server-side (previously an unpublished summary rendered in the portal); portal result listings show published terms only and subject detail excludes non-approved rows | ♻️ unchanged tables | ♻️ `GET /portal/report-card`, `/portal/results`, `/portal/results/:termId` | ♻️ portals (label now "Report sheet") | ✅ publication gate | 🆕 report-sheet | ✅ |
+| 49 | All | **Report reference number** — deterministic, human-facing `EDU-<session>-<class>-<admission>` reference persisted on the summary (migration 038) and printed on the sheet/footer; internal database ids are never exposed | 🆕 `term_summaries.report_reference` | included in sheet payload | printed on the sheet | — | 🆕 report-sheet | ✅ |
+| 50 | All | **Report workflow status + audit** — a report's stage (draft → submitted → under review → approved → published → locked) is derived from its subject results *and* pending entries, shown in the staff preview; report view/print/bulk/template/portal actions are written to the existing activity log | ♻️ existing lifecycle | 🆕 in `report-sheet` payload | 🆕 status pill on the print toolbar | ♻️ existing | 🆕 report-sheet | ✅ |
+| 51 | All | **IDOR fix on the results workspace** — an authenticated STUDENT could read any classmate's full report data through staff endpoints (`/api/results/report-card-data/...` returned 200) because `requireStaffPermission` deliberately passes portal roles through; the results router now refuses student/parent roles outright (they keep their own `/api/portal/*` endpoints) | ♻️ | 🆕 router-level staff gate | — | ✅ | 🆕 report-sheet | ✅ |
+
+### Report-sheet pass preservation notes
+
+- **No duplicate modules**: one report engine (`services/report-sheet.js`) behind every
+  printable report; `routes/results.js` keeps its historical exports as thin delegates.
+  All totals/grades/averages/positions/promotions still come **only** from
+  `services/grading.js`.
+- **No second settings system**: the template lives in the existing per-institution
+  `settings` store (same pattern as the admissions settings).
+- **No second promotion system**: the four computed lifecycle statuses are untouched;
+  the extra values are manual annotations on the same summary row.
+- **PDF pipeline unchanged**: the platform's documents (ID cards, certificates) render
+  HTML and produce PDFs through the browser's print dialog — the report sheet uses the
+  same pipeline, which is what preserves Arabic shaping, branding and page breaks.
+- **Two pre-existing tests were updated, not weakened**: the portal report-card test now
+  asserts an *unpublished* report is refused (403) before asserting the published one
+  renders, and the public-checker title regex accepts the new document title in either
+  language. Both changes encode the stronger behaviour this pass implements.

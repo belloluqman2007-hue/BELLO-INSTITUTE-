@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بطاقة النتائج — Aisha Adebayo Example</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #eef1f4; }
+  body { font-family: "Segoe UI", Tahoma, "Noto Naskh Arabic", Arial, sans-serif; color: #1f2937; }
+  .sheet {
+    position: relative; background: #fff; margin: 0 auto 16px;
+    width: 202mm;
+    min-height: 285mm;
+    padding: 9mm;
+    border: 2px solid #003b15;
+    overflow: hidden;
+  }
+  .watermark {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 56px; font-weight: 800; letter-spacing: 6px; color: #14532d; opacity: .07;
+    transform: rotate(-28deg); pointer-events: none; z-index: 0;
+  }
+  .draft-mark {
+    position: absolute; top: 46%; left: 6mm; transform: rotate(90deg);
+    font-size: 11px; font-weight: 700; letter-spacing: 3px; color: #b91c1c; opacity: .55;
+  }
+  .inner { position: relative; z-index: 1; }
+  .head { display: flex; align-items: center; gap: 14px; padding-bottom: 10px; border-bottom: 2px solid #14532d; }
+  .head .logo { width: 76px; height: 76px; object-fit: contain; border-radius: 8px; }
+  .head .logo-fallback { display: flex; align-items: center; justify-content: center; background: #88c7a1; color: #003b15; font-size: 30px; font-weight: 800; }
+  .head .id { flex: 1; text-align: center; }
+  .head .name { font-size: 21px; font-weight: 800; color: #003b15; letter-spacing: .5px; }
+  .head .name .ar { font-size: 18px; font-weight: 700; }
+  .head .motto { font-size: 12px; font-style: italic; color: #4b5563; margin-top: 2px; }
+  .head .contact { font-size: 10.5px; color: #6b7280; margin-top: 3px; }
+  .doc-title { text-align: center; margin: 12px 0 8px; }
+  .doc-title .en { font-size: 15px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: #003b15; }
+  .doc-title .ar { font-size: 13px; font-weight: 700; color: #003b15; }
+  .student-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 18px;  }
+  .student-grid .cell { display: flex; gap: 6px; font-size: 12px; border-bottom: 1px dotted #d1d5db; padding: 3px 0; }
+  .student-grid .k { min-width: 108px; font-weight: 700; color: #374151; }
+  .photo { float: left; width: 82px; height: 100px; object-fit: cover; border: 1px solid #9ca3af; border-radius: 6px; margin: 6px 0 4px 12px; margin-left: 12px; margin-right: 0; }
+  table.results { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+  table.results th, table.results td { border: 1px solid #6ead87; padding: 4px 7px; text-align: center; }
+  table.results th { background: #14532d; color: #fff; font-weight: 700; }
+  table.results td.subj, table.results th.subj { text-align: start; }
+  table.results td.grade { font-weight: 800; }
+  table.results tr { break-inside: avoid; page-break-inside: avoid; }
+  table.results thead { display: table-header-group; }
+  table.results tbody tr:nth-child(even) { background: #8ecda7; }
+  .notice { border: 1.5px solid #b45309; background: #fffbeb; color: #92400e; font-size: 11px; padding: 6px 10px; border-radius: 6px; margin-top: 8px; }
+  .perf { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .perf .stat { border: 1px solid #6ead87; background: #90cfa9; border-radius: 6px; padding: 5px 10px; font-size: 11px; display: flex; gap: 6px; }
+  .perf .k { font-weight: 700; color: #003b15; }
+  .block { margin-top: 12px; }
+  .block h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.2px; color: #003b15; border-bottom: 1.5px solid #6ead87; padding-bottom: 3px; margin: 0 0 6px; }
+  .att, .behaviour { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 16px; }
+  .att .cell, .behaviour .cell { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; border-bottom: 1px dotted #d1d5db; padding: 2.5px 0; }
+  .att .k, .behaviour .k { font-weight: 700; color: #374151; }
+  .comment { display: flex; gap: 10px; font-size: 11.5px; padding: 5px 0; border-bottom: 1px dashed #d1d5db; }
+  .comment .k { min-width: 170px; font-weight: 700; color: #003b15; }
+  .comment p { margin: 0; min-height: 18px; }
+  .promotion { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .promotion h2 { flex-basis: 100%; }
+  .promo-badge { border: 2px solid #003b15; color: #003b15; font-weight: 800; font-size: 13px; letter-spacing: 1px; padding: 6px 16px; border-radius: 999px; }
+  .next-term { font-size: 11.5px; margin: 0; }
+  .signatures { display: flex; justify-content: space-around; gap: 18px; margin-top: 26px; }
+  .sig { flex: 1; max-width: 240px; text-align: center; font-size: 11px; }
+  .sig .line { border-top: 1px solid #374151; margin-bottom: 4px; height: 30px; }
+  .sig .who { font-weight: 700; }
+  .sig .name { color: #4b5563; }
+  .legend { font-size: 9.5px; color: #6b7280; margin: 10px 0 0; }
+  .foot { margin-top: 12px; border-top: 1px solid #6ead87; padding-top: 6px; text-align: center; font-size: 10px; color: #6b7280; }
+  .credit { font-size: 9px; color: #9ca3af; margin-top: 2px; }
+  .empty { font-size: 11px; color: #6b7280; margin: 2px 0; font-style: italic; }
+  .noprint { position: sticky; top: 0; z-index: 5; background: #111827; color: #fff; padding: 8px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .noprint button { background: #14532d; color: #fff; border: 0; padding: 8px 18px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  .status-pill { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 10px; border-radius: 999px; background: #374151; }
+  .status-published, .status-approved, .status-locked { background: #15803d; }
+  .status-draft, .status-returned { background: #b45309; }
+  .status-submitted, .status-under_review { background: #1d4ed8; }
+  .status-incomplete { background: #b91c1c; }
+  .noprint .note { font-size: 12px; color: #d1d5db; }
+  @media print {
+    html, body { background: #fff; }
+    .noprint { display: none !important; }
+    .sheet { width: auto; min-height: auto; margin: 0; border-top-width: 2px; box-shadow: none; }
+  }
+  @media screen and (max-width: 720px) {
+    .sheet { width: 100%; padding: 4mm; }
+    .student-grid { margin-inline-end: 0; }
+    .photo { float: none; display: block; margin: 6px auto; }
+  }
+</style>
+</head>
+<body data-sample-preview="1">
+<div class="noprint toolbar">
+        <span class="status-pill status-published">published</span>
+        
+        
+        <button type="button" onclick="window.print()">🖨 طباعة / حفظ PDF</button>
+      </div>
+<div class="sheet layout-classic">
+  
+  
+  <div class="inner">
+    <header class="head">
+      <div class="logo logo-fallback" aria-hidden="true">S</div>
+      <div class="id">
+        <div class="name">Sample International Academy <span class="ar" dir="rtl">· أكاديمية النموذج الدولية</span></div>
+        <div class="motto">العلم · الخلق · الخدمة</div>
+        <div class="contact">1 Sample Avenue · Ijebu-Ode · Ogun · هاتف: +234 800 000 0000 · info@example.edu · www.example.edu</div>
+      </div>
+      <div style="width:76px" aria-hidden="true"></div>
+    </header>    <div class="doc-title" title="Sample preview">
+      <div class="en">التقرير الفصلي</div>
+      <div class="ar" dir="rtl">بطاقة النتائج المدرسية</div>
+    </div>
+    
+    <div class="student-grid"><div class="cell"><span class="k">اسم الطالب</span><span class="v">عائشة أديبايو — نموذج</span></div><div class="cell"><span class="k">رقم التسجيل</span><span class="v">SAMPLE-0001</span></div><div class="cell"><span class="k">الرقم التعريفي</span><span class="v">SAMPLE-0001</span></div><div class="cell"><span class="k">الفصل</span><span class="v">الابتدائية ٥</span></div><div class="cell"><span class="k">القسم</span><span class="v">A</span></div><div class="cell"><span class="k">البرنامج</span><span class="v">General</span></div><div class="cell"><span class="k">الجنس</span><span class="v">أنثى</span></div><div class="cell"><span class="k">تاريخ الميلاد</span><span class="v">2013-06-15</span></div><div class="cell"><span class="k">العام الدراسي</span><span class="v">2026/2027</span></div><div class="cell"><span class="k">الفترة</span><span class="v">الفترة الأولى</span></div><div class="cell"><span class="k">رقم التقرير</span><span class="v">EDU-2026/2027-PRIMARY5-SAMPLE0001</span></div></div>
+    <table class="results">
+      <thead><tr><th class="subj">المادة</th><th>CA</th><th>Exam</th><th>المجموع</th><th>%</th><th>الدرجة</th><th>ملاحظة</th></tr></thead>
+      <tbody><tr><td class="subj">الرياضيات</td><td class="num">30</td><td class="num">45</td><td class="num"><b>75</b></td><td class="num">75%</td><td class="grade">A</td><td class="remark">ممتاز</td></tr><tr><td class="subj">اللغة الإنجليزية</td><td class="num">31</td><td class="num">49</td><td class="num"><b>80</b></td><td class="num">80%</td><td class="grade">A</td><td class="remark">ممتاز</td></tr><tr><td class="subj">العلوم</td><td class="num">32</td><td class="num">53</td><td class="num"><b>85</b></td><td class="num">85%</td><td class="grade">A</td><td class="remark">ممتاز</td></tr><tr><td class="subj">الدراسات الاجتماعية</td><td class="num">33</td><td class="num">45</td><td class="num"><b>78</b></td><td class="num">78%</td><td class="grade">A</td><td class="remark">ممتاز</td></tr><tr><td class="subj">الدراسات الإسلامية</td><td class="num">34</td><td class="num">49</td><td class="num"><b>83</b></td><td class="num">83%</td><td class="grade">A</td><td class="remark">ممتاز</td></tr><tr><td class="subj">اللغة العربية</td><td class="num">35</td><td class="num">53</td><td class="num"><b>88</b></td><td class="num">88%</td><td class="grade">A</td><td class="remark">ممتاز</td></tr></tbody>
+    </table>
+    
+    <div class="perf"><div class="stat"><span class="k">عدد المواد</span><span class="v">6</span></div><div class="stat"><span class="k">مجموع الدرجات</span><span class="v">489</span></div><div class="stat"><span class="k">المعدل</span><span class="v">81.5%</span></div><div class="stat"><span class="k">الدرجة العامة</span><span class="v">A</span></div><div class="stat"><span class="k">الترتيب</span><span class="v">3rd من 28</span></div><div class="stat"><span class="k">عدد الطلاب</span><span class="v">28</span></div><div class="stat"><span class="k">معدل الفصل</span><span class="v">71.4%</span></div></div>
+    <p class="legend">سلم الدرجات: A 75+ (ممتاز) · B 65+ (جيد جداً) · C 55+ (جيد) · D 45+ (مقبول) · E 40+ (ضعيف) · F 0+ (راسب)</p>
+    <section class="block">
+        <h2>الحضور</h2>
+        <div class="att"><div class="cell"><span class="k">أيام مسجلة</span><span class="v">98</span></div><div class="cell"><span class="k">حاضر</span><span class="v">92</span></div><div class="cell"><span class="k">غائب</span><span class="v">3</span></div><div class="cell"><span class="k">متأخر</span><span class="v">2</span></div><div class="cell"><span class="k">نسبة الحضور</span><span class="v">94%</span></div></div>
+      </section>
+    <section class="block">
+        <h2>السلوك والمواظبة</h2>
+        <div class="behaviour"><div class="cell"><span class="k">الالتزام بالمواعيد</span><span class="v">5/5 — Excellent</span></div><div class="cell"><span class="k">النظافة</span><span class="v">4/5 — Very Good</span></div><div class="cell"><span class="k">الانضباط</span><span class="v">3/5 — Good</span></div><div class="cell"><span class="k">المشاركة</span><span class="v">5/5 — Excellent</span></div><div class="cell"><span class="k">التعاون</span><span class="v">4/5 — Very Good</span></div><div class="cell"><span class="k">الاحترام</span><span class="v">3/5 — Good</span></div><div class="cell"><span class="k">السلوك العام</span><span class="v">5/5 — Excellent</span></div></div>
+      </section>
+    <section class="block">
+        <h2>الملاحظات</h2>
+        <div class="comment"><span class="k">تعليق معلم الفصل</span><p>A consistently hard-working and courteous learner. Keep it up.</p></div>
+        <div class="comment"><span class="k">تعليق رئيس المؤسسة</span><p>An excellent term&#39;s work. Promoted with merit.</p></div>
+      </section>
+    <section class="block promotion"><h2>قرار الترقية</h2>
+        <div class="promo-badge">نُقل إلى الصف الأعلى</div>
+        <p class="next-term">تبدأ الفترة القادمة: <b>2027-01-08</b> — تنتهي <b>2027-04-02</b></p>
+      </section>
+    <div class="signatures"><div class="sig"><div class="line"></div><div class="who">مُعلّم الفصل</div></div><div class="sig"><div class="line"></div><div class="who">المدير</div><div class="name">Alhaji A. Bello</div></div></div>
+    <footer class="foot">
+      <div>Sample International Academy · 1 Sample Avenue · Ijebu-Ode · Ogun · هاتف: +234 800 000 0000 · info@example.edu · www.example.edu</div>
+      <div>العام: 2026/2027 — الفترة الأولى · صدر: 2026-09-25</div>
+      <div>رقم التقرير: EDU-2026/2027-PRIMARY5-SAMPLE0001</div>
+      <div class="credit">Powered by EduSphere</div>
+    </footer>
+  </div>
+</div>
+
+</body>
+</html>

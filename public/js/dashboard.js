@@ -2465,13 +2465,132 @@
 
   async function pageReportCards(content) {
     const base = await catalogue(); const terms = allTerms(base.sessions);
-    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>Report Cards</h2><p>Review calculated term summaries, add comments and open printable report cards.</p></div></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label>Class</label><select id="reportClass"><option value="">Select class</option>${options(base.classes)}</select></div><div class="dash-field"><label>Term</label><select id="reportTerm"><option value="">Select term</option>${options(terms, "", (t) => `${t.session_label} — ${t.name_en}`)}</select></div></div><div id="reportCardsList" style="margin-top:18px"></div></div></div>`;
-    const load = async () => { const cls = content.querySelector("#reportClass").value, term = content.querySelector("#reportTerm").value, out = content.querySelector("#reportCardsList"); if (!cls || !term) return out.innerHTML = `<p class="hint">Select class and term to see calculated report cards.</p>`; try { const r = await window.API.get(`/results/summary?classId=${cls}&termId=${term}`); out.innerHTML = `<div class="dash-actions" style="margin-bottom:10px"><button id="calculateReportCards" class="dash-btn dash-btn-ghost dash-btn-sm">${I.refresh} Recalculate all</button><button id="publishReportCards" class="dash-btn dash-btn-primary dash-btn-sm">Publish class results</button><a class="dash-btn dash-btn-ghost dash-btn-sm" target="_blank" rel="noopener" href="${window.API.url(`/exports/summary.csv?classId=${cls}&termId=${term}`)}">${I.download} Export CSV</a></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Average</th><th>Grade</th><th>Position</th><th>Promotion</th><th>Publication</th><th></th></tr></thead><tbody>${r.students.length ? r.students.map((s) => `<tr><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td>${esc(s.average)}%</td><td>${esc(s.overall_grade)}</td><td>${esc(s.position || "—")}</td><td>${esc(s.promotion_status)}</td><td><span class="dash-pill ${s.published_at ? "ok" : "warn"}">${s.published_at ? "published" : "draft"}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-summary-student="${s.student_id}">Comments</button> <a class="dash-btn dash-btn-ghost dash-btn-sm" target="_blank" rel="noopener" href="${window.API.reportCardUrl(s.student_id, term)}">${I.external} Card</a></td></tr>`).join("") : emptyRow(7, "No calculated summaries. Enter subject scores, then calculate the class term.")}</tbody></table></div>`; out.querySelector("#calculateReportCards").addEventListener("click", async () => { try { await window.API.post("/results/compute", { classId: Number(cls), termId: Number(term) }); toast("Term summaries calculated.", "success"); load(); } catch (err) { toast(err.message || "Could not calculate summaries.", "error"); } }); out.querySelector("#publishReportCards").addEventListener("click", async () => { if (!window.confirm("Publish all calculated report cards in this class?")) return; try { const x = await window.API.put("/results/summaries/publish", { classId: Number(cls), termId: Number(term), publish: true }); toast(`${x.count} report card(s) published.`, "success"); load(); } catch (err) { toast(err.message || "Could not publish report cards.", "error"); } }); out.querySelectorAll("[data-summary-student]").forEach((b) => b.addEventListener("click", () => { const s = r.students.find((x) => Number(x.student_id) === Number(b.dataset.summaryStudent)); openSummaryModal(s, Number(term), load); })); } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not load report cards.")}</p>`; } };
+    content.innerHTML = `<div class="dash-page-head"><div><div class="dash-crumb">Academic</div><h2>Report Cards</h2><p>Review calculated term summaries, enter comments and conduct ratings, then preview, print or publish each report sheet.</p></div><button id="reportTemplateBtn" class="dash-btn dash-btn-ghost" data-needs="report_cards.templates">${I.edit} Report template</button></div><div class="dash-card"><div class="dash-card-pad"><div class="dash-form-grid"><div class="dash-field"><label for="reportClass">Class</label><select id="reportClass"><option value="">Select class</option>${options(base.classes)}</select></div><div class="dash-field"><label for="reportTerm">Term</label><select id="reportTerm"><option value="">Select term</option>${options(terms, "", (t) => `${t.session_label} — ${t.name_en}`)}</select></div></div><div id="reportCardsList" style="margin-top:18px"></div></div></div>`;
+    content.querySelector("#reportTemplateBtn").addEventListener("click", () => openReportTemplateModal());
+    const completenessPill = (entry) => {
+      if (!entry) return '';
+      const issues = (entry.missing || []).length + (entry.pending || []).length;
+      if (!issues) return '<span class="dash-pill ok">complete</span>';
+      return `<span class="dash-pill danger" title="${esc((entry.missing || []).concat(entry.pending || []).map((x) => x.nameEn).join(", "))}">${issues} missing</span>`;
+    };
+    const load = async () => {
+      const cls = content.querySelector("#reportClass").value, term = content.querySelector("#reportTerm").value, out = content.querySelector("#reportCardsList");
+      if (!cls || !term) return out.innerHTML = `<p class="hint">Select class and term to see calculated report cards.</p>`;
+      try {
+        const [r, complete] = await Promise.all([
+          window.API.get(`/results/summary?classId=${cls}&termId=${term}`),
+          window.API.get(`/results/report-completeness?classId=${cls}&termId=${term}`).catch(() => null),
+        ]);
+        const completenessByStudent = new Map();
+        if (complete && Array.isArray(complete.students)) complete.students.forEach((s) => completenessByStudent.set(Number(s.studentId), s));
+        const classIncomplete = complete && complete.students && complete.students.some((s) => !s.complete);
+        out.innerHTML = `${classIncomplete ? `<p class="dash-error" style="margin:0 0 10px">Some reports in this class are incomplete — required results are missing or not yet approved. Open a report sheet to see exactly which subjects.</p>` : ""}<div class="dash-actions" style="margin-bottom:10px"><button id="calculateReportCards" class="dash-btn dash-btn-ghost dash-btn-sm">${I.refresh} Recalculate all</button><button id="publishReportCards" class="dash-btn dash-btn-primary dash-btn-sm">Publish class results</button><a class="dash-btn dash-btn-ghost dash-btn-sm" target="_blank" rel="noopener" href="${window.API.bulkReportSheetsUrl(cls, term)}">${I.external} All report sheets</a><a class="dash-btn dash-btn-ghost dash-btn-sm" target="_blank" rel="noopener" href="${window.API.url(`/exports/summary.csv?classId=${cls}&termId=${term}`)}">${I.download} Export CSV</a></div><div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>Student</th><th>Average</th><th>Grade</th><th>Position</th><th>Promotion</th><th>Results</th><th>Publication</th><th></th></tr></thead><tbody>${r.students.length ? r.students.map((s) => `<tr><td>${esc(s.first_name)} ${esc(s.last_name)}</td><td>${esc(s.average)}%</td><td>${esc(s.overall_grade)}</td><td>${esc(s.position || "—")}</td><td>${esc(s.promotion_status)}</td><td>${completenessPill(completenessByStudent.get(Number(s.student_id)))}</td><td><span class="dash-pill ${s.published_at ? "ok" : "warn"}">${s.published_at ? "published" : "draft"}</span></td><td><button class="dash-btn dash-btn-ghost dash-btn-sm" data-summary-student="${s.student_id}">Comments</button> <a class="dash-btn dash-btn-ghost dash-btn-sm" target="_blank" rel="noopener" href="${window.API.reportCardUrl(s.student_id, term)}">${I.external} Report sheet</a></td></tr>`).join("") : emptyRow(8, "No calculated summaries. Enter subject scores, then calculate the class term.")}</tbody></table></div>`;
+        out.querySelector("#calculateReportCards").addEventListener("click", async () => { try { await window.API.post("/results/compute", { classId: Number(cls), termId: Number(term) }); toast("Term summaries calculated.", "success"); load(); } catch (err) { toast(err.message || "Could not calculate summaries.", "error"); } });
+        out.querySelector("#publishReportCards").addEventListener("click", async () => { if (!window.confirm("Publish all calculated report cards in this class?")) return; try { const x = await window.API.put("/results/summaries/publish", { classId: Number(cls), termId: Number(term), publish: true }); toast(`${x.count} report card(s) published.`, "success"); load(); } catch (err) { toast(err.message || "Could not publish report cards.", "error"); } });
+        out.querySelectorAll("[data-summary-student]").forEach((b) => b.addEventListener("click", () => { const s = r.students.find((x) => Number(x.student_id) === Number(b.dataset.summaryStudent)); openSummaryModal(s, Number(term), load); }));
+      } catch (err) { out.innerHTML = `<p class="dash-error">${esc(err.message || "Could not load report cards.")}</p>`; }
+    };
     content.querySelector("#reportClass").addEventListener("change", load); content.querySelector("#reportTerm").addEventListener("change", load);
   }
-  function openSummaryModal(summary, termId, done) {
-    const modal = openModal(`Report comments — ${summary.first_name} ${summary.last_name}`, `<form id="summaryForm"><div class="dash-form-grid"><div class="dash-field"><label>Teacher Comment</label><textarea name="teacher_comment">${esc(summary.teacher_comment || "")}</textarea></div><div class="dash-field"><label>Head / Administrator Comment</label><textarea name="head_comment">${esc(summary.head_comment || "")}</textarea></div><div class="dash-field"><label>Attendance days</label><input name="attendance_days" type="number" min="0" value="${esc(summary.attendance_days || 0)}"></div><div class="dash-field"><label>Promotion decision</label><select name="promotion_status">${["pending", "promoted", "repeating", "graduated"].map((x) => `<option value="${x}" ${summary.promotion_status === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div><button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save comments</button></form>`);
-    modal.querySelector("#summaryForm").addEventListener("submit", async (e) => { e.preventDefault(); const fd = new FormData(e.target); try { await window.API.put(`/results/summary/${summary.student_id}`, { termId, teacher_comment: fd.get("teacher_comment"), head_comment: fd.get("head_comment"), attendance_days: fd.get("attendance_days"), promotion_status: fd.get("promotion_status") }); toast("Report card comments saved.", "success"); closeModal(); done(); } catch (err) { toast(err.message || "Could not save report comments.", "error"); } });
+  async function openSummaryModal(summary, termId, done) {
+    let categories = [];
+    try { const t = await window.API.get("/results/report-template"); categories = (t.template && t.template.behaviourCategories) || []; } catch (e) { categories = []; }
+    const promoOptions = [["pending", "Pending"], ["promoted", "Promoted"], ["promoted_trial", "Promoted on trial"], ["repeating", "Repeat"], ["graduated", "Graduated"], ["withdrawn", "Withdrawn"], ["completed", "Completed"]];
+    const behaviourFields = categories.length
+      ? `<h3 style="margin:18px 0 8px">Behaviour / conduct (1 = poor … 5 = excellent)</h3><div class="dash-form-grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">${categories.map((c) => `<div class="dash-field"><label for="beh_${esc(c.key)}">${esc(c.label)}${c.labelAr ? ` · <span dir="rtl">${esc(c.labelAr)}</span>` : ""}</label><select id="beh_${esc(c.key)}" name="beh_${esc(c.key)}"><option value="">—</option>${[5, 4, 3, 2, 1].map((n) => `<option value="${n}">${n} — ${["", "Poor", "Fair", "Good", "Very good", "Excellent"][n]}</option>`).join("")}</select></div>`).join("")}</div>`
+      : "";
+    const modal = openModal(`Report comments — ${summary.first_name} ${summary.last_name}`, `<form id="summaryForm"><div class="dash-form-grid"><div class="dash-field"><label for="teacher_comment">Teacher Comment</label><textarea name="teacher_comment" id="teacher_comment">${esc(summary.teacher_comment || "")}</textarea></div><div class="dash-field"><label for="head_comment">Head / Administrator Comment</label><textarea name="head_comment" id="head_comment">${esc(summary.head_comment || "")}</textarea></div><div class="dash-field"><label for="attendance_days">Attendance days</label><input name="attendance_days" id="attendance_days" type="number" min="0" value="${esc(summary.attendance_days || 0)}"></div><div class="dash-field"><label for="promotion_status">Promotion decision</label><select name="promotion_status" id="promotion_status">${promoOptions.map(([v, l]) => `<option value="${v}" ${summary.promotion_status === v ? "selected" : ""}>${l}</option>`).join("")}</select></div></div>${behaviourFields}<button class="dash-btn dash-btn-primary" type="submit" style="margin-top:14px">${I.check} Save comments</button></form>`);
+    // Pre-select saved behaviour ratings when the full sheet data is available.
+    try {
+      const sheet = await window.API.get(`/results/report-sheet/${summary.student_id}/${termId}`);
+      if (sheet && sheet.behaviour && sheet.behaviour.ratings) {
+        for (const [key, value] of Object.entries(sheet.behaviour.ratings)) {
+          const select = modal.querySelector(`#beh_${CSS.escape(key)}`);
+          if (select && value) select.value = String(value);
+        }
+      }
+    } catch (e) { /* ratings stay blank when the sheet cannot be loaded */ }
+    modal.querySelector("#summaryForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const behaviour = {};
+      categories.forEach((c) => { const v = fd.get(`beh_${c.key}`); if (v) behaviour[c.key] = Number(v); });
+      try {
+        await window.API.put(`/results/summary/${summary.student_id}`, {
+          termId, teacher_comment: fd.get("teacher_comment"), head_comment: fd.get("head_comment"),
+          attendance_days: fd.get("attendance_days"), promotion_status: fd.get("promotion_status"),
+          behaviour: categories.length ? behaviour : undefined,
+        });
+        toast("Report card comments saved.", "success"); closeModal(); done();
+      } catch (err) { toast(err.message || "Could not save report comments.", "error"); }
+    });
+  }
+
+  /* ------------------------- report template settings ------------------------ */
+
+  function openReportTemplateModal() {
+    openModal("Report sheet template", `<div class="dash-card-pad" style="padding:0"><p class="hint" style="margin-top:0">Configure how this institution's report sheets look. A professional default is provided — change only what you need. <b>Save</b> applies the template to every future report; <b>Preview</b> shows sample data before saving.</p><div id="reportTemplateForm">${""}</div></div>`);
+    buildReportTemplateForm();
+  }
+
+  async function buildReportTemplateForm() {
+    const holder = document.querySelector("#reportTemplateForm");
+    if (!holder) return;
+    holder.innerHTML = `<p class="hint">${"Loading template…"}</p>`;
+    let template;
+    try { template = (await window.API.get("/results/report-template")).template; }
+    catch (e) { holder.innerHTML = `<p class="dash-error">${esc(e.message || "Could not load the template.")}</p>`; return; }
+    const columnOptions = [["ca", "CA score"], ["exam", "Exam score"], ["total", "Total"], ["pct", "Percentage"], ["grade", "Grade"], ["gradePoint", "Grade point"], ["remark", "Remark"]];
+    const sectionOptions = [["showPosition", "Position / ranking"], ["showAttendance", "Attendance"], ["showBehaviour", "Behaviour / conduct"], ["showComments", "Teacher & head comments"], ["showPromotion", "Promotion status"], ["showClassPerformance", "Class performance (size & averages only)"], ["showStudentDetails", "Student details (gender, DOB…)"], ["showPhoto", "Student photograph"], ["showNextTerm", "Next term dates"], ["showGradeLegend", "Grading scale legend"], ["showReference", "Report reference number"], ["showWatermark", "Watermark"], ["showEdusphereCredit", "\"Powered by EduSphere\" credit"]];
+    holder.innerHTML = `<form id="templateForm">
+      <div class="dash-form-grid">
+        <div class="dash-field"><label for="tpl_layout">Layout</label><select id="tpl_layout" name="layout">${[["classic", "Classic (traditional)"], ["modern", "Modern (clean card)"], ["compact", "Compact (many subjects)"]].map(([v, l]) => `<option value="${v}" ${template.layout === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="dash-field"><label for="tpl_orientation">Orientation</label><select id="tpl_orientation" name="orientation">${[["auto", "Auto (landscape for wide tables)"], ["portrait", "Portrait (A4)"], ["landscape", "Landscape (A4)"]].map(([v, l]) => `<option value="${v}" ${template.orientation === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="dash-field"><label for="tpl_brandColor">Brand colour (hex)</label><input id="tpl_brandColor" name="brandColor" value="${esc(template.brandColor || "")}" placeholder="#14532d"></div>
+        <div class="dash-field"><label for="tpl_caLabel">CA column label</label><input id="tpl_caLabel" name="caLabel" value="${esc(template.caLabel || "CA")}" maxlength="24"></div>
+        <div class="dash-field"><label for="tpl_examLabel">Exam column label</label><input id="tpl_examLabel" name="examLabel" value="${esc(template.examLabel || "Exam")}" maxlength="24"></div>
+        <div class="dash-field"><label for="tpl_watermarkText">Watermark text (when enabled)</label><input id="tpl_watermarkText" name="watermarkText" value="${esc(template.watermarkText || "")}" maxlength="40" placeholder="e.g. COPY"></div>
+      </div>
+      <h4 style="margin:16px 0 6px">Result columns</h4>
+      <div class="dash-form-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${columnOptions.map(([key, label]) => `<label class="dash-checkbox"><input type="checkbox" class="tpl-column" value="${key}" ${template.columns[key] !== false ? "checked" : ""}> ${label}</label>`).join("")}</div>
+      <h4 style="margin:16px 0 6px">Sections</h4>
+      <div class="dash-form-grid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">${sectionOptions.map(([key, label]) => `<label class="dash-checkbox"><input type="checkbox" class="tpl-section" value="${key}" ${template[key] !== false ? "checked" : ""}> ${label}</label>`).join("")}</div>
+      <h4 style="margin:16px 0 6px">Behaviour categories <small>(one per line: Label | Arabic | key — leave blank for defaults)</small></h4>
+      <textarea id="tpl_behaviour" rows="5" style="width:100%">${esc((template.behaviourCategories || []).map((c) => `${c.label}${c.labelAr ? ` | ${c.labelAr}` : ""} | ${c.key}`).join("\n"))}</textarea>
+      <h4 style="margin:16px 0 6px">Signature blocks <small>(one per line: Title | Arabic | Name — max 4)</small></h4>
+      <textarea id="tpl_signatures" rows="3" style="width:100%">${esc((template.signatures || []).map((s) => `${s.title}${s.titleAr ? ` | ${s.titleAr}` : ""}${s.name ? ` | ${s.name}` : ""}`).join("\n"))}</textarea>
+      <div class="dash-actions" style="margin-top:16px">
+        <button class="dash-btn dash-btn-primary" type="submit">${I.check} Save template</button>
+        <button class="dash-btn dash-btn-ghost" type="button" id="tplPreviewBtn">${I.external} Preview with sample data</button>
+      </div>
+    </form>`;
+    const collect = () => {
+      const columns = {}; holder.querySelectorAll(".tpl-column").forEach((c) => { columns[c.value] = c.checked; });
+      const sections = {}; holder.querySelectorAll(".tpl-section").forEach((c) => { sections[c.value] = c.checked; });
+      const parseLines = (text) => String(text || "").split("\n").map((line) => line.trim()).filter(Boolean).map((line) => line.split("|").map((p) => p.trim()));
+      const behaviourCategories = parseLines(holder.querySelector("#tpl_behaviour").value).map(([label, labelAr, key], i) => ({ key: (key || label || "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 40) || `cat${i + 1}`, label: label || "", labelAr: labelAr || "" })).filter((c) => c.label);
+      const signatures = parseLines(holder.querySelector("#tpl_signatures").value).map(([title, titleAr, name]) => ({ title: title || "", titleAr: titleAr || "", name: name || "" })).filter((s) => s.title);
+      const colour = holder.querySelector("#tpl_brandColor").value.trim();
+      return Object.assign({
+        layout: holder.querySelector("#tpl_layout").value,
+        orientation: holder.querySelector("#tpl_orientation").value,
+        brandColor: /^#[0-9a-fA-F]{3,8}$/.test(colour) ? colour : "",
+        caLabel: holder.querySelector("#tpl_caLabel").value.trim() || "CA",
+        examLabel: holder.querySelector("#tpl_examLabel").value.trim() || "Exam",
+        watermarkText: holder.querySelector("#tpl_watermarkText").value.trim(),
+        showWatermark: sections.showWatermark === true,
+        columns, behaviourCategories, signatures,
+      }, Object.fromEntries(Object.entries(sections).map(([k, v]) => [k, v === true])));
+    };
+    holder.querySelector("#tplPreviewBtn").addEventListener("click", () => {
+      const draft = collect();
+      window.open(window.API.reportTemplatePreviewUrl(JSON.stringify(draft)), "_blank", "noopener");
+    });
+    holder.querySelector("#templateForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try { await window.API.put("/results/report-template", collect()); toast("Report template saved.", "success"); closeModal(); }
+      catch (err) { toast(err.message || "Could not save the template.", "error"); }
+    });
   }
 
   async function pageSessionsManager(content, route) {

@@ -18,7 +18,8 @@ const { asyncHandler, err, ok, toNum, cleanStr, validDate } = require("../util")
 const { requireAuth, requireTenant, requireRole } = require("../middleware/auth");
 const { effectiveTenantId } = require("../middleware/tenant");
 const grading = require("../services/grading");
-const { renderReportCard } = require("./results");
+const reportSheet = require("../services/report-sheet");
+const audit = require("../services/audit");
 
 const router = express.Router();
 router.use(requireAuth, requireTenant, requireRole("student", "parent"));
@@ -111,7 +112,7 @@ router.get("/results", asyncHandler(async (req, res) => {
      FROM term_summaries ts
      JOIN terms t ON t.id = ts.term_id
      JOIN academic_sessions a ON a.id = ts.session_id
-     WHERE ts.madrasa_id = ? AND ts.student_id = ?
+     WHERE ts.madrasa_id = ? AND ts.student_id = ? AND ts.published_at IS NOT NULL
      ORDER BY a.id DESC, t.position DESC`,
     [tid, target.id]
   );
@@ -134,10 +135,13 @@ router.get("/results/:termId", asyncHandler(async (req, res) => {
   if (!target) return err(res, 404, { error: "Not found." });
 
   const cfg = await grading.getGradingConfig(tid);
+  // Only results that finished the review workflow reach the portal — drafts
+  // and returned marks never leave the staff workspace.
   const rows = await db.all(
     `SELECT r.*, su.name_en, su.name_ar FROM results r
      JOIN subjects su ON su.id = r.subject_id
      WHERE r.madrasa_id = ? AND r.student_id = ? AND r.term_id = ?
+       AND r.status IN ('approved','published','locked')
      ORDER BY su.name_en`,
     [tid, target.id, termId]
   );
@@ -158,7 +162,10 @@ router.get("/results/:termId", asyncHandler(async (req, res) => {
 
 /**
  * GET /api/portal/report-card?termId=&studentId=  -> printable HTML
- * (studentId required for parents; must be a linked child)
+ * (studentId required for parents; must be a linked child).
+ *
+ * The publication gate is enforced server-side: an unpublished term summary is
+ * never rendered in the portal, whatever the URL says.
  */
 router.get("/report-card", asyncHandler(async (req, res) => {
   const tid = await tenantId(req, res);
@@ -172,9 +179,21 @@ router.get("/report-card", asyncHandler(async (req, res) => {
   else target = byId.get(toNum(req.query.studentId, 0));
   if (!target) return err(res, 404, { error: "Report card not found." });
 
-  const data = await grading.reportCardData(tid, target.id, termId);
+  const summary = await db.get(
+    "SELECT published_at FROM term_summaries WHERE madrasa_id = ? AND student_id = ? AND term_id = ?",
+    [tid, target.id, termId]
+  );
+  if (!summary || !summary.published_at) {
+    return err(res, 403, "This report has not been published yet. Please check again later.");
+  }
+  const data = await reportSheet.buildReportSheet(tid, target.id, termId);
   if (!data) return err(res, 404, { error: "Report card not found. Results may not be computed yet." });
-  res.type("html").send(renderReportCard(data));
+  await audit.record(req, {
+    action: req.user.role === "student" ? "report.portal_view" : "report.parent_view",
+    module: "academic", entity: "report_sheet", entityId: `${target.id}:${termId}`,
+    meta: { student_id: target.id, term_id: termId },
+  });
+  res.type("html").send(reportSheet.renderReportSheetHTML(data, { portal: true }));
 }));
 
 /* ------------------------------ helpers -------------------------------- */

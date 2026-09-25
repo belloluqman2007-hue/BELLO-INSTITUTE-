@@ -159,13 +159,22 @@ test("parent B (other madrasa) cannot view madrasa A's student", async () => {
   assert.equal(r.status, 400);
 });
 
-test("parent A can view report card of a linked child", async () => {
+test("parent A can view report card of a linked child once it is published", async () => {
   // compute first so a summary exists
   await adminA.api("POST", "/api/results/compute", { classId: ctx.classA1, termId: ctx.termA1 });
+  // Before publication the portal must refuse the report, whatever the URL says.
+  const early = await parentA.req("GET", `/api/portal/report-card?termId=${ctx.termA1}&studentId=${ctx.studentA1}`);
+  assert.equal(early.status, 403, "an unpublished report is never rendered in the portal");
+  // Earlier tests in this file left the teacher's Fiqh entries as drafts;
+  // push them through the review workflow before publishing (as the school would).
+  await teacherA.api("POST", "/api/results/workflow", { classId: ctx.classA1, termId: ctx.termA1, subjectId: ctx.subjA1, action: "submit" });
+  await adminA.api("POST", "/api/results/workflow", { classId: ctx.classA1, termId: ctx.termA1, subjectId: ctx.subjA1, action: "approve" });
+  const pub = await adminA.api("PUT", "/api/results/summaries/publish", { classId: ctx.classA1, termId: ctx.termA1 });
+  assert.equal(pub.status, 200, JSON.stringify(pub.data));
   const r = await parentA.req("GET", `/api/portal/report-card?termId=${ctx.termA1}&studentId=${ctx.studentA1}`);
   assert.equal(r.status, 200);
   const html = await r.res.text();
-  assert.match(html, /REPORT CARD|بطاقة النتائج/);
+  assert.match(html, /REPORT SHEET|Report Sheet|بطاقة النتائج|التقرير الفصلي/i);
 });
 
 /* ------------------------- student scoping ------------------------------- */

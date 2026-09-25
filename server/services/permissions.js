@@ -64,6 +64,7 @@ const CATALOGUE = [
     ["results.publish", "Publish and lock results"],
     ["report_cards.view", "View report cards"],
     ["report_cards.generate", "Generate report cards"],
+    ["report_cards.templates", "Configure the report sheet template"],
   ] },
   { key: "finance", label: "Finance", permissions: [
     ["fees.view", "View fee structures"],

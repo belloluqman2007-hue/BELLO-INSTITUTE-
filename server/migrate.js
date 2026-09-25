@@ -2604,6 +2604,50 @@ const MIGRATIONS = [
       await idx("CREATE INDEX idx_exam_answers_tenant ON exam_answers (madrasa_id, attempt_id)");
     },
   },
+
+  /* ------------------------------------------------------------------ */
+  {
+    // Report sheet / report card completion pass.
+    //
+    // The report system already runs on results + term_summaries + grading_config;
+    // this migration only adds what the printable sheet itself needed:
+    //
+    //   1. term_summaries.behaviour_ratings — per-student conduct ratings for
+    //      the term (JSON keyed by the institution's configured categories).
+    //      Stored on the existing one-row-per-student-per-term record rather
+    //      than in a new table, so compute/publish flows keep working.
+    //   2. term_summaries.report_reference — the human-facing reference number
+    //      printed on the sheet (e.g. EDU-2026/2027-JSS1-TTA0001). Deterministic
+    //      and backfilled lazily, never exposing raw database ids.
+    //
+    // The report TEMPLATE (layout, columns, section visibility, behaviour
+    // categories, signature blocks, watermark…) is deliberately NOT a new
+    // table: it lives in the existing per-institution `settings` store under
+    // the key `report_template`, exactly like the admissions settings — one
+    // configuration system, no duplicate settings module.
+    id: "038_report_sheet_system",
+    up: async (api, dialect) => {
+      const columnExists = async (table, name) => {
+        if (dialect === "sqlite") {
+          const rows = await api.all(`PRAGMA table_info(${table})`);
+          return rows.some((row) => String(row.name).toLowerCase() === String(name).toLowerCase());
+        }
+        return (await api.all(`SHOW COLUMNS FROM ${table} LIKE ?`, [name])).length > 0;
+      };
+      const addColumn = async (table, name, type) => {
+        if (!await columnExists(table, name)) await api.run(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+      };
+      await addColumn("term_summaries", "behaviour_ratings", "TEXT");
+      await addColumn("term_summaries", "report_reference", "VARCHAR(80) NOT NULL DEFAULT ''");
+      // Lookups used by the bulk sheet builder (class roster + summaries).
+      const idx = async (sql) => {
+        try { await api.run(sql); }
+        catch (e) { if (!/duplicate|already exists/i.test(e.message || "")) throw e; }
+      };
+      await idx("CREATE INDEX idx_term_summaries_class_term ON term_summaries (madrasa_id, class_id, term_id, position)");
+      await idx("CREATE INDEX idx_results_class_term ON results (madrasa_id, class_id, term_id, status)");
+    },
+  },
 ];
 
 async function migrate(options = {}) {

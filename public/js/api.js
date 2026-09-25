@@ -120,6 +120,9 @@
     },
     logout: () => request("POST", "/auth/logout", {}),
     reportCardUrl: (studentId, termId) => `${BASE}/results/report-card/${studentId}/${termId}`,
+    bulkReportSheetsUrl: (classId, termId) => `${BASE}/results/report-cards/bulk?classId=${classId}&termId=${termId}`,
+    reportTemplatePreviewUrl: (templateJson) =>
+      `${BASE}/results/report-template/preview${templateJson ? `?template=${encodeURIComponent(templateJson)}` : ""}`,
     portalReportUrl: (termId, studentId) =>
       studentId ? `${BASE}/portal/report-card?termId=${termId}&studentId=${studentId}`
                 : `${BASE}/portal/report-card?termId=${termId}`,

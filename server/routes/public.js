@@ -28,9 +28,8 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const db = require("../db");
 const { asyncHandler, err, ok, cleanStr, validDate, validPhone, validEmail, logActivity } = require("../util");
-const grading = require("../services/grading");
 const tokens = require("../services/tokens");
-const { renderReportCard } = require("./results");
+const reportSheet = require("../services/report-sheet");
 const { publicLimiter, publicWriteLimiter, verifyLimiter } = require("../middleware/ratelimit");
 const institution = require("../services/institution");
 const myInstitution = require("../services/my-institution");
@@ -539,14 +538,12 @@ router.get("/results/report/:token", publicLimiter, asyncHandler(async (req, res
   if (!payload) return err(res, 403, "This link has expired. Please verify again.");
   const m = await db.get("SELECT id, status, public_results FROM madaris WHERE id = ?", [payload.m]);
   if (!m || m.status !== "active" || Number(m.public_results) !== 1) return err(res, 404, "Not available.");
-  const data = await grading.reportCardData(payload.m, payload.s, payload.t);
+  const data = await reportSheet.buildReportSheet(payload.m, payload.s, payload.t);
   if (!data) return err(res, 404, "Report card not found.");
   // Only published summaries may be printed publicly.
   const summary = await db.get("SELECT published_at FROM term_summaries WHERE madrasa_id = ? AND student_id = ? AND term_id = ?", [payload.m, payload.s, payload.t]);
   if (!summary || !summary.published_at) return err(res, 403, "This result is not published yet.");
-  const html = renderReportCard(data).replace("</body>",
-    '<div style="text-align:center;font-size:11px;color:#6b7280;padding:6px 0">Published online copy — verified ' + new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC</div></body>");
-  res.type("html").send(html);
+  res.type("html").send(reportSheet.renderReportSheetHTML(data, { publicCopy: true }));
 }));
 
 /* ------------------------------ applications --------------------------- */

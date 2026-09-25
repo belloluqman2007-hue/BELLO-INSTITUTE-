@@ -20,6 +20,7 @@ const { fileUploader } = require("../middleware/upload");
 const communication = require("../services/communication");
 const { requirePermission, requireStaffPermission, can } = require("../services/permissions");
 const audit = require("../services/audit");
+const reportSheet = require("../services/report-sheet");
 
 /* ----------------------------- result lifecycle -------------------------
    DRAFT → SUBMITTED → UNDER REVIEW → RETURNED | APPROVED → PUBLISHED → LOCKED
@@ -45,6 +46,18 @@ const resultImport = fileUploader("imports", "file", { dir: path.join(config.DAT
 
 const router = express.Router();
 router.use(requireAuth, requireTenant);
+// The results workspace is STAFF-ONLY. requireStaffPermission (used per route
+// below) deliberately lets student/parent roles through because some routers
+// are shared with the portals — on its own that let an authenticated student
+// read a classmate's report data through these staff endpoints (IDOR). The
+// portals have their own /api/portal/* endpoints with record-level guards,
+// so student/parent requests are refused here outright.
+router.use((req, res, next) => {
+  if (!["madrasa_admin", "teacher", "super_admin"].includes(req.user.role)) {
+    return res.status(403).json({ error: "Permission denied." });
+  }
+  next();
+});
 
 function parseCsv(text) {
   const rows = []; let row = []; let cell = ""; let quoted = false;
@@ -426,8 +439,21 @@ router.put("/summary/:studentId", requireStaffPermission("results.edit"), asyncH
   if (b.teacher_comment !== undefined) { sets.push("teacher_comment = ?"); vals.push(String(b.teacher_comment).slice(0, 2000)); }
   if (b.head_comment !== undefined) { sets.push("head_comment = ?"); vals.push(String(b.head_comment).slice(0, 2000)); }
   if (b.attendance_days !== undefined) { sets.push("attendance_days = ?"); vals.push(clampNum(b.attendance_days, 0, 365, 0)); }
-  if (b.promotion_status !== undefined && ["promoted", "repeating", "graduated", "pending"].includes(b.promotion_status)) {
+  // The four lifecycle statuses the engine computes stay primary; the extra
+  // values below are manual decisions an administrator may record on the
+  // existing summary row (no second promotion system is created).
+  if (b.promotion_status !== undefined && ["promoted", "repeating", "graduated", "pending", "promoted_trial", "withdrawn", "completed"].includes(b.promotion_status)) {
     sets.push("promotion_status = ?"); vals.push(b.promotion_status);
+  }
+  if (b.behaviour !== undefined && b.behaviour !== null && typeof b.behaviour === "object") {
+    // Only the institution's configured categories, rated 1–5, are stored.
+    const template = await reportSheet.getReportTemplate(tid);
+    const ratings = {};
+    for (const cat of template.behaviourCategories) {
+      const v = Number(b.behaviour[cat.key]);
+      if (Number.isInteger(v) && v >= 1 && v <= 5) ratings[cat.key] = v;
+    }
+    sets.push("behaviour_ratings = ?"); vals.push(JSON.stringify(ratings));
   }
   if (b.publish !== undefined) {
     if (!(await can(req, "results.publish"))) return err(res, 403, "You do not have permission to publish report cards.", { requiredPermission: "results.publish" });
@@ -530,8 +556,75 @@ router.get("/report-card-data/:studentId/:termId", requireStaffPermission("repor
   ok(res, data);
 }));
 
+/**
+ * Authorises a staff request for one student's report sheet: the student must
+ * belong to the caller's tenant, and a teacher must be assigned to the
+ * student's class. Returns the student row (for id/class context) or null
+ * after sending the error.
+ */
+async function guardStudentSheet(req, res, tid, studentId) {
+  const student = await db.get(
+    "SELECT id, class_id, first_name, last_name FROM students WHERE id = ? AND madrasa_id = ?",
+    [studentId, tid]
+  );
+  if (!student) { res.status(404).json({ error: "Report sheet not found." }); return null; }
+  if (req.user.role === "teacher") {
+    const scope = await getTeacherAssignments(tid, req.user.id);
+    if (!scope.anyClassAnySubject && !scope.assignedClassIds.has(Number(student.class_id || 0))) {
+      res.status(404).json({ error: "Not found." });
+      return null;
+    }
+  }
+  return student;
+}
+
+/**
+ * GET /results/report-sheet/:studentId/:termId — the complete printable
+ * dataset (subjects, totals, attendance, behaviour, class performance,
+ * completeness and workflow status) for the admin preview screen.
+ */
+router.get("/report-sheet/:studentId/:termId", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const studentId = toNum(req.params.studentId, 0);
+  const termId = toNum(req.params.termId, 0);
+  if (!await guardStudentSheet(req, res, tid, studentId)) return;
+  const data = await reportSheet.buildReportSheet(tid, studentId, termId);
+  if (!data) return err(res, 404, "Report sheet not found.");
+  await audit.record(req, { action: "report.view_data", module: "academic", entity: "report_sheet", entityId: `${studentId}:${termId}`, meta: { student_id: studentId, term_id: termId } });
+  ok(res, data);
+}));
+
+/** Completeness report for a whole class/term: missing + unapproved results. */
+router.get("/report-completeness", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const classId = toNum(req.query.classId, 0);
+  const termId = toNum(req.query.termId, 0);
+  if (!classId || !termId) return err(res, 400, "classId and termId are required.");
+  const cls = await db.get("SELECT id FROM classes WHERE id = ? AND madrasa_id = ?", [classId, tid]);
+  if (!cls) return err(res, 404, "Class not found.");
+  const term = await db.get("SELECT id FROM terms WHERE id = ? AND madrasa_id = ?", [termId, tid]);
+  if (!term) return err(res, 404, "Term not found.");
+  if (req.user.role === "teacher") {
+    const scope = await getTeacherAssignments(tid, req.user.id);
+    if (!scope.anyClassAnySubject && !scope.assignedClassIds.has(classId)) return err(res, 404, "Class not found.");
+  }
+  const check = await reportSheet.classCompleteness(tid, classId, termId);
+  const students = [];
+  for (const [studentId, entry] of check.byStudent) {
+    students.push({ studentId, missing: entry.missing, pending: entry.pending, complete: entry.complete });
+  }
+  ok(res, {
+    subjects: check.subjects,
+    studentCount: check.studentCount,
+    complete: students.length > 0 && students.every((s) => s.complete),
+    students,
+  });
+}));
+
 /** A single printable document containing every eligible report card. */
-router.get("/report-cards/bulk", requireStaffPermission("report_cards.generate"), asyncHandler(async (req, res) => {
+async function bulkReportCardsHandler(req, res) {
   const tid = await tenantId(req, res); if (tid == null) return;
   const classId = toNum(req.query.classId, 0); const termId = toNum(req.query.termId, 0);
   if (!classId || !termId) return err(res, 400, "classId and termId are required.");
@@ -540,162 +633,82 @@ router.get("/report-cards/bulk", requireStaffPermission("report_cards.generate")
     const scope = await getTeacherAssignments(tid, req.user.id);
     if (!scope.anyClassAnySubject && !scope.assignedClassIds.has(classId)) return err(res, 404, "Class not found.");
   }
-  const summaries = await db.all("SELECT student_id,published_at FROM term_summaries WHERE madrasa_id=? AND class_id=? AND term_id=? ORDER BY position,student_id", [tid, classId, termId]);
-  const cards = [];
-  for (const summary of summaries) {
-    const data = await grading.reportCardData(tid, summary.student_id, termId);
-    if (data && data.subjects.length) cards.push(data);
-  }
-  if (!cards.length) return err(res, 404, "No approved results are available for report cards.");
-  res.type("html").send(renderBulkReportCards(cards));
-}));
+  const sheets = await reportSheet.buildClassReportSheets(tid, classId, termId);
+  if (!sheets || !sheets.length) return err(res, 404, "No approved results are available for report cards.");
+  await audit.record(req, { action: "report.bulk_generate", module: "academic", entity: "report_sheet", entityId: `${classId}:${termId}`, after: { count: sheets.length }, meta: { class_id: classId, term_id: termId, count: sheets.length } });
+  res.type("html").send(reportSheet.renderBulkReportSheets(sheets));
+}
+
+const bulkHandler = requireStaffPermission("report_cards.generate");
+router.get("/report-cards/bulk", bulkHandler, asyncHandler(bulkReportCardsHandler));
+/** Alias so the batch path reads the way the UI talks about it. */
+router.get("/report-sheets/bulk", bulkHandler, asyncHandler(bulkReportCardsHandler));
 
 /** Printable report card HTML (standalone document; print to PDF in browser). */
 router.get("/report-card/:studentId/:termId", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
-  const data = await loadReportData(req, res, toNum(req.params.studentId, 0), toNum(req.params.termId, 0));
-  if (!data) return;
-  res.type("html").send(renderReportCard(data));
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const studentId = toNum(req.params.studentId, 0);
+  const termId = toNum(req.params.termId, 0);
+  if (!await guardStudentSheet(req, res, tid, studentId)) return;
+  const sheet = await reportSheet.buildReportSheet(tid, studentId, termId);
+  if (!sheet) return err(res, 404, "Report sheet not found.");
+  await audit.record(req, { action: "report.print", module: "academic", entity: "report_sheet", entityId: `${studentId}:${termId}`, meta: { student_id: studentId, term_id: termId } });
+  res.type("html").send(reportSheet.renderReportSheetHTML(sheet));
 }));
 
-function esc(s) {
-  return String(s === null || s === undefined ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+/* -------------------------- report template ---------------------------- */
 
+/** The institution's report sheet configuration (layout, sections, branding). */
+router.get("/report-template", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const template = await reportSheet.getReportTemplate(tid);
+  ok(res, { template, defaults: reportSheet.DEFAULT_TEMPLATE });
+}));
+
+/**
+ * PUT /results/report-template — save the configuration. Admins (and any user
+ * granted report_cards.templates) may change it; the change is audited.
+ */
+router.put("/report-template", requireStaffPermission("report_cards.templates"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const before = await reportSheet.getReportTemplate(tid);
+  const template = await reportSheet.saveReportTemplate(tid, req.body || {});
+  await audit.record(req, {
+    action: "report.template", module: "academic", entity: "report_template", entityId: String(tid),
+    before: { layout: before.layout, orientation: before.orientation },
+    after: { layout: template.layout, orientation: template.orientation },
+  });
+  ok(res, { ok: true, template });
+}));
+
+/** Template preview with clearly-marked sample data (never a real student). */
+router.get("/report-template/preview", requireStaffPermission("report_cards.view"), asyncHandler(async (req, res) => {
+  const tid = await tenantId(req, res);
+  if (tid == null) return;
+  const stored = await reportSheet.getReportTemplate(tid);
+  const incoming = req.query.template ? reportSheet.normaliseTemplate(String(req.query.template)) : stored;
+  const cfg = await grading.getGradingConfig(tid);
+  const sample = reportSheet.sampleReportSheet(incoming, cfg);
+  res.type("html").send(reportSheet.renderReportSheetHTML(sample)
+    .replace("<body>", '<body data-sample-preview="1">')
+    .replace('class="doc-title"', 'class="doc-title" title="Sample preview"'));
+}));
+
+/*
+   Back-compat delegates: the printable document is produced by the single
+   report engine in services/report-sheet.js (which wraps the grading
+   service's calculations). These aliases keep the historical exports of this
+   module working for any caller that imported them directly.
+*/
 function renderReportCard(d) {
-  const ar = String(d.student.nameAr || "");
-  const useArabicNames = ar.length > 0;
-  const rows = d.subjects.map((s) => {
-    const name = useArabicNames ? (s.nameAr || s.nameEn) : (s.nameEn || s.nameAr);
-    const remark = useArabicNames ? (s.remarkAr || s.remark) : (s.remark || s.remarkAr);
-    return `<tr>
-      <td class="subj">${esc(name)}</td>
-      <td>${esc(s.ca)}</td>
-      <td>${esc(s.exam)}</td>
-      <td>${esc(s.total)}</td>
-      <td>${esc(s.pct)}%</td>
-      <td class="grade">${esc(s.grade)}</td>
-      <td>${esc(s.gradePoint)}</td>
-      <td>${esc(remark)}</td>
-    </tr>`;
-  }).join("");
-  const sum = d.summary;
-  const positionText = sum.position ? `Position: ${sum.position}${sum.position === 1 ? "st" : sum.position === 2 ? "nd" : sum.position === 3 ? "rd" : "th"}` : "Position: —";
-  const promoText = { promoted: "Promoted", repeating: "Repeating", graduated: "Graduated", pending: "Pending" }[sum.promotionStatus] || sum.promotionStatus;
-
-  return `<!DOCTYPE html>
-<html lang="${useArabicNames ? "ar" : "en"}" dir="${useArabicNames ? "rtl" : "ltr"}">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Report Card — ${esc(d.student.name)}</title>
-<style>
-  @page { size: A4; margin: 10mm; }
-  * { box-sizing: border-box; }
-  body { font-family: "Segoe UI", Tahoma, Arial, sans-serif; color: #1a2b1f; margin: 0; padding: 16px; background: #fff; }
-  .card { max-width: 900px; margin: 0 auto; border: 2px solid #14532d; border-radius: 10px; overflow: hidden; }
-  .head { display: flex; align-items: center; gap: 16px; padding: 14px 18px; background: #f0f7f1; border-bottom: 2px solid #14532d; }
-  .head img.logo { width: 74px; height: 74px; object-fit: contain; border-radius: 6px; }
-  .head .m1 { font-size: 20px; font-weight: 700; color: #14532d; }
-  .head .m2 { font-size: 14px; color: #374151; }
-  .head .m3 { font-size: 12px; color: #6b7280; }
-  .title { text-align: center; padding: 10px; font-size: 16px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
-  table.info { width: 100%; border-collapse: collapse; margin: 8px 18px; font-size: 13px; }
-  table.info td { padding: 4px 8px; border: 1px solid #d1d5db; }
-  table.info td.k { width: 22%; font-weight: 600; background: #f9fafb; }
-  .photo { float: right; width: 92px; height: 112px; object-fit: cover; border: 1px solid #9ca3af; margin: 4px 18px 0 0; border-radius: 6px; }
-  table.res { width: calc(100% - 36px); margin: 10px 18px; border-collapse: collapse; font-size: 13px; clear: both; }
-  table.res th, table.res td { border: 1px solid #9ca3af; padding: 5px 8px; text-align: center; }
-  table.res th { background: #14532d; color: #fff; font-size: 12px; }
-  table.res td.subj { text-align: start; font-weight: 600; }
-  table.res td.grade { font-weight: 700; }
-  .totals { display: flex; gap: 10px; padding: 8px 18px; font-size: 13px; flex-wrap: wrap; }
-  .totals div { border: 1px solid #9ca3af; padding: 6px 10px; border-radius: 6px; background: #f9fafb; }
-  .comments { margin: 8px 18px; font-size: 13px; }
-  .comments .row { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #d1d5db; }
-  .comments .k { width: 160px; font-weight: 700; }
-  .sign { display: flex; justify-content: space-between; padding: 26px 18px 10px; font-size: 13px; }
-  .sign .box { width: 40%; text-align: center; border-top: 1px solid #374151; padding-top: 4px; }
-  .foot { text-align: center; font-size: 11px; color: #6b7280; padding: 8px 0 4px; }
-  @media print { body { padding: 0; } .noprint { display: none; } }
-  .noprint { padding: 8px; text-align: center; }
-  .noprint button { background: #14532d; color: #fff; border: 0; padding: 10px 22px; border-radius: 8px; font-size: 14px; cursor: pointer; }
-</style>
-</head>
-<body>
-  <div class="noprint"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
-  <div class="card">
-    <div class="head">
-      ${d.madrasa.logoPath ? `<img class="logo" src="${esc(d.madrasa.logoPath)}" alt="logo">` : ""}
-      <div>
-        <div class="m1">${esc(useArabicNames ? d.madrasa.nameAr : d.madrasa.nameEn)}</div>
-        <div class="m2">${esc(useArabicNames ? d.madrasa.mottoAr : d.madrasa.mottoEn)}</div>
-        <div class="m3">${esc(d.madrasa.address)}${d.madrasa.city ? ", " + esc(d.madrasa.city) : ""}${d.madrasa.stateName ? ", " + esc(d.madrasa.stateName) : ""}${d.madrasa.phone ? " • " + esc(d.madrasa.phone) : ""}</div>
-      </div>
-    </div>
-    <div class="title">${esc(useArabicNames ? "بطاقة النتائج" : "TERM REPORT CARD")}</div>
-    ${d.student.photoPath ? `<img class="photo" src="${esc(d.student.photoPath)}" alt="">` : ""}
-    <table class="info">
-      <tr>
-        <td class="k">${esc(useArabicNames ? "الطالب" : "Student")}</td><td>${esc(useArabicNames ? d.student.nameAr || d.student.name : d.student.name)}</td>
-        <td class="k">${esc(useArabicNames ? "رقم التسجيل" : "Admission No.")}</td><td>${esc(d.student.admissionNo)}</td>
-      </tr>
-      <tr>
-        <td class="k">${esc(useArabicNames ? "الفصل" : "Class")}</td><td>${esc(useArabicNames ? d.student.classAr || d.student.classEn : d.student.classEn || d.student.classAr)}</td>
-        <td class="k">${esc(useArabicNames ? "الفترة" : "Term")}</td><td>${esc(useArabicNames ? d.term.nameAr : d.term.nameEn)}</td>
-      </tr>
-      <tr>
-        <td class="k">${esc(useArabicNames ? "الأكاديمية" : "Session")}</td><td>${esc(d.session)}</td>
-        <td class="k">${esc(useArabicNames ? "الحضور" : "Attendance")}</td><td>${esc(sum.attendanceDays)} attended / ${esc(sum.attendanceTotal)} recorded (${esc(sum.attendancePercentage)}%)</td>
-      </tr>
-    </table>
-    <table class="res">
-      <thead>
-        <tr>
-          <th>${esc(useArabicNames ? "المادة" : "Subject")}</th>
-          <th>CA (${esc(d.config.caMax)})</th>
-          <th>Exam (${esc(d.config.examMax)})</th>
-          <th>${esc(useArabicNames ? "المجموع" : "Total")}</th>
-          <th>%</th>
-          <th>${esc(useArabicNames ? "الدرجة" : "Grade")}</th>
-          <th>${esc(useArabicNames ? "النقاط" : "Point")}</th>
-          <th>${esc(useArabicNames ? "ملاحظة" : "Remark")}</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="totals">
-      <div><b>Total:</b> ${esc(sum.total)}</div>
-      <div><b>Average:</b> ${esc(sum.average)}%</div>
-      <div><b>Overall Grade:</b> ${esc(sum.overallGrade)}</div>
-      <div><b>${esc(useArabicNames ? "المركز" : "Position")}:</b> ${esc(positionText)}</div>
-      <div><b>${esc(useArabicNames ? "الترقية" : "Promotion")}</b>: ${esc(promoText)}</div>
-    </div>
-    <div class="comments">
-      <div class="row"><div class="k">${esc(useArabicNames ? "تعليق المعلم" : "Teacher Comment")}</div><div>${esc(sum.teacherComment) || "—"}</div></div>
-      <div class="row"><div class="k">${esc(useArabicNames ? "تعليق الإدارة" : "Head/Admin Comment")}</div><div>${esc(sum.headComment) || "—"}</div></div>
-    </div>
-    <div class="sign">
-      <div class="box">Class Teacher<br>معلم الفصل</div>
-      <div class="box">Head of Madrasa<br>مدير المدرسة</div>
-    </div>
-    <div class="foot">Generated by Multi-Madrasa Platform • ${esc(d.session)} — ${esc(d.term.nameEn)}</div>
-  </div>
-</body>
-</html>`;
+  return reportSheet.renderReportSheetHTML(d);
 }
 
 function renderBulkReportCards(cards) {
-  const documents = cards.map(renderReportCard);
-  const style = (documents[0].match(/<style>[\s\S]*?<\/style>/) || ["<style></style>"])[0]
-    .replace("</style>", ".bulk-page{break-after:page;page-break-after:always}.bulk-page:last-child{break-after:auto;page-break-after:auto}</style>");
-  const bodies = documents.map((doc) => {
-    const start = doc.indexOf('<div class="card">');
-    const end = doc.lastIndexOf("</body>");
-    return `<section class="bulk-page">${doc.slice(start, end)}</section>`;
-  }).join("");
-  return `<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bulk report cards</title>${style}</head><body><div class="noprint"><button onclick="window.print()">Print / Save all as PDF</button></div>${bodies}</body></html>`;
+  return reportSheet.renderBulkReportSheets(cards);
 }
 
 module.exports = { router, renderReportCard, renderBulkReportCards };

@@ -119,7 +119,7 @@ test("publishing a class exposes summaries and expiring report-card links", asyn
   const card = await anon().req("GET", "/api/public/results/report/" + encodeURIComponent(term.token));
   assert.equal(card.status, 200);
   const html = await card.res.text();
-  assert.match(html, /<title>Report Card/);
+  assert.match(html, /<title>Report Sheet|<title>بطاقة النتائج|<title>Report Card/);
   assert.match(html, /Alpha One/);
 
   // Retracting a published term hides it again, tokens and all.
